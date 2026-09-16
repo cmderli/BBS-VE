@@ -108,13 +108,13 @@ import mchorse.bbs_mod.utils.resources.PlayerSkins;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.BlockEntityRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.InvalidateRenderStateCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.data.GameRegistries;
@@ -123,14 +123,16 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.core.HolderLookup;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import net.minecraft.client.Camera;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.renderer.special.SpecialModelRenderer;
 import net.minecraft.client.renderer.special.SpecialModelRenderers;
+import com.mojang.serialization.MapCodec;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -177,7 +179,7 @@ public class BBSModClient implements ClientModInitializer
 
     /* NOTE(1.21.11 port): KeyBinding categories are now registered objects (KeyBinding.Category.create);
      * create once and reuse, otherwise re-registering the same id throws "already registered". */
-    private static final KeyMapping.Category KEY_CATEGORY = KeyMapping.Category.create(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "main"));
+    private static final KeyMapping.Category KEY_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "main"));
 
     private static UIDashboard dashboard;
 
@@ -456,7 +458,7 @@ public class BBSModClient implements ClientModInitializer
 
         LocalPlayer player = Minecraft.getInstance().player;
 
-        if (player == null || Minecraft.getInstance().screen != null)
+        if (player == null || Minecraft.getInstance().gui.screen() != null)
         {
             return;
         }
@@ -551,7 +553,7 @@ public class BBSModClient implements ClientModInitializer
             }
 
             @Override
-            public void reload(ResourceManager manager)
+            public void onResourceManagerReload(ResourceManager manager)
             {
                 reloadFromResourcePacks();
             }
@@ -638,9 +640,9 @@ public class BBSModClient implements ClientModInitializer
         {
             Minecraft mc = Minecraft.getInstance();
 
-            if (mc.screen instanceof UIScreen)
+            if (mc.gui.screen() instanceof UIScreen)
             {
-                mc.onResolutionChanged();
+                mc.resizeGui();
             }
         });
         BBSSettings.editorSeconds.postCallback((v, f) ->
@@ -760,9 +762,14 @@ public class BBSModClient implements ClientModInitializer
 
         StructureWand.register();
 
-        WorldRenderEvents.BEFORE_ENTITIES.register((context) -> BBSRendering.beginEntityPass());
+        /* 26.2: WorldRenderEvents is gone; the world hooks live in LevelRenderEvents. The entity
+         * pass opened and closed below now spans the draw of the solid features: COLLECT_SUBMITS
+         * fires on the way out of the feature submission — the last hook before vanilla draws them,
+         * which is where BEFORE_ENTITIES used to sit — and AFTER_SOLID_FEATURES right after that
+         * draw, the old AFTER_ENTITIES. */
+        LevelRenderEvents.COLLECT_SUBMITS.register((context) -> BBSRendering.beginEntityPass());
 
-        WorldRenderEvents.AFTER_ENTITIES.register((context) ->
+        LevelRenderEvents.AFTER_SOLID_FEATURES.register((context) ->
         {
             StructureWand.renderWorld(context);
 
@@ -805,8 +812,8 @@ public class BBSModClient implements ClientModInitializer
                      * Matrix note (1.21.11): the context stack is identity and the view rotation lives in the
                      * global RenderSystem modelview, so the camera rotation is composed ONTO the stack to
                      * cancel it (the BaseFilmController "relative" idiom) — the quad stays screen-fixed. */
-                    PoseStack stack = context.matrices();
-                    Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+                    PoseStack stack = context.poseStack();
+                    Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
                     Integer fromCurve = BBSRendering.getChromaSkyColorArgb();
                     Color color = Colors.COLOR.set(fromCurve != null ? fromCurve : BBSSettings.chromaSkyColor.get());
 
@@ -815,7 +822,10 @@ public class BBSModClient implements ClientModInitializer
                     stack.last().normal().rotate(camera.rotation());
                     stack.translate(0F, 0F, -d);
 
-                    BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+                    /* 26.2 has no Tesselator to hand out its growable buffer: the quad gets its own
+                     * staging buffer, released once Draw flushed the finished mesh. */
+                    ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+                    BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
                     float fov = Minecraft.getInstance().options.fov().get();
                     float dd = d * (float) Math.pow(fov / 40F, 2F);
@@ -829,6 +839,7 @@ public class BBSModClient implements ClientModInitializer
                     );
 
                     Draw.flushTriangles(builder);
+                    allocator.close();
 
                     stack.popPose();
                 }
@@ -847,7 +858,7 @@ public class BBSModClient implements ClientModInitializer
          * the client - hand it the lookup. */
         ItemUsePose.setSource(ThirdPersonItemUse::get);
 
-        WorldRenderEvents.END_MAIN.register((context) ->
+        LevelRenderEvents.END_MAIN.register((context) ->
         {
             if (videoRecorder.isRecording() && BBSRendering.canRender)
             {
@@ -893,7 +904,7 @@ public class BBSModClient implements ClientModInitializer
             getFormCategories().getUserForms().flush();
         });
 
-        ClientTickEvents.END_WORLD_TICK.register((client) ->
+        ClientTickEvents.END_LEVEL_TICK.register((client) ->
         {
             Minecraft mc = Minecraft.getInstance();
 
@@ -909,7 +920,7 @@ public class BBSModClient implements ClientModInitializer
         {
             Minecraft mc = Minecraft.getInstance();
 
-            if (mc.screen instanceof UIScreen screen)
+            if (mc.gui.screen() instanceof UIScreen screen)
             {
                 screen.update();
             }
@@ -926,7 +937,7 @@ public class BBSModClient implements ClientModInitializer
             /* Animated textures keep going in BBS's own screens even while the game is paused
              * under them — the texture manager pauses it, the film editor doesn't, and a preview
              * should play in both. With no BBS screen the clock stops with the world, as vanilla's does. */
-            if (!mc.isPaused() || mc.screen instanceof UIScreen)
+            if (!mc.isPaused() || mc.gui.screen() instanceof UIScreen)
             {
                 textures.update();
             }
@@ -973,9 +984,13 @@ public class BBSModClient implements ClientModInitializer
         /* Baked structures hold sprite UVs — stale after resource reload (pack switch, F3+A) */
         InvalidateRenderStateCallback.EVENT.register(BakedStructure::invalidateAll);
 
-        HudRenderCallback.EVENT.register((drawContext, tickDelta) ->
+        /* 26.2: HudRenderCallback is gone — a HUD element is registered by identifier instead.
+         * addLast is the one placement that carries no render condition, which is what the old
+         * callback was: it drew through F1 as well (StructureWand#renderHud checks the hidden flag
+         * itself, and the film overlays are operator UI that has to stay visible while recording). */
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "hud"), (drawContext, tickDelta) ->
         {
-            BBSRendering.renderHud(drawContext, tickDelta.getTickProgress(false));
+            BBSRendering.renderHud(drawContext, tickDelta.getGameTimeDeltaPartialTick(false));
 
             if (gunZoom != null)
             {
@@ -1045,9 +1060,14 @@ public class BBSModClient implements ClientModInitializer
         /* 1.21.11 item models: gun and model-block items render their BBS Form through a
          * SpecialModelRenderer. The queue defers every draw, so the renderer captures the
          * form's immediate pipeline (FormRenderCapture, hooked into RenderLayer#draw) and
-         * replays it into queue commands — one mechanism for hand, ground and GUI. */
-        SpecialModelRenderers.ID_MAPPER.put(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "gun"), GunSpecialRenderer.Unbaked.CODEC);
-        SpecialModelRenderers.ID_MAPPER.put(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "model_block"), ModelBlockSpecialRenderer.Unbaked.CODEC);
+         * replays it into queue commands — one mechanism for hand, ground and GUI.
+         *
+         * 26.2 made SpecialModelRenderer.Unbaked generic (Unbaked<T>) while both renderers still
+         * implement it raw, so their MapCodec<...Unbaked> does not line up with the mapper's
+         * MapCodec<? extends ...Unbaked<?>> and the unchecked cast below is what bridges the two.
+         * Parameterizing the two Unbaked classes is the real fix (they live outside this file). */
+        SpecialModelRenderers.ID_MAPPER.put(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "gun"), (MapCodec<? extends SpecialModelRenderer.Unbaked<?>>) (MapCodec<?>) GunSpecialRenderer.Unbaked.CODEC);
+        SpecialModelRenderers.ID_MAPPER.put(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "model_block"), (MapCodec<? extends SpecialModelRenderer.Unbaked<?>>) (MapCodec<?>) ModelBlockSpecialRenderer.Unbaked.CODEC);
 
         /* Create folders */
         BBSMod.getAudioFolder().mkdirs();
@@ -1080,7 +1100,7 @@ public class BBSModClient implements ClientModInitializer
 
     private KeyMapping createKey(String id, int key)
     {
-        return KeyBindingHelper.registerKeyBinding(new KeyMapping(
+        return KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key." + BBSMod.MOD_ID + "." + id,
             InputConstants.Type.KEYSYM,
             key,
@@ -1090,7 +1110,7 @@ public class BBSModClient implements ClientModInitializer
 
     private KeyMapping createKeyMouse(String id, int button)
     {
-        return KeyBindingHelper.registerKeyBinding(new KeyMapping(
+        return KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key." + BBSMod.MOD_ID + "." + id,
             InputConstants.Type.MOUSE,
             button,

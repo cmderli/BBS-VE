@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.cubic.render.vanilla;
 
 import mchorse.bbs_mod.cubic.model.ArmorType;
+import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.renderers.utils.RecolorVertexConsumer;
 import mchorse.bbs_mod.utils.colors.Color;
@@ -10,7 +11,6 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.Sheets;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.resources.model.EquipmentClientInfo;
 import net.minecraft.client.resources.model.EquipmentAssetManager;
@@ -85,7 +85,7 @@ public class ArmorRenderer
         this.equipment = equipment;
     }
 
-    public void renderArmorSlot(PoseStack matrices, MultiBufferSource vertexConsumers, IEntity entity, EquipmentSlot armorSlot, ArmorType type, int light)
+    public void renderArmorSlot(PoseStack matrices, CustomVertexConsumerProvider vertexConsumers, IEntity entity, EquipmentSlot armorSlot, ArmorType type, int light)
     {
         ItemStack itemStack = entity.getEquipmentStack(armorSlot);
 
@@ -135,7 +135,17 @@ public class ArmorRenderer
         HumanoidModel bipedModel = this.getModel(armorSlot);
         ModelPart part = this.getPart(bipedModel, type);
 
-        bipedModel.setAllVisible(true);
+        /* 26.2 removed HumanoidModel.setAllVisible(boolean); these are the same seven parts it set.
+         * Nothing in 26.2 hides an armour part — the per-slot armour meshes are trimmed instead
+         * (see HumanoidModel#createArmorMeshSet) — but the parts still have to be visible for
+         * ModelPart#render to emit them. */
+        bipedModel.head.visible = true;
+        bipedModel.hat.visible = true;
+        bipedModel.body.visible = true;
+        bipedModel.rightArm.visible = true;
+        bipedModel.leftArm.visible = true;
+        bipedModel.rightLeg.visible = true;
+        bipedModel.leftLeg.visible = true;
 
         part.x = part.y = part.z = 0F;
         part.xRot = part.yRot = part.zRot = 0F;
@@ -145,7 +155,7 @@ public class ArmorRenderer
          * the dye (or the material's own default tint) belongs to the first of the two. */
         for (EquipmentClientInfo.Layer layer : layers)
         {
-            this.renderArmorLayer(part, matrices, vertexConsumers, light, layer.getFullTextureId(layerType), this.tint(itemStack, layer));
+            this.renderArmorLayer(part, matrices, vertexConsumers, light, layer.getTextureLocation(layerType), this.tint(itemStack, layer));
         }
 
         ArmorTrim trim = itemStack.get(DataComponents.TRIM);
@@ -166,7 +176,7 @@ public class ArmorRenderer
      * (non-player branch: standing / sneaking / fall flying wing angles). 1.21.11 keeps the
      * same numbers, it only moved them onto the entity's own ElytraFlightController - which an
      * actor driven by keyframes never ticks, so they are computed here as before. */
-    private void renderElytra(PoseStack matrices, MultiBufferSource vertexConsumers, IEntity entity, ItemStack itemStack, EquipmentClientInfo model, int light)
+    private void renderElytra(PoseStack matrices, CustomVertexConsumerProvider vertexConsumers, IEntity entity, ItemStack itemStack, EquipmentClientInfo model, int light)
     {
         float pitch = 0.2617994F;
         float roll = -0.2617994F;
@@ -209,7 +219,7 @@ public class ArmorRenderer
         /* The texture comes off the wings layer, not a hardcoded path. (Vanilla swaps in the wearer's
          * own cape when the layer asks for it - an actor has none, so the default stands.) */
         EquipmentClientInfo.Layer wings = model.getLayers(EquipmentClientInfo.LayerType.WINGS).get(0);
-        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RenderTypes.armorCutoutNoCull(wings.getFullTextureId(EquipmentClientInfo.LayerType.WINGS)));
+        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RenderTypes.armorCutoutNoCull(wings.getTextureLocation(EquipmentClientInfo.LayerType.WINGS)));
 
         this.elytra.render(matrices, vertexConsumer, light, OverlayTexture.NO_OVERLAY);
 
@@ -248,7 +258,7 @@ public class ArmorRenderer
         return bipedModel.head;
     }
 
-    private void renderArmorLayer(ModelPart part, PoseStack matrices, MultiBufferSource vertexConsumers, int light, Identifier texture, Color color)
+    private void renderArmorLayer(ModelPart part, PoseStack matrices, CustomVertexConsumerProvider vertexConsumers, int light, Identifier texture, Color color)
     {
         /* The armor layer factories came back as static RenderLayers.armorCutoutNoCull (the 1.21.4
          * rewrite moved them off RenderLayer, it didn't remove them). Same draw as 1.21.1: the layer
@@ -277,25 +287,25 @@ public class ArmorRenderer
         return new Color((rgb >> 16 & 255) / 255F, (rgb >> 8 & 255) / 255F, (rgb & 255) / 255F, 1F);
     }
 
-    private void renderTrim(ModelPart part, ResourceKey<EquipmentAsset> assetId, PoseStack matrices, MultiBufferSource vertexConsumers, int light, ArmorTrim trim, boolean leggings)
+    private void renderTrim(ModelPart part, ResourceKey<EquipmentAsset> assetId, PoseStack matrices, CustomVertexConsumerProvider vertexConsumers, int light, ArmorTrim trim, boolean leggings)
     {
         /* 1.21.4+: the trim texture id comes off the trim itself and the atlas lives in
          * AtlasManager (BakedModelManager.getAtlas is gone). */
         TextureAtlas atlas = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(Sheets.ARMOR_TRIMS_SHEET);
-        TextureAtlasSprite sprite = atlas.getSprite(trim.getTextureId(leggings ? "leggings" : "armor", assetId));
+        TextureAtlasSprite sprite = atlas.getSprite(trim.layerAssetId(leggings ? "leggings" : "armor", assetId));
         VertexConsumer vertexConsumer = sprite.wrap(vertexConsumers.getBuffer(Sheets.armorTrimsSheet(trim.pattern().value().decal())));
 
         part.render(matrices, vertexConsumer, light, OverlayTexture.NO_OVERLAY);
     }
 
-    private void renderGlint(ModelPart part, PoseStack matrices, MultiBufferSource vertexConsumers, int light)
+    private void renderGlint(ModelPart part, PoseStack matrices, CustomVertexConsumerProvider vertexConsumers, int light)
     {
         part.render(matrices, vertexConsumers.getBuffer(RenderTypes.armorEntityGlint()), light, OverlayTexture.NO_OVERLAY);
     }
 
     private HumanoidModel getModel(EquipmentSlot slot)
     {
-        return this.models.getModelData(slot);
+        return this.models.get(slot);
     }
 
     private boolean usesInnerModel(EquipmentSlot slot)

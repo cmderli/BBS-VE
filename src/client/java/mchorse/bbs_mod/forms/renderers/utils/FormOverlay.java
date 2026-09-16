@@ -76,7 +76,7 @@ public class FormOverlay
     private static Texture texture;
 
     /** The GL name registered under {@link #SWATCH}, so a re-made texture re-registers. */
-    private static int registered = -1;
+    private static com.mojang.blaze3d.textures.GpuTexture registered;
 
     /** The swatch as pixels, and the copy last handed to the GPU — an unchanged palette costs nothing. */
     private static final int[] pixels = new int[SIZE * SIZE];
@@ -274,11 +274,10 @@ public class FormOverlay
             }
 
             RenderSetup.RenderSetupBuilder builder = RenderSetup.builder(setup.pipeline)
-                .bufferSize(setup.bufferSize)
                 .setLayeringTransform(setup.layeringTransform)
                 .setOutputTarget(setup.outputTarget)
                 .setTextureTransform(setup.textureTransform)
-                .outlineProperty(setup.outlineProperty);
+                .setOutline(setup.outlineProperty);
 
             if (setup.useLightmap)
             {
@@ -326,7 +325,6 @@ public class FormOverlay
              * That method is gone in 1.21.11 — the raw bind stands until Texture.bind() itself goes
              * through GlStateManager. */
             texture.setFilter(GL11.GL_NEAREST);
-            texture.unbind();
         }
 
         if (!uploaded || !Arrays.equals(pixels, uploadedPixels))
@@ -343,17 +341,15 @@ public class FormOverlay
 
             data.rewindBuffer();
 
-            texture.bind();
             texture.uploadTexture(data);
-            texture.unbind();
 
             System.arraycopy(pixels, 0, uploadedPixels, 0, pixels.length);
             uploaded = true;
         }
 
-        if (registered != texture.id)
+        if (registered != texture.gpuTexture)
         {
-            registered = texture.id;
+            registered = texture.gpuTexture;
 
             AdoptedTexture.register(SWATCH, texture);
         }

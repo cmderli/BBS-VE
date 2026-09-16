@@ -499,7 +499,7 @@ public class Scroll
 
         if (isInside)
         {
-            if (Util.getPlatform() == Util.OperatingSystem.OSX)
+            if (Util.getPlatform() == Util.OS.OSX)
             {
                 this.scrollByStep(scroll * BBSSettings.scrollingSensitivity.get());
             }

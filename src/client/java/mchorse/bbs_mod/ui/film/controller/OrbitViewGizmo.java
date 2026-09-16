@@ -317,10 +317,10 @@ public class OrbitViewGizmo
             float x2 = (float) (x - Math.cos(a2) * radius);
             float y2 = (float) (y + Math.sin(a2) * radius);
 
-            builder.addVertex(matrix, x, y).setColor(color);
-            builder.addVertex(matrix, x1, y1).setColor(color);
-            builder.addVertex(matrix, x2, y2).setColor(color);
-            builder.addVertex(matrix, x2, y2).setColor(color);
+            builder.addVertexWith2DPose(matrix, x, y).setColor(color);
+            builder.addVertexWith2DPose(matrix, x1, y1).setColor(color);
+            builder.addVertexWith2DPose(matrix, x2, y2).setColor(color);
+            builder.addVertexWith2DPose(matrix, x2, y2).setColor(color);
         }
 
         this.draw(batcher, builder);
@@ -345,10 +345,10 @@ public class OrbitViewGizmo
             float oy2 = (float) (y + Math.sin(a2) * outer);
 
             /* One quad per segment — the same two triangles the explicit emission built. */
-            builder.addVertex(matrix, ix2, iy2).setColor(color);
-            builder.addVertex(matrix, ix1, iy1).setColor(color);
-            builder.addVertex(matrix, ox1, oy1).setColor(color);
-            builder.addVertex(matrix, ox2, oy2).setColor(color);
+            builder.addVertexWith2DPose(matrix, ix2, iy2).setColor(color);
+            builder.addVertexWith2DPose(matrix, ix1, iy1).setColor(color);
+            builder.addVertexWith2DPose(matrix, ox1, oy1).setColor(color);
+            builder.addVertexWith2DPose(matrix, ox2, oy2).setColor(color);
         }
 
         this.draw(batcher, builder);
@@ -371,10 +371,10 @@ public class OrbitViewGizmo
         Matrix3x2fc matrix = batcher.getContext().pose();
         GuiQuadMesh builder = new GuiQuadMesh();
 
-        builder.addVertex(matrix, x1 - nx, y1 - ny).setColor(color);
-        builder.addVertex(matrix, x1 + nx, y1 + ny).setColor(color);
-        builder.addVertex(matrix, x2 + nx, y2 + ny).setColor(color);
-        builder.addVertex(matrix, x2 - nx, y2 - ny).setColor(color);
+        builder.addVertexWith2DPose(matrix, x1 - nx, y1 - ny).setColor(color);
+        builder.addVertexWith2DPose(matrix, x1 + nx, y1 + ny).setColor(color);
+        builder.addVertexWith2DPose(matrix, x2 + nx, y2 + ny).setColor(color);
+        builder.addVertexWith2DPose(matrix, x2 - nx, y2 - ny).setColor(color);
 
         this.draw(batcher, builder);
     }

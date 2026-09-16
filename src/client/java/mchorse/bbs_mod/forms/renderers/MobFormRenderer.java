@@ -32,7 +32,7 @@ import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelPart;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -311,13 +311,13 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
         if (!this.form.mobID.get().equals("minecraft:ender_dragon"))
         {
-            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            stack.mulPose(Axis.YP.rotation(MathUtils.PI));
         }
 
         stack.last().normal().getScale(Vectors.EMPTY_3F);
         stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
-        this.renderEntity(stack, transition, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY, null);
+        this.renderEntity(stack, transition, LightCoordsUtil.pack(15, 0), OverlayTexture.NO_OVERLAY, null);
 
         stack.popPose();
     }
@@ -348,11 +348,11 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
         if (this.form.mobID.get().equals("minecraft:ender_dragon"))
         {
-            context.stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            context.stack.mulPose(Axis.YP.rotation(MathUtils.PI));
 
             if (context.world != null)
             {
-                context.world.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                context.world.mulPose(Axis.YP.rotation(MathUtils.PI));
             }
         }
 

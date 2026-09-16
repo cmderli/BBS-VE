@@ -36,7 +36,7 @@ public class ItemPredicateDonor
             return null;
         }
 
-        if (donor == null || donor.getEntityWorld() != mc.level)
+        if (donor == null || donor.level() != mc.level)
         {
             donor = new ArmorStand(mc.level, 0D, 0D, 0D);
 

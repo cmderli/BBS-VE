@@ -3,7 +3,7 @@ package mchorse.bbs_mod.ui.utils;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.render.picker.BBSPickerRenderer;
 import mchorse.bbs_mod.forms.forms.Form;
@@ -22,6 +22,8 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
+
+import org.joml.Vector4f;
 
 import java.nio.FloatBuffer;
 import java.util.HashMap;
@@ -90,7 +92,7 @@ public class StencilFormFramebuffer
 
         this.highlightTex = RenderSystem.getDevice().createTexture("bbs_stencil_highlight",
             GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_COPY_SRC,
-            TextureFormat.RGBA8, w, h, 1, 1);
+            GpuFormat.RGBA8_UNORM, w, h, 1, 1);
         this.highlightView = RenderSystem.getDevice().createTextureView(this.highlightTex);
 
         this.highlightWidth = w;
@@ -235,11 +237,11 @@ public class StencilFormFramebuffer
 
         this.colorTexture = RenderSystem.getDevice().createTexture("bbs_stencil_color",
             GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_COPY_SRC,
-            TextureFormat.RGBA8, w, h, 1, 1);
+            GpuFormat.RGBA8_UNORM, w, h, 1, 1);
         this.colorView = RenderSystem.getDevice().createTextureView(this.colorTexture);
 
         this.depthTexture = RenderSystem.getDevice().createTexture("bbs_stencil_depth",
-            GpuTexture.USAGE_RENDER_ATTACHMENT, TextureFormat.DEPTH32, w, h, 1, 1);
+            GpuTexture.USAGE_RENDER_ATTACHMENT, GpuFormat.D32_FLOAT, w, h, 1, 1);
         this.depthView = RenderSystem.getDevice().createTextureView(this.depthTexture);
 
         this.gpuWidth = w;
@@ -257,7 +259,7 @@ public class StencilFormFramebuffer
         this.ensureGpuTargets();
 
         RenderSystem.getDevice().createCommandEncoder()
-            .clearColorAndDepthTextures(this.colorTexture, 0x00000000, this.depthTexture, 1.0D);
+            .clearColorAndDepthTextures(this.colorTexture, new Vector4f(0F, 0F, 0F, 0F), this.depthTexture, 1.0D);
 
         BBSPickerRenderer.setRenderTarget(this.colorView, this.depthView);
     }

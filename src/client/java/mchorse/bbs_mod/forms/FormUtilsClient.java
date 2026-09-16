@@ -73,9 +73,6 @@ public class FormUtilsClient
     {
         SequencedMap<RenderType, ByteBufferBuilder> layers = new Object2ObjectLinkedOpenHashMap<>();
 
-        assignAllocator(layers, Sheets.solidBlockSheet());
-        assignAllocator(layers, Sheets.cutoutBlockSheet());
-        assignAllocator(layers, Sheets.bannerSheet());
         /* TODO(1.21.11 render): the terrain layers are no longer RenderLayer factories —
          * RenderLayer.getSolid/getCutout/getCutoutMipped are gone and chunk terrain draws through
          * the BlockRenderLayer enum's RenderPipelines instead. Forms that render real blocks (the
@@ -84,12 +81,10 @@ public class FormUtilsClient
          * optimisation, so this only costs the pre-sizing until the terrain path is ported. */
         assignAllocator(layers, Sheets.translucentItemSheet());
         assignAllocator(layers, Sheets.translucentBlockItemSheet());
-        assignAllocator(layers, Sheets.shieldSheet());
-        assignAllocator(layers, Sheets.bedSheet());
-        assignAllocator(layers, Sheets.shulkerBoxSheet());
-        assignAllocator(layers, Sheets.signSheet());
-        assignAllocator(layers, Sheets.hangingSignSheet());
-        assignAllocator(layers, Sheets.chestSheet());
+        /* TODO(1.21.11 render): the remaining sheets (banner/bed/shulker/sign/hanging sign/chest)
+         * are no longer RenderLayer factories in 26.2 — Sheets exposes only the item/block-item
+         * sheets above plus armorTrimsSheet(boolean). Pre-assigning an allocator for them was only
+         * an optimisation, so dropping them costs nothing but the pre-sizing. */
         /* TODO(1.21.11 render): the glint layers (armor/item/entity/direct) and the water mask are no
          * longer RenderLayer factories — 1.21.5+ draws glint as a post-process. Pre-assigning an
          * allocator for them was only an optimisation, so dropping them costs nothing but the pre-sizing. */
@@ -165,7 +160,11 @@ public class FormUtilsClient
 
     private static void assign(SequencedMap<RenderType, ByteBufferBuilder> layers, RenderType layer)
     {
-        layers.put(layer, new ByteBufferBuilder(layer.bufferSize()));
+        /* 26.2 dropped RenderSetup's expectedBufferSize (RenderType.bufferSize()): the allocator a
+         * layer's vertices land in is the caller's now. SMALL_BUFFER_SIZE is vanilla's own default
+         * for a non-transient setup, and the allocator grows on demand, so this stays a starting
+         * point rather than a limit. */
+        layers.put(layer, new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE));
     }
 
     public static <T extends Form> void register(Class<T> clazz, IFormRendererFactory<T> function)

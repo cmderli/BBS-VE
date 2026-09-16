@@ -70,7 +70,7 @@ public class UISelectorsOverlayPanel extends UIOverlayPanel
 
             try
             {
-                this.current.entity = id.isEmpty() ? null : Identifier.fromNamespaceAndPath(id);
+                this.current.entity = id.isEmpty() ? null : Identifier.parse(id);
             }
             catch (Exception e)
             {

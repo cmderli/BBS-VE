@@ -55,7 +55,7 @@ public class DeathPose
 
         if (angle != 0F)
         {
-            matrices.rotateAround(Axis.ZP.rotationDegrees(angle));
+            matrices.mulPose(Axis.ZP.rotationDegrees(angle));
         }
     }
 }

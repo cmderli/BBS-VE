@@ -46,6 +46,7 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.MathUtils;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix3x2fc;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
@@ -212,7 +213,13 @@ public class UIFilmPreview extends UIElement
             UIFilmPanel.applyExportSizeToBBS();
             BBSRendering.scheduleAfterNextExportFrame(() ->
             {
-                this.panel.recorder.startRecording(duration, BBSRendering.getTexture().id, BBSRendering.getVideoWidth(), BBSRendering.getVideoHeight());
+                /* TODO(26.2): Texture has no GL name any more — the still-raw-GL recorder is fed the
+                 * OpenGL backend's own name (see UIFilmRecorder#startRecording); Texture#pixelsFromTexture
+                 * is what the read-back on the other end has to become. */
+                Texture video = BBSRendering.getTexture();
+                int textureId = video.gpuTexture instanceof GlTexture gl ? gl.glId() : 0;
+
+                this.panel.recorder.startRecording(duration, textureId, BBSRendering.getVideoWidth(), BBSRendering.getVideoHeight());
             });
         });
         this.recordVideo.tooltip(UIKeys.CAMERA_TOOLTIPS_RECORD);
@@ -229,7 +236,12 @@ public class UIFilmPreview extends UIElement
                     Texture texture = BBSRendering.getTexture();
                     int w = BBSRendering.getVideoWidth();
                     int h = BBSRendering.getVideoHeight();
-                    recorder.takeScreenshot(output, texture.id, w, h);
+
+                    /* 26.2: a Texture has no GL name any more, so ScreenshotRecorder (still raw GL's
+                     * glGetTexImage) is fed the OpenGL backend's own name; an unsized snapshot answers
+                     * 0. Replacing that read-back with Texture.pixelsFromTexture(Texture) is what
+                     * removes this cast. */
+                    recorder.takeScreenshot(output, texture.gpuTexture instanceof GlTexture gl ? gl.glId() : 0, w, h);
                     this.panel.restorePreviewSize();
 
                     UIBaseMenu currentMenu = UIScreen.getCurrentMenu();
@@ -463,7 +475,7 @@ public class UIFilmPreview extends UIElement
 
         if (texture != null)
         {
-            context.batcher.texturedBox(texture.id, Colors.WHITE, area.x, area.y, area.w, area.h, 0, texture.height, texture.width, 0, texture.width, texture.height);
+            context.batcher.texturedBox(texture, Colors.WHITE, area.x, area.y, area.w, area.h, 0, texture.height, texture.width, 0, texture.width, texture.height);
         }
 
         this.hud.begin(area);
@@ -596,7 +608,7 @@ public class UIFilmPreview extends UIElement
          * RenderSystem.renderCrosshair (removed): three axis lines under the camera's pitch/yaw.
          * Rebuilt as recorded GUI quads (GuiQuadMesh, the orbit nav-sphere's own mechanism): the
          * endpoints are the rotated axes projected orthographically, drawn far-to-near. */
-        net.minecraft.client.render.Camera mcCamera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        net.minecraft.client.Camera mcCamera = Minecraft.getInstance().gameRenderer.mainCamera();
 
         float cx = this.area.x + 16;
         float cy = this.area.ey() - 12;
@@ -639,10 +651,10 @@ public class UIFilmPreview extends UIElement
             float py = ex / length * 0.5F;
             int color = colors[i];
 
-            builder.addVertex(matrix, cx - px, cy - py).setColor(color);
-            builder.addVertex(matrix, cx + px, cy + py).setColor(color);
-            builder.addVertex(matrix, cx + ex + px, cy + ey + py).setColor(color);
-            builder.addVertex(matrix, cx + ex - px, cy + ey - py).setColor(color);
+            builder.addVertexWith2DPose(matrix, cx - px, cy - py).setColor(color);
+            builder.addVertexWith2DPose(matrix, cx + px, cy + py).setColor(color);
+            builder.addVertexWith2DPose(matrix, cx + ex + px, cy + ey + py).setColor(color);
+            builder.addVertexWith2DPose(matrix, cx + ex - px, cy + ey - py).setColor(color);
         }
 
         if (!builder.isEmpty())

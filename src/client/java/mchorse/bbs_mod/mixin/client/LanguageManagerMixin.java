@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LanguageManager.class)
 public class LanguageManagerMixin
 {
-    @Inject(method = "reload", at = @At("TAIL"))
+    @Inject(method = "onResourceManagerReload", at = @At("TAIL"))
     public void onReload(CallbackInfo info)
     {
         BBSModClient.reloadLanguage(BBSModClient.getLanguageKey());

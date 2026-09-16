@@ -2,6 +2,7 @@ package mchorse.bbs_mod.utils.iris;
 
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.graphics.texture.Texture;
+import mchorse.bbs_mod.graphics.texture.TextureFilter;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.StringUtils;
@@ -11,7 +12,6 @@ import net.irisshaders.iris.pbr.loader.PBRTextureLoader;
 import net.irisshaders.iris.pbr.texture.PBRType;
 import net.irisshaders.iris.targets.backed.NativeImageBackedSingleColorTexture;
 import net.minecraft.server.packs.resources.ResourceManager;
-import org.lwjgl.opengl.GL11;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -99,7 +99,7 @@ public class IrisPbrConstLoader implements PBRTextureLoader<IrisPbrConstWrapper>
         pixels.setColor(0, 0, new Color(r / 255F, g / 255F, b / 255F, a / 255F));
         pixels.rewindBuffer();
 
-        return Texture.textureFromPixels(pixels, GL11.GL_NEAREST);
+        return Texture.textureFromPixels(pixels, TextureFilter.NEAREST);
     }
 
     /**
@@ -160,7 +160,7 @@ public class IrisPbrConstLoader implements PBRTextureLoader<IrisPbrConstWrapper>
 
             normal.rewindBuffer();
 
-            return Texture.textureFromPixels(normal, GL11.GL_NEAREST);
+            return Texture.textureFromPixels(normal, TextureFilter.NEAREST);
         }
         catch (Exception e)
         {
@@ -181,7 +181,7 @@ public class IrisPbrConstLoader implements PBRTextureLoader<IrisPbrConstWrapper>
         @Override
         protected int glId()
         {
-            return this.texture.id;
+            return IrisUtils.glId(this.texture);
         }
 
         @Override
@@ -217,7 +217,7 @@ public class IrisPbrConstLoader implements PBRTextureLoader<IrisPbrConstWrapper>
         @Override
         protected int glId()
         {
-            return this.texture.id;
+            return IrisUtils.glId(this.texture);
         }
 
         @Override

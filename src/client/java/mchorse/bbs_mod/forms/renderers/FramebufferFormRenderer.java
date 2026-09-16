@@ -13,6 +13,7 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.client.render.picker.BBSPickerRenderer;
+import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.forms.FormRenderCapture;
 import mchorse.bbs_mod.forms.FormRenderLast;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
@@ -38,13 +39,13 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.platform.Lighting;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -75,7 +76,9 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
      * away — so the box stands upright and the flip moved to the quad's UVs, where vanilla's own
      * off-screen previews put theirs. */
     private static final Matrix4f ORTHO = new Matrix4f().setOrtho(-1F, 1F, -1F, 1F, -500F, 500F);
-    private static final PerspectiveProjectionMatrixBuffer PROJECTION = new PerspectiveProjectionMatrixBuffer("bbs_framebuffer_form");
+    /* 26.2 renamed the perspective-only buffer: ProjectionMatrixBuffer carries any projection and
+     * its getBuffer(Matrix4f) is the same call the old one made. */
+    private static final ProjectionMatrixBuffer PROJECTION = new ProjectionMatrixBuffer("bbs_framebuffer_form");
 
     private static GpuBuffer lightsBuffer;
     private static GpuBufferSlice lights;
@@ -141,7 +144,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         this.renderBodyParts(new FormRenderingContext()
-            .set(FormRenderType.ENTITY, this.entity, stack, LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, transition)
+            .set(FormRenderType.ENTITY, this.entity, stack, LightCoordsUtil.pack(15, 15), OverlayTexture.NO_OVERLAY, transition)
             .inUI());
 
         stack.popPose();
@@ -234,9 +237,11 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         GpuTextureView previousPickDepth = BBSPickerRenderer.getRenderTargetDepth();
 
         /* Cleared to fully transparent, so only what the parts draw carries alpha, and to depth 1 so they
-         * sort among themselves. Was a glClear against the bound FBO, which no longer means anything. */
+         * sort among themselves. Was a glClear against the bound FBO, which no longer means anything.
+         * 26.2 takes the clear colour as a Vector4fc rather than the old packed 0x00000000 (all four
+         * channels zero either way). */
         RenderSystem.getDevice().createCommandEncoder()
-            .clearColorAndDepthTextures(framebuffer.getColor(), 0x00000000, framebuffer.getDepth(), 1.0D);
+            .clearColorAndDepthTextures(framebuffer.getColor(), new Vector4f(0F, 0F, 0F, 0F), framebuffer.getDepth(), 1.0D);
 
         RenderSystem.outputColorTextureOverride = framebuffer.getColorView();
         RenderSystem.outputDepthTextureOverride = framebuffer.getDepthView();
@@ -279,7 +284,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
          * land the very same shading on them twice. */
         int light = context.light;
 
-        context.light = LightTexture.FULL_BRIGHT;
+        context.light = LightCoordsUtil.FULL_BRIGHT;
 
         /* Iris can leave indexed blend overrides behind while GlStateManager already caches the
          * default. Reset the real factors as well as the cache before the parts select their own
@@ -288,7 +293,9 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
         GL11.glEnable(GL11.GL_BLEND);
         GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
-        GlStateManager._enableBlend();
+        /* 26.2's _enableBlend() takes the tracked blend-state slot it enables; 0 is the one
+         * _blendFuncSeparate just configured (it hardcodes BLEND[0]), so this is the old no-arg call. */
+        GlStateManager._enableBlend(0);
 
         try
         {
@@ -337,7 +344,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
          * be exactly the pipeline's own. Neither layer needs a texture bind: the picture is a device
          * texture, and the layers name it by the id it was adopted under. */
         Identifier identifier = framebuffer.getIdentifier();
-        VertexFormat format = shading ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
+        VertexFormat format = shading ? DefaultVertexFormat.ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
         RenderType layer = shading
             ? BBSShaders.getModelLayer(BBSShaders.ModelVariant.SINGLE.withCull(true), identifier)
             : BBSShaders.getBillboardLayer(identifier);
@@ -460,7 +467,10 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
          * overlay and the program all belong to the layer now — the BBS model layer declares
          * useLightmap()/useOverlay() and its pipeline is the shader, and the layer carries the picture in
          * its own Sampler0, so there is nothing left to bind here. */
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
+        /* 26.2 has no Tesselator: the growable staging buffer it owned is created here (the size
+         * Draw/Gizmo use for their immediate geometry) and released after the draw below. */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, format);
 
         /* Front */
         this.fill(format, builder, matrix, quad.p3.x, quad.p3.y, color, uvQuad.p3.x, uvQuad.p3.y, overlay, light, entry, 1F);
@@ -517,15 +527,48 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
                 RenderType opaque = BBSShaders.getModelLayer(new BBSShaders.ModelVariant(
                     FormTranslucentQueue.PASS_OPAQUE, true, true), identifier);
 
-                opaque.draw(built);
+                drawLayer(opaque, built);
 
                 FormTranslucentQueue.add(new FormTranslucentQueue.BufferCommand(deferred, captured, origin));
             }
             else
             {
-                layer.draw(built);
+                drawLayer(layer, built);
             }
         }
+
+        allocator.close();
+    }
+
+    /**
+     * 26.2's replacement for {@code RenderLayer.draw(BuiltBuffer)}, including what
+     * {@code RenderLayerMixin}'s hook did on 1.21.11: while a {@link FormRenderCapture} session is
+     * open (deferred item-model rendering) the draw is captured instead of executed — no GL pass is
+     * open at item-record time — and otherwise the layer's hijack runnable fires before the draw.
+     *
+     * <p>The finished vertices then go to a device buffer and the layer's shared sequential index
+     * buffer feeds {@code PreparedRenderType.drawFromBuffer}, which opens the pass on the layer's own
+     * output target (the same translation {@code Draw#flush} and {@code Gizmo#flush} use).</p>
+     */
+    private static void drawLayer(RenderType layer, MeshData built)
+    {
+        if (FormRenderCapture.isActive())
+        {
+            FormRenderCapture.capture(layer, built);
+
+            return;
+        }
+
+        CustomVertexConsumerProvider.drawLayer(layer);
+
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(() -> "bbs framebuffer form geometry", GpuBuffer.USAGE_VERTEX, built.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(), 0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
     }
 
     private VertexConsumer fill(VertexFormat format, VertexConsumer consumer, Matrix4f matrix, float x, float y, Color color, float u, float v, int overlay, int light, PoseStack.Pose entry, float nz)
@@ -538,10 +581,10 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
 
         if (format == DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR)
         {
-            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setUv2(light).setColor(color.r, color.g, color.b, color.a);
+            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setLight(light).setColor(color.r, color.g, color.b, color.a);
         }
 
-        return consumer.addVertex(matrix, x, y, 0F).setColor(color.r, color.g, color.b, color.a).setUv(u, v).setUv1(overlay).setUv2(light).setNormal(entry, 0F, 0F, nz);
+        return consumer.addVertex(matrix, x, y, 0F).setColor(color.r, color.g, color.b, color.a).setUv(u, v).setOverlay(overlay).setLight(light).setNormal(entry, 0F, 0F, nz);
     }
 
     @Override

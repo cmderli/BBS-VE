@@ -25,7 +25,9 @@ public class UIImageRenderer
      */
     public static float getUnitWidth()
     {
-        net.minecraft.client.gl.RenderTarget fb = Minecraft.getInstance().getMainRenderTarget();
+        /* 26.2: RenderTarget moved from net.minecraft.client.gl to com.mojang.blaze3d.pipeline,
+         * and the main target is GameRenderer#mainRenderTarget (Minecraft#getMainRenderTarget is gone). */
+        com.mojang.blaze3d.pipeline.RenderTarget fb = Minecraft.getInstance().gameRenderer.mainRenderTarget();
 
         return fb.width * Placement.HEIGHT / fb.height;
     }
@@ -91,7 +93,7 @@ public class UIImageRenderer
                 }
             }
 
-            texture.bind();
+            /* 26.2: there is no bound-texture state to set — filter and wrap live on the Texture's sampler. */
             texture.setFilter(image.smooth ? GL11.GL_LINEAR : GL11.GL_NEAREST);
             texture.setWrap(GL13.GL_CLAMP_TO_EDGE);
 

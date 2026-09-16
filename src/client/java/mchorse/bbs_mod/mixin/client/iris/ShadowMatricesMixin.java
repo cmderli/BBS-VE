@@ -20,7 +20,7 @@ public class ShadowMatricesMixin
         if (rotation != 0F)
         {
             /* The shadow view needs the inverse of the light's world rotation. */
-            matrices.rotateAround(Axis.YP.rotationDegrees(-rotation));
+            matrices.mulPose(Axis.YP.rotationDegrees(-rotation));
         }
     }
 }

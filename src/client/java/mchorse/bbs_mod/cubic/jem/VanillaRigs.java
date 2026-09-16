@@ -73,7 +73,7 @@ public class VanillaRigs
         {
             ModelLayerLocation layer = entry.getKey();
 
-            if (!layer.name().equals(MAIN))
+            if (!layer.layer().equals(MAIN))
             {
                 continue;
             }
@@ -84,19 +84,19 @@ public class VanillaRigs
 
             try
             {
-                collect(entry.getValue().bakeRoot(), null, parents, pivots, offsets, CemPartNames.of(layer.id().getPath()), new Vector3f());
+                collect(entry.getValue().bakeRoot(), null, parents, pivots, offsets, CemPartNames.of(layer.model().getPath()), new Vector3f());
             }
             catch (Exception e)
             {
                 /* One model that will not build must not cost every other entity its rig. */
-                System.err.println("Vanilla rig of " + layer.id() + " could not be read: " + e);
+                System.err.println("Vanilla rig of " + layer.model() + " could not be read: " + e);
 
                 continue;
             }
 
             if (!pivots.isEmpty())
             {
-                rigs.put(layer.id().getPath(), new CemHierarchy(parents, pivots, offsets));
+                rigs.put(layer.model().getPath(), new CemHierarchy(parents, pivots, offsets));
             }
         }
 

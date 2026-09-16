@@ -56,10 +56,10 @@ public class StarsKeyframeShapeRenderer implements IKeyframeShapeRenderer
             float tipRight_x = (float) x + fOffset * cos + tipWidth * sin;
             float tipRight_y = (float) y + fOffset * sin - tipWidth * cos;
 
-            builder.addVertex(matrix, baseLeft_x, baseLeft_y).setColor(c);
-            builder.addVertex(matrix, tipLeft_x, tipLeft_y).setColor(c);
-            builder.addVertex(matrix, tipRight_x, tipRight_y).setColor(c);
-            builder.addVertex(matrix, baseRight_x, baseRight_y).setColor(c);
+            builder.addVertexWith2DPose(matrix, baseLeft_x, baseLeft_y).setColor(c);
+            builder.addVertexWith2DPose(matrix, tipLeft_x, tipLeft_y).setColor(c);
+            builder.addVertexWith2DPose(matrix, tipRight_x, tipRight_y).setColor(c);
+            builder.addVertexWith2DPose(matrix, baseRight_x, baseRight_y).setColor(c);
         }
     }
 
@@ -69,9 +69,9 @@ public class StarsKeyframeShapeRenderer implements IKeyframeShapeRenderer
         float centerSize = offset * 0.2F;
         float half = centerSize * 1.25F;
 
-        builder.addVertex(matrix, x - half, y - half).setColor(c);
-        builder.addVertex(matrix, x - half, y + half).setColor(c);
-        builder.addVertex(matrix, x + half, y + half).setColor(c);
-        builder.addVertex(matrix, x + half, y - half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x - half, y - half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x - half, y + half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x + half, y + half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x + half, y - half).setColor(c);
     }
 }

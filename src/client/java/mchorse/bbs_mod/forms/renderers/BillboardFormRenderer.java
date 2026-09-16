@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.forms.renderers;
 
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.PrimitiveTopology;
@@ -8,6 +9,8 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.client.render.picker.BBSPickerRenderer;
+import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
+import mchorse.bbs_mod.forms.FormRenderCapture;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import mchorse.bbs_mod.forms.forms.BillboardForm;
 import mchorse.bbs_mod.forms.renderers.utils.FramebufferDebug;
@@ -23,11 +26,11 @@ import mchorse.bbs_mod.utils.Quad;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -75,7 +78,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         stack.scale(1.5F, 1.5F, 1.5F);
         stack.scale(this.form.uiScale.get(), this.form.uiScale.get(), this.form.uiScale.get());
 
-        VertexFormat format = DefaultVertexFormat.NEW_ENTITY;
+        VertexFormat format = DefaultVertexFormat.ENTITY;
 
         /* The shading (POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) path uses the culled BBS model
          * layer (formerly GameRenderer::getRenderTypeEntityTranslucentProgram, drawn with the global
@@ -84,7 +87,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
          * turned towards the viewer. */
         this.renderModel(format, BBSShaders::getBoundCulledModelLayer, null, false,
             stack,
-            OverlayTexture.NO_OVERLAY, LightTexture.FULL_BRIGHT, Colors.WHITE,
+            OverlayTexture.NO_OVERLAY, LightCoordsUtil.FULL_BRIGHT, Colors.WHITE,
             transition
         );
 
@@ -124,7 +127,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
              * moved onto vanilla's position_tex_color, the picker shader still declares it. */
             this.setupTarget(context);
 
-            VertexFormat pickFormat = shading ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR;
+            VertexFormat pickFormat = shading ? DefaultVertexFormat.ENTITY : DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR;
             RenderPipeline picker = shading ? BBSShaders.getPickerBillboardProgram() : BBSShaders.getPickerBillboardNoShadingProgram();
 
             this.renderModel(pickFormat, null, picker, false, context.stack, context.overlay, context.light, context.color, context.getTransition());
@@ -132,7 +135,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
             return;
         }
 
-        VertexFormat format = shading ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
+        VertexFormat format = shading ? DefaultVertexFormat.ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
         Supplier<RenderType> layer = shading ? BBSShaders::getBoundCulledModelLayer : BBSShaders::getBoundBillboardLayer;
 
         this.renderModel(format, layer, null, shading, context.stack, context.overlay, context.light, context.color, context.getTransition());
@@ -246,8 +249,10 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
          * last (unit 2 in practice). A bind there put this texture over the lightmap's slot
          * behind GlStateManager's back - its cache still said the lightmap was bound, so the
          * draw never rebound it, and the quad was lit by a texel of its own skin. Naming the
-         * unit keeps the real binding and the cache in step, on unit 0, on purpose. */
-        texture.bind(0);
+         * unit keeps the real binding and the cache in step, on unit 0, on purpose.
+         *
+         * 26.2: there is no texture unit (and no Texture#bind) any more — the pass is handed
+         * view()/sampler() by name, so the bindTexture() above is the whole of the bookkeeping. */
         texture.setFilterMipmap(this.form.linear.get(), this.form.mipmap.get());
 
         /* After the bind, never before: the layer is resolved from the last bound texture, so that
@@ -264,7 +269,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
          * draws ids, not colours. */
         Color formOverlay = this.form.overlayColor.get();
         boolean tinted = picker == null
-            && format == DefaultVertexFormat.NEW_ENTITY
+            && format == DefaultVertexFormat.ENTITY
             && overlay == OverlayTexture.NO_OVERLAY
             && OverlayBlend.isActive(formOverlay);
 
@@ -283,13 +288,17 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         if (FramebufferDebug.inside())
         {
             FramebufferDebug.log("billboard", "layer=" + layer
-                + " shaded=" + (format == DefaultVertexFormat.NEW_ENTITY)
-                + " texture=" + texture.id + "/translucent=" + texture.hasTranslucency() + " alpha=" + color.a
+                + " shaded=" + (format == DefaultVertexFormat.ENTITY)
+                /* 26.2 has no GL texture id on a Texture; the device texture is what identifies it now. */
+                + " texture=" + texture.gpuTexture + "/translucent=" + texture.hasTranslucency() + " alpha=" + color.a
                 + " light=" + light + " overlayActive=" + tinted + " defer=" + deferrable
                 + " | " + FramebufferDebug.bindings());
         }
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
+        /* 26.2 has no Tesselator: the growable staging buffer it owned is created here (the size
+         * Draw/Gizmo use for their immediate geometry) and released after the draw below. */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, format);
 
         /* Front */
         this.fill(format, builder, matrix, quad.p3.x, quad.p3.y, color, uvQuad.p3.x, uvQuad.p3.y, overlay, light, entry, 1F);
@@ -347,9 +356,11 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
             }
             else
             {
-                layer.draw(built);
+                drawLayer(layer, built);
             }
         }
+
+        allocator.close();
 
         if (FramebufferDebug.inside())
         {
@@ -358,9 +369,40 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
             FramebufferDebug.log("billboard", "after draw | " + FramebufferDebug.samplers());
         }
 
-        /* On unit 0 again, for the same reason as the bind above. */
-        texture.bind(0);
+        /* On unit 0 again, for the same reason as the bind above (26.2: no unit to name, the
+         * bindTexture() bookkeeping is all there is). */
         texture.setFilterMipmap(false, false);
+    }
+
+    /**
+     * 26.2's replacement for {@code RenderLayer.draw(BuiltBuffer)}, including what
+     * {@code RenderLayerMixin}'s hook did on 1.21.11: while a {@link FormRenderCapture} session is
+     * open (deferred item-model rendering) the draw is captured instead of executed — no GL pass is
+     * open at item-record time — and otherwise the layer's hijack runnable fires before the draw.
+     *
+     * <p>The finished vertices then go to a device buffer and the layer's shared sequential index
+     * buffer feeds {@code PreparedRenderType.drawFromBuffer}, which opens the pass on the layer's own
+     * output target (the same translation {@code Draw#flush} and {@code Gizmo#flush} use).</p>
+     */
+    private static void drawLayer(RenderType layer, MeshData built)
+    {
+        if (FormRenderCapture.isActive())
+        {
+            FormRenderCapture.capture(layer, built);
+
+            return;
+        }
+
+        CustomVertexConsumerProvider.drawLayer(layer);
+
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(() -> "bbs billboard geometry", GpuBuffer.USAGE_VERTEX, built.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(), 0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
     }
 
     private VertexConsumer fill(VertexFormat format, VertexConsumer consumer, Matrix4f matrix, float x, float y, Color color, float u, float v, int overlay, int light, PoseStack.Pose entry, float nz)
@@ -373,9 +415,9 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
 
         if (format == DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR)
         {
-            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setUv2(light).setColor(color.r, color.g, color.b, color.a);
+            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setLight(light).setColor(color.r, color.g, color.b, color.a);
         }
 
-        return consumer.addVertex(matrix, x, y, 0F).setColor(color.r, color.g, color.b, color.a).setUv(u, v).setUv1(overlay).setUv2(light).setNormal(entry, 0F, 0F, nz);
+        return consumer.addVertex(matrix, x, y, 0F).setColor(color.r, color.g, color.b, color.a).setUv(u, v).setOverlay(overlay).setLight(light).setNormal(entry, 0F, 0F, nz);
     }
 }

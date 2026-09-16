@@ -9,6 +9,7 @@ import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.UIUtils;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -67,7 +68,14 @@ public class UIFilmRecorder extends UIElement
 
     public void startRecording(int duration, Texture texture)
     {
-        this.startRecording(duration, texture.id, texture.width, texture.height);
+        /* TODO(26.2): a Texture has no GL name any more. The legacy int plumbing below
+         * (PanelVideoExportSession -> VideoExportSession -> VideoRecorder -> glGetTexImage) can only
+         * be fed the OpenGL backend's own name, so that is what this asks for; an unsized texture
+         * answers 0. Replacing that read-back with Texture.pixelsFromTexture(Texture) is what removes
+         * the int textureId and this cast. */
+        int id = texture.gpuTexture instanceof GlTexture gl ? gl.glId() : 0;
+
+        this.startRecording(duration, id, texture.width, texture.height);
     }
 
     public void startRecording(int duration, int id, int w, int h)

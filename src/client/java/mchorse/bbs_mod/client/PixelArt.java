@@ -87,7 +87,7 @@ public class PixelArt
      */
     public static RenderPipeline getTextPipeline(RenderPipeline vanilla)
     {
-        if (!isEnabled() || !(Minecraft.getInstance().screen instanceof UIScreen))
+        if (!isEnabled() || !(Minecraft.getInstance().gui.screen() instanceof UIScreen))
         {
             return null;
         }

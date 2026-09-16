@@ -274,7 +274,7 @@ public final class ModelPhysicsWorldCollisions
             {
                 for (int z = bz1; z <= bz2; z++)
                 {
-                    mutable.setWithOffset(x, y, z);
+                    mutable.set(x, y, z);
 
                     if (!world.hasChunkAt(mutable))
                     {
@@ -328,7 +328,7 @@ public final class ModelPhysicsWorldCollisions
             {
                 for (int z = minBZ; z <= maxBZ; z++)
                 {
-                    mutable.setWithOffset(x, y, z);
+                    mutable.set(x, y, z);
 
                     if (!world.hasChunkAt(mutable))
                     {

@@ -142,11 +142,11 @@ public class UIUtils
     {
         if (BBSSettings.clickSound.get())
         {
-            Minecraft.getInstance().getSoundManager().playDelayed(SimpleSoundInstance.forUI(BBSMod.CLICK, pitch));
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(BBSMod.CLICK, pitch));
         }
         else
         {
-            Minecraft.getInstance().getSoundManager().playDelayed(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, pitch));
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, pitch));
         }
     }
 }

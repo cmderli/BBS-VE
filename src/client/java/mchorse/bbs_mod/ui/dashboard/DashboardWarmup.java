@@ -59,7 +59,7 @@ public class DashboardWarmup
             return;
         }
 
-        if (isLoading(mc.screen))
+        if (isLoading(mc.gui.screen()))
         {
             long deadline = System.nanoTime() + BUDGET;
 
@@ -74,7 +74,7 @@ public class DashboardWarmup
 
         /* Out in the world: a screen of any kind is either the user waiting on something or the
          * dashboard itself being used — neither is a moment to spend on building */
-        if (mc.screen != null || mc.isPaused())
+        if (mc.gui.screen() != null || mc.isPaused())
         {
             return;
         }

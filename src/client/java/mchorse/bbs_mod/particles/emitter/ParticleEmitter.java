@@ -17,10 +17,12 @@ import mchorse.bbs_mod.particles.components.IComponentParticleUpdate;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.LivingEntity;
@@ -120,7 +122,7 @@ public class ParticleEmitter
     public void setTarget(LivingEntity target)
     {
         this.target = target;
-        this.world = target == null ? null : target.getEntityWorld();
+        this.world = target == null ? null : target.level();
     }
 
     public void setWorld(Level world)
@@ -458,19 +460,19 @@ public class ParticleEmitter
              * via GameRenderer::getPositionTexColorProgram with culling disabled; the migrated particles pipeline
              * has cull off too, and the components' renderUI writes a full-bright light so the lightmap sampler
              * (the only difference from the original POSITION_TEXTURE_COLOR format) leaves the colour unchanged. */
-            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.PARTICLE);
+            /* 1.21.11 built this on the Tesselator's growable buffer; 26.2 has no Tesselator, so the
+             * batch owns a ByteBufferBuilder for as long as the finished MeshData needs it. */
+            ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+            BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.PARTICLE);
 
             for (IComponentParticleRender render : list)
             {
                 render.renderUI(this.uiParticle, builder, matrix, transition);
             }
 
-            MeshData built = builder.build();
+            this.flush(builder, BBSShaders.getParticlesLayer());
 
-            if (built != null)
-            {
-                BBSShaders.getParticlesLayer().draw(built);
-            }
+            allocator.close();
         }
     }
 
@@ -496,7 +498,8 @@ public class ParticleEmitter
             Matrix4f matrix = stack.last().pose();
 
             this.bindTexture();
-            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
+            ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+            BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, format);
 
             for (Particle particle : this.particles)
             {
@@ -514,18 +517,48 @@ public class ParticleEmitter
              * RenderSystem.setShader/disableBlend/disableCull state calls. The per-emitter texture
              * binding (bindTexture above, old GL-style) still needs to be wired to the layer's
              * Sampler0; until then the geometry is built faithfully but may sample the wrong texture. */
-            MeshData built = builder.build();
+            this.flush(builder, layer);
 
-            if (built != null)
-            {
-                layer.draw(built);
-            }
+            allocator.close();
         }
 
         for (IComponentParticleRender component : renders)
         {
             component.postRender(this, transition);
         }
+    }
+
+    /**
+     * Finish a buffer and submit it through the given layer (no-op on an empty buffer).
+     *
+     * <p>26.2 has no {@code RenderType.draw(MeshData)}: a finished {@link MeshData} carries only
+     * vertex bytes, and the draw needs a vertex GpuBuffer, the layer's shared sequential index
+     * buffer and a {@code PreparedRenderType} (see {@code mchorse.bbs_mod.graphics.Draw#flush}).
+     * The same shape as before: build, finish, submit.</p>
+     */
+    private void flush(BufferBuilder builder, RenderType layer)
+    {
+        MeshData built = builder.build();
+
+        if (built == null)
+        {
+            return;
+        }
+
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+            () -> "bbs particle geometry",
+            GpuBuffer.USAGE_VERTEX,
+            built.vertexBuffer()
+        );
+
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(),
+            0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
     }
 
     private void bindTexture()

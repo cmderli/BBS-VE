@@ -8,21 +8,21 @@ import mchorse.bbs_mod.camera.controller.CameraController;
 import mchorse.bbs_mod.camera.controller.ICameraController;
 import mchorse.bbs_mod.camera.controller.PlayCameraController;
 import mchorse.bbs_mod.client.BBSRendering;
-import mchorse.bbs_mod.items.GunZoom;
 import mchorse.bbs_mod.utils.colors.Color;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.DeltaTracker;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(GameRenderer.class)
 public class GameRendererMixin
@@ -40,45 +40,22 @@ public class GameRendererMixin
     }
 
     /**
-     * This injection replaces the camera FOV when camera controller takes over
-     */
-    @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
-    public void onGetFov(CallbackInfoReturnable<Float> info)
-    {
-        GunZoom gunZoom = BBSModClient.getGunZoom();
-
-        if (gunZoom != null)
-        {
-            info.setReturnValue(gunZoom.getFOV(info.getReturnValue()));
-
-            return;
-        }
-
-        CameraController controller = BBSModClient.getCameraController();
-
-        if (controller.getCurrent() != null && !BBSRendering.isIrisShadowPass())
-        {
-            info.setReturnValue((float) controller.getFOV());
-        }
-    }
-
-    /**
      * This injection replaces the camera roll when camera controller takes over
      */
-    @Inject(method = "tiltViewWhenHurt", at = @At("HEAD"), cancellable = true)
-    public void onTiltViewWhenHurt(PoseStack matrices, float tickDelta, CallbackInfo info)
+    @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
+    public void onTiltViewWhenHurt(CameraRenderState cameraRenderState, PoseStack matrices, CallbackInfo info)
     {
         CameraController controller = BBSModClient.getCameraController();
 
         if (controller.getCurrent() != null && !BBSRendering.isIrisShadowPass())
         {
-            matrices.rotateAround(Axis.ZP.rotationDegrees(controller.getRoll()));
+            matrices.mulPose(Axis.ZP.rotationDegrees(controller.getRoll()));
 
             info.cancel();
         }
     }
 
-    @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     public void onRenderHand(CallbackInfo info)
     {
         ICameraController current = BBSModClient.getCameraController().getCurrent();
@@ -89,7 +66,7 @@ public class GameRendererMixin
         }
     }
 
-    @Inject(at = @At("HEAD"), method = "renderWorld")
+    @Inject(at = @At("HEAD"), method = "renderLevel")
     private void onWorldRenderBegin(CallbackInfo callbackInfo)
     {
         BBSRendering.onWorldRenderBegin();
@@ -116,11 +93,11 @@ public class GameRendererMixin
      * modified; the value is returned untouched.
      */
     @ModifyArg(
-        method = "renderWorld",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/WorldRenderer;render(Lnet/minecraft/client/util/memory/ObjectAllocator;Lnet/minecraft/client/render/RenderTickCounter;ZLnet/minecraft/client/render/Camera;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"),
+        method = "renderLevel",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/LevelRenderer;render(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/renderer/state/level/CameraRenderState;Lorg/joml/Matrix4fc;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"),
         index = 4
     )
-    private Matrix4f onRenderView(Matrix4f view)
+    private Matrix4fc onRenderView(Matrix4fc view)
     {
         BBSRendering.camera.set(view);
 
@@ -137,10 +114,10 @@ public class GameRendererMixin
      * {@code WorldRendererMixin#onSetupFrustumProjection}.
      */
     @ModifyArg(
-        method = "renderWorld",
+        method = "renderLevel",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/render/RawProjectionMatrix;set(Lorg/joml/Matrix4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"
+            target = "Lnet/minecraft/client/renderer/ProjectionMatrixBuffer;getBuffer(Lorg/joml/Matrix4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"
         )
     )
     private Matrix4f onSetWorldProjection(Matrix4f projection)
@@ -155,38 +132,16 @@ public class GameRendererMixin
     }
 
     /**
-     * Ortho projection, Sodium half. Vanilla itself never loads this argument (index 5 of
-     * WorldRenderer.render — the SAME Matrix4f object renderWorld just uploaded through
-     * RawProjectionMatrix.set), but Sodium 0.8's LevelRendererMixin captures it as the projection its
-     * chunk shaders draw with (sodium$setMatrices builds ChunkRenderMatrices from arguments 5 and 4;
-     * verified against sodium-mc1.21.11-0.8.7 bytecode). Our UBO substitution above returns a NEW
-     * matrix and leaves the original object perspective, so with Sodium installed the terrain stayed
-     * perspective while entities and BBS forms went ortho. Hand it a copy of the exact matrix the
-     * world upload got — a copy because Sodium keeps the reference for the rest of its frame.
-     * Sodium's occlusion culling is unaffected: it derives from the vanilla Frustum, which
-     * WorldRendererMixin#onSetupFrustumProjection already feeds the loose ortho.
-     */
-    @ModifyArg(
-        method = "renderWorld",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/WorldRenderer;render(Lnet/minecraft/client/util/memory/ObjectAllocator;Lnet/minecraft/client/render/RenderTickCounter;ZLnet/minecraft/client/render/Camera;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"),
-        index = 5
-    )
-    private Matrix4f onRenderProjectionArg(Matrix4f projection)
-    {
-        return BBSRendering.isOrthoActive() ? new Matrix4f(BBSRendering.getWorldProjection()) : projection;
-    }
-
-    /**
      * Ortho projection, sorter half: the world upload pairs the UBO slice with a ProjectionType whose
      * VertexSorter orders translucent geometry — keep it consistent with the substituted matrix.
      * Ordinal 0 is the world upload; the later setProjectionMatrix in renderWorld (hand/HUD, built
      * from ProjectionMatrix3) stays untouched.
      */
     @ModifyArg(
-        method = "renderWorld",
+        method = "renderLevel",
         at = @At(
             value = "INVOKE",
-            target = "Lcom/mojang/blaze3d/systems/RenderSystem;setProjectionMatrix(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lcom/mojang/blaze3d/systems/ProjectionType;)V",
+            target = "Lcom/mojang/blaze3d/systems/RenderSystem;setProjectionMatrix(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lcom/mojang/blaze3d/ProjectionType;)V",
             ordinal = 0
         ),
         index = 1
@@ -205,12 +160,12 @@ public class GameRendererMixin
      * and the fog UBO (a separate argument) is left untouched.
      */
     @ModifyArg(
-        method = "renderWorld",
+        method = "renderLevel",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/render/WorldRenderer;render(Lnet/minecraft/client/util/memory/ObjectAllocator;Lnet/minecraft/client/render/RenderTickCounter;ZLnet/minecraft/client/render/Camera;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"
+            target = "Lnet/minecraft/client/renderer/LevelRenderer;render(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/renderer/state/level/CameraRenderState;Lorg/joml/Matrix4fc;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V"
         ),
-        index = 8
+        index = 6
     )
     private Vector4f onRenderSkyColor(Vector4f skyColor)
     {
@@ -226,18 +181,18 @@ public class GameRendererMixin
         return skyColor;
     }
 
-    @Inject(at = @At("RETURN"), method = "renderWorld")
+    @Inject(at = @At("RETURN"), method = "renderLevel")
     private void onWorldRenderEnd(CallbackInfo callbackInfo)
     {
         BBSRendering.onWorldRenderEnd();
     }
 
-    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/hud/InGameHud;render(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", ordinal = 0), require = 0)
+    @Inject(method = "extract", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Gui;extractRenderState(Lnet/minecraft/client/DeltaTracker;ZZ)V", ordinal = 0), require = 0)
     private void onBeforeHudRendering(DeltaTracker tickCounter, boolean tick, CallbackInfo info)
     {
         ICameraController current = BBSModClient.getCameraController().getCurrent();
 
-        if (Minecraft.getInstance().options.hideGui && current == null)
+        if (Minecraft.getInstance().gui.hud.isHidden() && current == null)
         {
             BBSRendering.onRenderBeforeScreen();
         }
@@ -248,7 +203,7 @@ public class GameRendererMixin
      * snapshot back until here so the hotbar and the rest of the HUD end up in the file, the way they did on
      * 1.21.1 when InGameHud.render still drew instead of recording into a GuiRenderState.
      */
-    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/render/GuiRenderer;render(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V", shift = At.Shift.AFTER))
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/render/GuiRenderer;render()V", shift = At.Shift.AFTER))
     private void onAfterInterfaceRendering(DeltaTracker tickCounter, boolean tick, CallbackInfo info)
     {
         BBSRendering.onRenderAfterInterface();

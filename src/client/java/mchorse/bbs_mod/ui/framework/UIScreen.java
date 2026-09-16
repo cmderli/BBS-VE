@@ -13,11 +13,11 @@ import mchorse.bbs_mod.ui.framework.elements.utils.UIModelRenderer;
 import mchorse.bbs_mod.ui.utils.IFileDropListener;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.utils.FFMpegUtils;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.render.state.GuiRenderState;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -37,12 +37,12 @@ public class UIScreen extends Screen implements IFileDropListener
 
     public static void open(UIBaseMenu menu)
     {
-        Minecraft.getInstance().setScreen(new UIScreen(Component.empty(), menu));
+        Minecraft.getInstance().gui.setScreen(new UIScreen(Component.empty(), menu));
     }
 
     public static UIBaseMenu getCurrentMenu()
     {
-        Screen currentScreen = Minecraft.getInstance().screen;
+        Screen currentScreen = Minecraft.getInstance().gui.screen();
 
         if (currentScreen instanceof UIScreen uiScreen)
         {
@@ -60,9 +60,9 @@ public class UIScreen extends Screen implements IFileDropListener
 
         this.menu = menu;
         /* Placeholder DrawContext just so the UIRenderingContext/Batcher2D exist for layout/event wiring.
-         * It is NEVER drawn into: render() swaps in vanilla's live per-frame DrawContext via
+         * It is NEVER drawn into: extractRenderState() swaps in vanilla's live per-frame context via
          * this.context.setContext(...) before any drawing happens (two-phase GUI, 1.21.6+). */
-        this.context = new UIRenderingContext(new GuiGraphics(mc, new GuiRenderState(), mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight()));
+        this.context = new UIRenderingContext(new GuiGraphicsExtractor(mc, new GuiRenderState(), mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight()));
 
         this.menu.context.setup(this.context);
     }
@@ -72,7 +72,7 @@ public class UIScreen extends Screen implements IFileDropListener
         this.menu.update();
     }
 
-    public void renderInWorld(WorldRenderContext context)
+    public void renderInWorld(LevelRenderContext context)
     {
         this.menu.renderInWorld(context);
 
@@ -116,7 +116,7 @@ public class UIScreen extends Screen implements IFileDropListener
     public void removed()
     {
         BBSModClient.setCustomGUIScale(false);
-        Minecraft.getInstance().onResolutionChanged();
+        Minecraft.getInstance().resizeGui();
 
         super.removed();
 
@@ -124,7 +124,7 @@ public class UIScreen extends Screen implements IFileDropListener
 
         if (this.menu.canHideHUD())
         {
-            Minecraft.getInstance().options.hideGui = false;
+            Minecraft.getInstance().gui.hud.isHidden = false;
         }
     }
 
@@ -132,7 +132,7 @@ public class UIScreen extends Screen implements IFileDropListener
     public void added()
     {
         BBSModClient.setCustomGUIScale(true);
-        Minecraft.getInstance().onResolutionChanged();
+        Minecraft.getInstance().resizeGui();
 
         super.added();
 
@@ -140,7 +140,7 @@ public class UIScreen extends Screen implements IFileDropListener
 
         if (this.menu.canHideHUD())
         {
-            Minecraft.getInstance().options.hideGui = true;
+            Minecraft.getInstance().gui.hud.isHidden = true;
         }
     }
 
@@ -244,11 +244,11 @@ public class UIScreen extends Screen implements IFileDropListener
     }
 
     @Override
-    public void renderBackground(GuiGraphics context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {}
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         /* Text is drawn with vanilla's programs, which are shared with the
          * world's text, so the pixel art ones are only allowed for the span
@@ -258,7 +258,7 @@ public class UIScreen extends Screen implements IFileDropListener
         try
         {
             /* Two-phase GUI (1.21.6+): vanilla only composites the GuiRenderState that belongs to the
-             * DrawContext it hands to render(). Draw the whole BBS UI into THIS live context, not the
+             * GuiGraphicsExtractor it hands to extractRenderState(). Draw the whole BBS UI into THIS live context, not the
              * placeholder built in the constructor, or nothing reaches the screen. */
             this.context.setContext(context);
 

@@ -57,13 +57,17 @@ public class GunSpecialRenderer implements SpecialModelRenderer<GunSpecialRender
     }
 
     @Override
-    public void submit(Key key, ItemDisplayContext displayContext, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay, boolean glint, int outlineColor)
+    public void submit(Key key, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay, boolean glint, int outlineColor)
     {
         if (key == null)
         {
             return;
         }
 
+        /* 26.2 no longer hands the display context to submit; see
+         * ModelBlockSpecialRenderer.CURRENT_DISPLAY_CONTEXT for where it comes from and what is still
+         * missing. */
+        ItemDisplayContext displayContext = ModelBlockSpecialRenderer.CURRENT_DISPLAY_CONTEXT;
         GunItemRenderer.Item item = key.item();
         GunProperties properties = item.properties;
         Form form = properties.getForm(displayContext);

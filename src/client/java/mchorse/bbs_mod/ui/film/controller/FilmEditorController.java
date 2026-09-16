@@ -20,7 +20,7 @@ import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 
 import java.util.List;
@@ -143,7 +143,7 @@ public class FilmEditorController extends BaseFilmController
     }
 
     @Override
-    protected void renderEntity(WorldRenderContext context, Replay replay, IEntity entity)
+    protected void renderEntity(LevelRenderContext context, Replay replay, IEntity entity)
     {
         boolean current = this.isCurrent(entity);
 
@@ -183,7 +183,7 @@ public class FilmEditorController extends BaseFilmController
                     BBSProfiler.end(BBSProfiler.Timer.ONION);
 
                     replay.keyframes.apply(ticks, entity);
-                    float tick = ticks + this.getTransition(entity, net.minecraft.client.MinecraftClient.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false));
+                    float tick = ticks + this.getTransition(entity, net.minecraft.client.Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false));
                     Form form = entity.getForm();
                     replay.properties.applyProperties(form, tick);
 
@@ -205,7 +205,7 @@ public class FilmEditorController extends BaseFilmController
         }
     }
 
-    private void renderOnion(Replay replay, int index, int direction, KeyframeChannel<?> pose, int color, int frames, WorldRenderContext context, boolean isPlaying, IEntity entity)
+    private void renderOnion(Replay replay, int index, int direction, KeyframeChannel<?> pose, int color, int frames, LevelRenderContext context, boolean isPlaying, IEntity entity)
     {
         List<? extends Keyframe<?>> keyframes = pose.getKeyframes();
         float alpha = Colors.getA(color);
@@ -240,7 +240,7 @@ public class FilmEditorController extends BaseFilmController
     }
 
     @Override
-    protected FilmControllerContext getFilmControllerContext(WorldRenderContext context, Replay replay, IEntity entity)
+    protected FilmControllerContext getFilmControllerContext(LevelRenderContext context, Replay replay, IEntity entity)
     {
         boolean recording = this.controller.panel.recorder.isRecording();
 

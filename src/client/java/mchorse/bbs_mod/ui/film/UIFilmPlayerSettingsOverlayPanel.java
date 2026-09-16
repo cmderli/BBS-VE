@@ -100,7 +100,7 @@ public class UIFilmPlayerSettingsOverlayPanel extends UIMessageBarOverlayPanel
         {
             for (int i = 0; i < ReplayKeyframes.HOTBAR_SIZE; i++)
             {
-                keyframes.hotbar.get(i).insert(this.tick, player.getInventory().getStack(i).copyFrom());
+                keyframes.hotbar.get(i).insert(this.tick, player.getInventory().getItem(i).copy());
             }
 
             keyframes.selectedSlot.insert(this.tick, player.getInventory().getSelectedSlot());

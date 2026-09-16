@@ -1,12 +1,10 @@
 package mchorse.bbs_mod.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.forms.QueueDispatch;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.render.GuiRenderer;
-import net.minecraft.client.gui.render.state.GuiRenderState;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
 
 import java.util.List;
 
@@ -32,24 +30,24 @@ public class ImmediateGui
     private static GuiRenderer renderer;
 
     /** Begin recording; draw into the returned context, then call {@link #end()}. */
-    public static GuiGraphics begin()
+    public static GuiGraphicsExtractor begin()
     {
         Minecraft mc = Minecraft.getInstance();
 
         if (renderer == null)
         {
             state = new GuiRenderState();
-            renderer = new GuiRenderer(state, FormUtilsClient.getProvider(), QueueDispatch.queue(), QueueDispatch.dispatcher(), List.of());
+            renderer = new GuiRenderer(state, QueueDispatch.dispatcher(), List.of());
         }
 
-        return new GuiGraphics(mc, state, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+        return new GuiGraphicsExtractor(mc, state, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
     }
 
     /** Render everything recorded since {@link #begin()} right now. */
     public static void end()
     {
-        renderer.incrementFrameNumber();
-        renderer.executeDrawRange(RenderSystem.getShaderFog());
-        state.reset();
+        /* 26.2 folded the old incrementFrameNumber()/executeDrawRange(...)/reset() sequence into one
+         * public render(): it prepares, uploads, draws and then resets the state itself. */
+        renderer.render();
     }
 }

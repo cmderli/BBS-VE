@@ -43,7 +43,7 @@ import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.CameraType;
 import net.minecraft.world.entity.Entity;
@@ -201,8 +201,8 @@ public class UIDashboard extends UIBaseMenu
         Vec3 eyePos = cameraEntity.getEyePosition();
         Camera camera = new Camera();
 
-        camera.position.set(eyePos.getX(), eyePos.getY(), eyePos.getZ());
-        camera.rotation.set(MathUtils.toRad(cameraEntity.getViewXRot()), MathUtils.toRad(cameraEntity.getYHeadRot() - 180), 0);
+        camera.position.set(eyePos.x, eyePos.y, eyePos.z);
+        camera.rotation.set(MathUtils.toRad(cameraEntity.getXRot()), MathUtils.toRad(cameraEntity.getYHeadRot() - 180), 0);
         camera.fov = MathUtils.toRad(Minecraft.getInstance().options.fov().get().floatValue());
 
         this.orbit.setup(camera);
@@ -436,7 +436,7 @@ public class UIDashboard extends UIBaseMenu
         }
     }
 
-    public void renderInWorld(WorldRenderContext context)
+    public void renderInWorld(LevelRenderContext context)
     {
         super.renderInWorld(context);
 

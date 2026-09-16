@@ -1,11 +1,14 @@
 package mchorse.bbs_mod.ui.utils;
 
+import com.mojang.blaze3d.IndexType;
 import com.mojang.blaze3d.platform.CompareOp;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuDevice;
@@ -43,7 +46,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.resources.Identifier;
@@ -53,8 +56,10 @@ import org.joml.Vector2f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.joml.Vector4fc;
 
 import java.util.EnumSet;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.function.Supplier;
@@ -132,9 +137,10 @@ public class Gizmo
     private static final RenderPipeline GIZMO_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/gizmo_position_color_no_depth"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BlendFunction.TRANSLUCENT)
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
             .withCull(false)
             .build()
     );
@@ -279,7 +285,32 @@ public class Gizmo
      *  Package-private so {@link GizmoPie} submits through the same pipeline the handles do. */
     static BufferBuilder begin()
     {
-        return Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        /* 1.21.11 built every batch on the Tesselator's one growable buffer; 26.2 has no Tesselator,
+         * so the same single buffer is owned here and rewound per batch. Bytes that were built but
+         * never submitted are discarded with a warning rather than kept, which is exactly what
+         * calling begin() twice in a row used to do. */
+        if (gizmoAllocator == null)
+        {
+            gizmoAllocator = new ByteBufferBuilder(1536);
+        }
+        else
+        {
+            gizmoAllocator.clear();
+        }
+
+        return new BufferBuilder(gizmoAllocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+    }
+
+    /** The staging buffer {@link #begin()} hands to every batch; 1.21.11's Tesselator equivalent. */
+    private static ByteBufferBuilder gizmoAllocator;
+
+    /**
+     * 26.2 replacement for {@code VertexFormat.uploadImmediateVertexBuffer}: the finished vertices
+     * become a device vertex buffer. The caller owns and closes it.
+     */
+    private static GpuBuffer uploadVertices(String label, MeshData buffer)
+    {
+        return RenderSystem.getDevice().createBuffer(() -> label, GpuBuffer.USAGE_VERTEX, buffer.vertexBuffer());
     }
 
     /**
@@ -315,7 +346,7 @@ public class Gizmo
              * textures. A manual pass gets no such courtesy, so it must follow the same redirect
              * itself; binding the main framebuffer here put the lensed gizmo UNDER the GUI, where the
              * preview's blit painted over it and the handles simply never showed in the form editor. */
-            RenderTarget framebuffer = Minecraft.getInstance().getMainRenderTarget();
+            RenderTarget framebuffer = Minecraft.getInstance().gameRenderer.mainRenderTarget();
             boolean redirected = RenderSystem.outputColorTextureOverride != null;
             GpuTextureView color = redirected ? RenderSystem.outputColorTextureOverride : framebuffer.getColorTextureView();
             GpuTextureView depth = redirected ? RenderSystem.outputDepthTextureOverride
@@ -325,7 +356,18 @@ public class Gizmo
         }
         else
         {
-            getGizmoLayer().draw(built);
+            /* RenderLayer.draw(BuiltBuffer) is gone: the finished vertices go to a device buffer and
+             * the layer's shared sequential index buffer feeds PreparedRenderType.drawFromBuffer,
+             * which opens the pass on the layer's own output target. */
+            MeshData.DrawState state = built.drawState();
+            GpuBuffer vertices = uploadVertices("bbs:gizmo_vertices", built);
+            RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+            getGizmoLayer().prepare().drawFromBuffer(vertices, sequential.getBuffer(state.indexCount()),
+                sequential.type(), 0, 0, state.indexCount());
+
+            vertices.close();
+            built.close();
         }
     }
 
@@ -376,31 +418,37 @@ public class Gizmo
 
         GpuBuffer projectionUbo = projectionRing.currentBuffer();
 
-        try (GpuBuffer.MappedView view = encoder.mapBuffer(projectionUbo, false, true))
+        try (GpuBufferSlice.MappedView view = projectionUbo.map(false, true))
         {
             Std140Builder.intoBuffer(view.data()).putMat4f(projection);
         }
 
-        VertexFormat format = GIZMO_PIPELINE.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
-        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
+        GpuBuffer vertexBuffer = uploadVertices("bbs:gizmo_manual_vertices", buffer);
+        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().primitiveTopology());
         GpuBuffer indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
-        VertexFormat.IndexType indexType = sequential.type();
+        IndexType indexType = sequential.type();
+
+        /* 26.2 clears with a colour vector, not the packed ARGB the callers hand in here. */
+        Optional<Vector4fc> clearValue = clear.isPresent()
+            ? Optional.of(new Vector4f(Colors.getR(clear.getAsInt()), Colors.getG(clear.getAsInt()),
+                Colors.getB(clear.getAsInt()), Colors.getA(clear.getAsInt())))
+            : Optional.empty();
 
         try (RenderPass pass = depth == null
-            ? encoder.createRenderPass(() -> "bbs:gizmo_manual", color, clear)
-            : encoder.createRenderPass(() -> "bbs:gizmo_manual", color, clear, depth, OptionalDouble.empty()))
+            ? encoder.createRenderPass(() -> "bbs:gizmo_manual", color, clearValue)
+            : encoder.createRenderPass(() -> "bbs:gizmo_manual", color, clearValue, depth, OptionalDouble.empty()))
         {
             pass.setPipeline(GIZMO_PIPELINE);
             RenderSystem.bindDefaultUniforms(pass);
             pass.setUniform("Projection", projectionUbo.slice(0L, PROJECTION_UBO_SIZE));
             pass.setUniform("DynamicTransforms", dynamicTransforms);
-            pass.setVertexBuffer(0, vertexBuffer);
+            pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
         }
         finally
         {
+            vertexBuffer.close();
             buffer.close();
         }
     }

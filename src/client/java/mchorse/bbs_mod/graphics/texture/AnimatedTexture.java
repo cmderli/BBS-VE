@@ -160,7 +160,7 @@ public class AnimatedTexture
 
             frame.rewindBuffer();
 
-            Texture texture = Texture.textureFromPixels(frame, GL11.GL_NEAREST);
+            Texture texture = Texture.textureFromPixels(frame, TextureFilter.NEAREST);
 
             this.textures.add(texture);
             texture.setParent(this);

@@ -25,7 +25,7 @@ import mchorse.bbs_mod.utils.joml.Vectors;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
@@ -204,7 +204,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             {
                 try
                 {
-                    BlockEntity blockEntity = BlockEntity.loadStatic(e.getKey(), this.data.getBlockState(e.getKey()), e.getValue(), client.getRegistryManager());
+                    BlockEntity blockEntity = BlockEntity.loadStatic(e.getKey(), this.data.getBlockState(e.getKey()), e.getValue(), client.registryAccess());
 
                     if (blockEntity != null)
                     {
@@ -272,7 +272,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
 
                 renderer.extractRenderState(blockEntity, renderState,
                     Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false),
-                    Minecraft.getInstance().gameRenderer.getMainCamera().getCameraPos(), null);
+                    Minecraft.getInstance().gameRenderer.mainCamera().position(), null);
 
                 renderState.lightCoords = light;
 
@@ -347,10 +347,10 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
 
             consumers.setUI(true);
             consumers.setLayerMapper(overlayActive ? FormOverlay::withOverlay : null);
-            this.baked.render(matrices.last(), consumers, LightTexture.FULL_BRIGHT, set.getARGBColor());
+            this.baked.render(matrices.last(), consumers, LightCoordsUtil.FULL_BRIGHT, set.getARGBColor());
 
             consumers.setSubstitute(BBSRendering.getColorConsumer(set));
-            this.renderBlockEntities(matrices, consumers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+            this.renderBlockEntities(matrices, consumers, LightCoordsUtil.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
 
             consumers.draw();
         }
@@ -382,7 +382,9 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             matrices.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
             consumers.setUI(true);
-            Minecraft.getInstance().getBlockRenderer().renderSingleBlock(Blocks.STRUCTURE_BLOCK.defaultBlockState(), matrices, consumers, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY);
+            /* 26.2 removed Minecraft#getBlockRenderer(): a single block state is drawn by emitting its
+             * baked model's quads (see BlockFormRenderer#renderBlockState, the shared path). */
+            BlockFormRenderer.renderBlockState(matrices, consumers, Blocks.STRUCTURE_BLOCK.defaultBlockState(), LightCoordsUtil.pack(15, 0), OverlayTexture.NO_OVERLAY);
             consumers.draw();
         }
         finally

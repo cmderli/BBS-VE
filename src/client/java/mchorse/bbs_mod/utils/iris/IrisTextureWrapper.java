@@ -41,9 +41,9 @@ public class IrisTextureWrapper extends IrisPbrTexture
     }
 
     @Override
-    public GpuTexture getGlTexture()
+    public GpuTexture getTexture()
     {
-        GpuTexture resolved = super.getGlTexture();
+        GpuTexture resolved = super.getTexture();
 
         return resolved == null && this.fallback != null ? this.fallback.getTexture() : resolved;
     }
@@ -71,7 +71,7 @@ public class IrisTextureWrapper extends IrisPbrTexture
         this.width = texture.width;
         this.height = texture.height;
 
-        return texture.id;
+        return IrisUtils.glId(texture);
     }
 
     @Override

@@ -59,7 +59,7 @@ import mchorse.bbs_mod.utils.PlayerUtils;
 import mchorse.bbs_mod.utils.RayTracing;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.client.Camera;
@@ -160,8 +160,8 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
         this.keyDude.keys().register(Keys.MODEL_BLOCKS_MOVE_TO, () ->
         {
             Minecraft mc = Minecraft.getInstance();
-            Camera camera = mc.gameRenderer.getMainCamera();
-            BlockHitResult blockHitResult = RayTracing.rayTrace(mc.level, camera.getCameraPos(), RayTracing.fromVector3f(this.mouseDirection), 512F);
+            Camera camera = mc.gameRenderer.mainCamera();
+            BlockHitResult blockHitResult = RayTracing.rayTrace(mc.level, camera.position(), RayTracing.fromVector3f(this.mouseDirection), 512F);
 
             if (blockHitResult.getType() != HitResult.Type.MISS)
             {
@@ -240,7 +240,8 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
         this.global = new UIToggle(UIKeys.MODEL_BLOCKS_GLOBAL, (b) ->
         {
             this.modelBlock.getProperties().setGlobal(b.getValue());
-            Minecraft.getInstance().levelRenderer.allChanged();
+            /* 26.2: "all chunks changed" moved off LevelRenderer onto the extractor. */
+            Minecraft.getInstance().levelExtractor.allChanged();
         });
         this.lookAt = new UIToggle(UIKeys.CAMERA_PANELS_LOOK_AT, (b) -> this.modelBlock.getProperties().setLookAt(b.getValue()));
 
@@ -562,7 +563,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
             && this.getChildren(UIFormPalette.class).isEmpty();
     }
 
-    private void renderGizmo(WorldRenderContext context, Vec3 cameraPos)
+    private void renderGizmo(LevelRenderContext context, Vec3 cameraPos)
     {
         if (!this.canShowGizmo())
         {
@@ -570,7 +571,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
         }
 
         Minecraft mc = Minecraft.getInstance();
-        PoseStack stack = context.matrices();
+        PoseStack stack = context.poseStack();
 
         /* Capture the on-screen camera frame for the drag math: the gizmo is
          * drawn straight onto Minecraft's world stack, so feeding that same
@@ -1057,13 +1058,13 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
     }
 
     @Override
-    public void renderInWorld(WorldRenderContext context)
+    public void renderInWorld(LevelRenderContext context)
     {
         super.renderInWorld(context);
 
         Minecraft mc = Minecraft.getInstance();
-        Camera camera = mc.gameRenderer.getMainCamera();
-        Vec3 pos = camera.getCameraPos();
+        Camera camera = mc.gameRenderer.mainCamera();
+        Vec3 pos = camera.position();
 
         double x = mc.mouseHandler.xpos();
         double y = mc.mouseHandler.ypos();
@@ -1082,7 +1083,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
 
         /* TODO(1.21.11 render): RenderSystem.enable/disableDepthTest removed; depth state is now
          * encoded by the RenderPipeline backing the Draw.renderBox render layer. */
-        PoseStack matrices = context.matrices();
+        PoseStack matrices = context.poseStack();
 
         for (ModelBlockEntity entity : this.modelBlocks.getList())
         {

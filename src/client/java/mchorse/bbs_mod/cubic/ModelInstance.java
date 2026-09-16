@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.cubic;
 
 import mchorse.bbs_mod.bobj.BOBJBone;
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.client.render.picker.BBSPickerRenderer;
@@ -45,7 +46,8 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import com.mojang.blaze3d.vertex.Tesselator;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -608,7 +610,8 @@ public class ModelInstance implements IModelInstance
                  * entity RenderLayer (POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL + QUADS). During an in-panel
                  * preview (ModelPreviewRenderer.ACTIVE) it goes to entityCutoutNoCull(adopted model texture);
                  * the world path still targets the not-yet-ported BBS model layer (no-op until VARIANT 2). */
-                BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.NEW_ENTITY);
+                ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+                BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.QUADS, DefaultVertexFormat.ENTITY);
                 CubicRenderer.processRenderModel(renderProcessor, builder, stack, model);
 
                 /* The subdivided welded quads are held back in the renderer's patch buffer during
@@ -647,7 +650,9 @@ public class ModelInstance implements IModelInstance
                          * the bottom of the alpha slider). The BBS model layer blends, so the form's colour
                          * alpha fades the preview exactly like the world; same entity vertex format, and the
                          * layer keyed on the SAME adopted texture the cutout branch used. */
-                        FormOverlay.withOverlay(BBSShaders.getBoundModelLayer(BBSShaders.ModelVariant.SINGLE.withCull(this.isCulling())), tinted).draw(built);
+                        RenderType previewLayer = FormOverlay.withOverlay(BBSShaders.getBoundModelLayer(BBSShaders.ModelVariant.SINGLE.withCull(this.isCulling())), tinted);
+
+                        this.flush(previewLayer, built);
                     }
                     else
                     {
@@ -662,6 +667,8 @@ public class ModelInstance implements IModelInstance
                             ModelVAORenderer.captureModelView(stack).getTranslation(new Vector3f()), tinted);
                     }
                 }
+
+                allocator.close();
             }
         }
         else if (this.model instanceof BOBJModel model)
@@ -671,7 +678,7 @@ public class ModelInstance implements IModelInstance
             if (!vaos.isEmpty())
             {
                 stack.pushPose();
-                stack.rotateAround(Axis.YP.rotationDegrees(180F));
+                stack.mulPose(Axis.YP.rotationDegrees(180F));
 
                 model.getArmature().setupMatrices();
 
@@ -713,5 +720,31 @@ public class ModelInstance implements IModelInstance
                 stack.popPose();
             }
         }
+    }
+
+    /**
+     * Finish a buffer and submit it through the given layer (no-op on an empty buffer).
+     *
+     * <p>26.2 has no {@code RenderType.draw(MeshData)}: a finished {@link MeshData} carries only
+     * vertex bytes, and the draw needs a vertex GpuBuffer, the layer's shared sequential index
+     * buffer and a {@code PreparedRenderType} (see {@code mchorse.bbs_mod.graphics.Draw#flush}).
+     * The same shape as before: build, finish, submit.</p>
+     */
+    private void flush(RenderType previewLayer, MeshData built)
+    {
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+            () -> "bbs model geometry",
+            GpuBuffer.USAGE_VERTEX,
+            built.vertexBuffer()
+        );
+
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        previewLayer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(),
+            0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
     }
 }

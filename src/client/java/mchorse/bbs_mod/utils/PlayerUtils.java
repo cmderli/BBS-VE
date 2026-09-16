@@ -28,8 +28,8 @@ public class PlayerUtils
         {
             ClientNetwork.sendTeleport(x, y, z, yaw, bodyYaw, pitch);
             player.setYRot(yaw);
-            player.setHeadYaw(yaw);
-            player.setBodyYaw(bodyYaw);
+            player.setYHeadRot(yaw);
+            player.setYBodyRot(bodyYaw);
             player.setXRot(pitch);
         }
     }
@@ -73,8 +73,8 @@ public class PlayerUtils
         teleport(x, y, z, headYaw, pitch);
 
         player.setYRot(yaw);
-        player.setHeadYaw(headYaw);
-        player.setBodyYaw(bodyYaw);
+        player.setYHeadRot(headYaw);
+        player.setYBodyRot(bodyYaw);
         player.setXRot(pitch);
 
         return new Vector3d(x, y, z);

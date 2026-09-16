@@ -2,7 +2,7 @@ package mchorse.bbs_mod.mixin.client;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import mchorse.bbs_mod.client.PixelArt;
-import net.minecraft.client.gui.render.state.GlyphRenderState;
+import net.minecraft.client.renderer.state.gui.GlyphRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

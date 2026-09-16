@@ -74,11 +74,11 @@ public class SelectorOwner
 
                 for (String key : keys)
                 {
-                    Tag element = compound.read(key);
+                    Tag element = compound.get(key);
 
                     if (element != null)
                     {
-                        newCompound.store(key, element);
+                        newCompound.put(key, element);
                     }
                 }
 
@@ -119,7 +119,7 @@ public class SelectorOwner
     {
         try
         {
-            TagValueOutput view = TagValueOutput.createWithContext(ProblemReporter.DISCARDING);
+            TagValueOutput view = TagValueOutput.createWithoutContext(ProblemReporter.DISCARDING);
 
             this.mcEntity.save(view);
 

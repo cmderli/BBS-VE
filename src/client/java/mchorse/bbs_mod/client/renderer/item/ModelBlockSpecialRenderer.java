@@ -25,6 +25,23 @@ public class ModelBlockSpecialRenderer implements SpecialModelRenderer<ModelBloc
     private static int generation;
 
     /**
+     * The display context vanilla is resolving an item model for right now.
+     *
+     * <p>26.2 dropped {@code ItemDisplayContext} from {@link SpecialModelRenderer#submit}, so the
+     * per-context form and transform (the GUI form, the first-person form) can no longer be chosen
+     * there. The context is still visible one call earlier, in {@code SpecialModelWrapper#update},
+     * which receives it and then calls {@link #extractArgument} — so it has to be published from
+     * there.</p>
+     *
+     * <p>26.2 removed the context from {@code SpecialModelRenderer#submit} and
+     * {@code extractArgument}, so it is recorded just before the argument is extracted:
+     * {@code SpecialModelWrapperMixin} writes this field at the head of
+     * {@code SpecialModelWrapper#update}, which is the last point where vanilla still has it.
+     * {@code GunSpecialRenderer} reads the same field.</p>
+     */
+    public static ItemDisplayContext CURRENT_DISPLAY_CONTEXT = ItemDisplayContext.NONE;
+
+    /**
      * The per-stack render data plus the GUI cache key. Vanilla stores whatever {@link #getData}
      * returns in the item render state's model key, and the 1.21.6+ GUI re-renders a cached item
      * atlas entry only when that key changes — the record's equality IS the invalidation rule.
@@ -60,13 +77,14 @@ public class ModelBlockSpecialRenderer implements SpecialModelRenderer<ModelBloc
     }
 
     @Override
-    public void submit(Key key, ItemDisplayContext displayContext, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay, boolean glint, int outlineColor)
+    public void submit(Key key, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay, boolean glint, int outlineColor)
     {
         if (key == null)
         {
             return;
         }
 
+        ItemDisplayContext displayContext = CURRENT_DISPLAY_CONTEXT;
         ModelBlockItemRenderer.Item item = key.item();
         ModelProperties properties = item.entity.getProperties();
         Form form = properties.getForm(displayContext);

@@ -7,6 +7,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(LocalPlayer.class)
 public interface ClientPlayerEntityAccessor
 {
-    @Accessor("inSneakingPose")
+    @Accessor("crouching")
     public void bbs$setIsSneakingPose(boolean sneaking);
 }

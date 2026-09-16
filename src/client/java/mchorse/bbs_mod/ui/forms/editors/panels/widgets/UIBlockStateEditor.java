@@ -108,8 +108,8 @@ public class UIBlockStateEditor extends UIElement
 
             matrices.pushMatrix();
             consumers.setUI(true);
-            context.batcher.getContext().renderItem(stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
-            context.batcher.getContext().renderItemDecorations(context.batcher.getFont().getRenderer(), stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().item(stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().itemDecorations(context.batcher.getFont().getRenderer(), stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
             consumers.setUI(false);
             matrices.popMatrix();
         }

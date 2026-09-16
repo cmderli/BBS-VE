@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(Camera.class)
 public interface CameraInvoker
 {
-    @Invoker("setPos")
+    @Invoker("setPosition")
     public void bbs$setPos(double x, double y, double z);
 
     @Invoker("setRotation")

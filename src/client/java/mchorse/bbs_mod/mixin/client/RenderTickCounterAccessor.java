@@ -7,6 +7,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(DeltaTracker.Timer.class)
 public interface RenderTickCounterAccessor
 {
-    @Accessor("tickProgress")
+    @Accessor("deltaTickResidual")
     public float bbs$getTickDelta();
 }

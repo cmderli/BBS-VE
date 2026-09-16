@@ -36,7 +36,7 @@ import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.pose.Transform;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -347,7 +347,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
                 PoseStack stack = new PoseStack();
 
                 ModelFormRenderer.applyFirstPersonArm(stack, !target.kind().offHand);
-                stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                stack.mulPose(Axis.YP.rotation(MathUtils.PI));
                 frame.set(stack.last().pose());
             }
             case ITEM_MAIN, ITEM_OFF ->
@@ -586,7 +586,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
             /* 1.21.11: the GUI stack is 2D, and the preview pass leaves the global model-view identity,
              * so every draw bakes `camera.view * translate(-camera.pos)` into its own vertices — which is
              * exactly what createCameraStack() hands back. Same seed UIFormRenderer already uses. */
-            .set(FormRenderType.PREVIEW, this.entity, this.createCameraStack(), LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, context.getTransition())
+            .set(FormRenderType.PREVIEW, this.entity, this.createCameraStack(), LightCoordsUtil.pack(15, 15), OverlayTexture.NO_OVERLAY, context.getTransition())
             .camera(this.camera)
             .modelRenderer(context.getTick());
 
@@ -688,7 +688,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
 
         stack.pushPose();
         ModelFormRenderer.applyFirstPersonArm(stack, mainHand);
-        this.firstPersonShown = renderer.renderFirstPersonHand(stack, LightTexture.pack(15, 15), mainHand ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND);
+        this.firstPersonShown = renderer.renderFirstPersonHand(stack, LightCoordsUtil.pack(15, 15), mainHand ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND);
         stack.popPose();
 
         this.captureFirstPersonBones(renderer);

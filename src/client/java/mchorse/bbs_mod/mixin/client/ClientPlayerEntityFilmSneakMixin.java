@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(LocalPlayer.class)
 public class ClientPlayerEntityFilmSneakMixin
 {
-    @Inject(method = "isSneaking", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isShiftKeyDown", at = @At("HEAD"), cancellable = true)
     private void bbsFilmIsSneaking(CallbackInfoReturnable<Boolean> info)
     {
         FilmPlayerPose pose = FilmPlayerPose.get(((LocalPlayer) (Object) this).getId());
@@ -23,7 +23,7 @@ public class ClientPlayerEntityFilmSneakMixin
         }
     }
 
-    @Inject(method = "isInSneakingPose", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isCrouching", at = @At("HEAD"), cancellable = true)
     private void bbsFilmIsInSneakingPose(CallbackInfoReturnable<Boolean> info)
     {
         FilmPlayerPose pose = FilmPlayerPose.get(((LocalPlayer) (Object) this).getId());

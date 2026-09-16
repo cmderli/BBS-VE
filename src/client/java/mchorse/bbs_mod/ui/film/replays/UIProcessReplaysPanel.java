@@ -408,7 +408,7 @@ public class UIProcessReplaysPanel extends UIConfirmOverlayPanel
 
             double top = world.getMaxY() + 5;
             Vec3 pos = new Vec3(x, top, z);
-            BlockHitResult result = RayTracing.rayTrace(world, pos, new Vec3(0D, -1D, 0D), top - world.getBottomY() + 5D);
+            BlockHitResult result = RayTracing.rayTrace(world, pos, new Vec3(0D, -1D, 0D), top - world.getMinY() + 5D);
 
             double y = Double.NaN;
 

@@ -1,16 +1,19 @@
 package mchorse.bbs_mod.forms.structure;
 
 import com.mojang.logging.LogUtils;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.block.entity.FuelValues;
 import net.minecraft.world.attribute.EnvironmentAttributeSystem;
+import net.minecraft.world.clock.ClockManager;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraft.world.item.alchemy.PotionBrewing;
 import net.minecraft.world.item.crafting.RecipeAccess;
@@ -79,7 +82,7 @@ public class StructureWorld extends Level
         super(
             (WritableLevelData) delegate.getLevelData(),
             delegate.dimension(),
-            delegate.getRegistryManager(),
+            delegate.registryAccess(),
             delegate.dimensionTypeRegistration(),
             /* 1.21.11: the profiler supplier left the World constructor — profiling goes through
              * the global Profilers now, so there is nothing to hand down. */
@@ -149,33 +152,33 @@ public class StructureWorld extends Level
     /* --- Borrowed from the real client world -------------------------------------------------- */
 
     @Override
-    public ChunkSource getChunkManager()
+    public ChunkSource getChunkSource()
     {
         return this.delegate.getChunkSource();
     }
 
     @Override
-    public LevelTickAccess<net.minecraft.block.Block> getBlockTickScheduler()
+    public LevelTickAccess<Block> getBlockTicks()
     {
-        return this.delegate.getBlockTickScheduler();
+        return this.delegate.getBlockTicks();
     }
 
     @Override
-    public LevelTickAccess<net.minecraft.fluid.Fluid> getFluidTickScheduler()
+    public LevelTickAccess<Fluid> getFluidTicks()
     {
-        return this.delegate.getFluidTickScheduler();
+        return this.delegate.getFluidTicks();
     }
 
     @Override
     public TickRateManager tickRateManager()
     {
-        return this.delegate.getTickManager();
+        return this.delegate.tickRateManager();
     }
 
     @Override
     public RecipeAccess recipeAccess()
     {
-        return this.delegate.getRecipeManager();
+        return this.delegate.recipeAccess();
     }
 
     @Override
@@ -185,31 +188,30 @@ public class StructureWorld extends Level
     }
 
     @Override
-    public FeatureFlagSet getEnabledFeatures()
+    public FeatureFlagSet enabledFeatures()
     {
-        return this.delegate.getEnabledFeatures();
+        return this.delegate.enabledFeatures();
     }
 
-    @Override
-    public float getBrightness(Direction direction, boolean shaded)
-    {
-        return StructureLighting.getBrightness(direction, shaded);
-    }
+    /* 26.2: Level lost the directional shade hook (getShade/getBrightness(Direction, boolean));
+     * face shade is CardinalLighting now, but that lives on the client BlockAndTintGetter, which
+     * a Level is not — nothing can ask this world for it any more. */
 
+    /* 26.2: getLightLevel is getBrightness now (the BlockAndLightGetter default). */
     @Override
-    public int getLightLevel(LightLayer type, BlockPos pos)
+    public int getBrightness(LightLayer type, BlockPos pos)
     {
         return this.data.getLighting().getLightLevel(type, pos);
     }
 
     @Override
-    public Holder<Biome> getGeneratorStoredBiome(int biomeX, int biomeY, int biomeZ)
+    public Holder<Biome> getUncachedNoiseBiome(int biomeX, int biomeY, int biomeZ)
     {
-        return this.delegate.getGeneratorStoredBiome(biomeX, biomeY, biomeZ);
+        return this.delegate.getUncachedNoiseBiome(biomeX, biomeY, biomeZ);
     }
 
     @Override
-    public List<? extends Player> getPlayers()
+    public List<? extends Player> players()
     {
         return List.of();
     }
@@ -241,14 +243,14 @@ public class StructureWorld extends Level
 
     /** Moved down to WorldAccess and takes a plain Entity now, not the excluded PlayerEntity. */
     @Override
-    public void syncWorldEvent(@Nullable Entity player, int eventId, BlockPos pos, int data)
+    public void levelEvent(@Nullable Entity player, int eventId, BlockPos pos, int data)
     {
     }
 
     @Override
     public PotionBrewing potionBrewing()
     {
-        return this.delegate.getBrewingRecipeRegistry();
+        return this.delegate.potionBrewing();
     }
 
     /* Both new abstracts in 1.21.11; the real world's answers serve the preview as well as anything. */
@@ -256,7 +258,14 @@ public class StructureWorld extends Level
     @Override
     public FuelValues fuelValues()
     {
-        return this.delegate.getFuelRegistry();
+        return this.delegate.fuelValues();
+    }
+
+    /* 26.2: ClockManager is the newest abstract on Level. */
+    @Override
+    public ClockManager clockManager()
+    {
+        return this.delegate.clockManager();
     }
 
     @Override
@@ -283,12 +292,8 @@ public class StructureWorld extends Level
         return this.delegate.getWorldBorder();
     }
 
-    /** Every chunk of a structure is present by construction — it IS the structure. */
-    @Override
-    public boolean isChunkLoaded(int chunkX, int chunkZ)
-    {
-        return true;
-    }
+    /** Every chunk of a structure is present by construction — it IS the structure.
+     *  26.2: Level no longer declares isChunkLoaded at all, so the override is gone with it. */
 
     /** No entities live in a structure view, so nothing of theirs can be collided with. */
     @Override
@@ -306,7 +311,8 @@ public class StructureWorld extends Level
     @Override
     public LevelData.RespawnData getRespawnData()
     {
-        return this.delegate.getSpawnPoint();
+        /* 26.2: getSpawnPoint became getRespawnData on the real world too. */
+        return this.delegate.getRespawnData();
     }
 
     @Override
@@ -342,7 +348,7 @@ public class StructureWorld extends Level
     }
 
     @Override
-    public void emitGameEvent(Holder<GameEvent> event, Vec3 emitterPos, GameEvent.Context emitter)
+    public void gameEvent(Holder<GameEvent> event, Vec3 emitterPos, GameEvent.Context emitter)
     {
     }
 

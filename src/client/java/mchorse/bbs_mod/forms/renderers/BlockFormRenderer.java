@@ -23,22 +23,31 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.renderer.block.FluidRenderer;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.color.block.BlockTintSource;
+import net.minecraft.util.LightCoordsUtil;
+import net.minecraft.util.RandomSource;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.QuadInstance;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +56,11 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
     public static final Color color = new Color();
 
     private final SingleBlockRenderView fluidView = new SingleBlockRenderView();
+
+    /* 26.2 keeps the fluid renderer, but no longer behind Minecraft#getBlockRenderer(): it is a
+     * standalone object fed through FluidRenderer.Output. Built from the same model manager the
+     * block models come from, once per renderer. */
+    private FluidRenderer fluidRenderer;
 
     private BlockEntity blockEntity;
     private BlockState blockEntityState;
@@ -97,7 +111,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
         consumers.setSubstitute(BBSRendering.getColorConsumer(set));
         consumers.setUI(true);
         consumers.setLayerMapper(overlayActive ? FormOverlay::withOverlay : null);
-        this.renderBlock(stack, consumers, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY, false);
+        this.renderBlock(stack, consumers, LightCoordsUtil.pack(15, 0), OverlayTexture.NO_OVERLAY, false);
         consumers.setLayerMapper(null);
         consumers.draw();
         consumers.setUI(false);
@@ -218,15 +232,23 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
          * on top of its own model below. */
         if (!fluidState.isEmpty())
         {
-            RenderType layer = ItemBlockRenderTypes.getRenderType(fluidState.createLegacyBlock());
-            FluidVertexConsumer consumer = new FluidVertexConsumer(consumers.getBuffer(layer), matrices.last(), overlay);
+            if (this.fluidRenderer == null)
+            {
+                this.fluidRenderer = new FluidRenderer(mc.getModelManager().getFluidStateModelSet());
+            }
 
-            mc.getBlockRenderer().renderLiquid(BlockPos.ZERO, this.fluidView.set(state, light), consumer, state, fluidState);
+            /* 26.2 removed BlockRenderDispatcher#renderLiquid: the fluid renderer is called directly
+             * and asks its Output for a buffer per ChunkSectionLayer (chunk rendering has no
+             * RenderType any more). Terrain geometry in the entity pass goes through the block-item
+             * sheets, so those are what the layers map onto here. */
+            FluidRenderer.Output output = (layer) -> new FluidVertexConsumer(consumers.getBuffer(blockItemSheet(layer)), matrices.last(), overlay);
+
+            this.fluidRenderer.tesselate(this.fluidView.set(state, light), BlockPos.ZERO, output, state, fluidState);
         }
 
         if (type != RenderShape.INVISIBLE)
         {
-            mc.getBlockRenderer().renderSingleBlock(state, matrices, consumers, light, overlay);
+            renderBlockState(matrices, consumers, state, light, overlay);
         }
 
         if (picking)
@@ -260,6 +282,69 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
                 ItemFormRenderer.renderItem(stack, ItemDisplayContext.NONE, matrices, consumers, mc.level, light, overlay);
                 matrices.popPose();
             }
+        }
+    }
+
+    /** The fluid renderer's chunk layers as the block-item sheets the entity pass draws terrain with. */
+    private static RenderType blockItemSheet(ChunkSectionLayer layer)
+    {
+        return layer.translucent() ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet();
+    }
+
+    /**
+     * Draw one block state's baked model into the BBS consumers — what 1.21.11 got from
+     * {@code BlockRenderDispatcher#renderSingleBlock}, removed in 26.2 along with
+     * {@code Minecraft#getBlockRenderer()}.
+     *
+     * <p>This mirrors the vanilla entity-pass block renderer (BlockModelFeatureRenderer), which is
+     * what draws a block model that is not part of a chunk: every part's quads are tinted with the
+     * block's own tint sources and drawn through the per-quad render type the model was baked with
+     * (the block-item sheets), with the caller's light and overlay. Shared with
+     * StructureFormRenderer's structure-block placeholder.</p>
+     */
+    public static void renderBlockState(PoseStack matrices, CustomVertexConsumerProvider consumers, BlockState state, int light, int overlay)
+    {
+        Minecraft mc = Minecraft.getInstance();
+        BlockStateModel model = mc.getModelManager().getBlockStateModelSet().get(state);
+        List<BlockStateModelPart> parts = new ArrayList<>();
+        List<BlockTintSource> tintSources = mc.getBlockColors().getTintSources(state);
+        int[] tintLayers = new int[tintSources.size()];
+        QuadInstance quadInstance = new QuadInstance();
+
+        /* 1.21.11's renderSingleBlock resolved the state's render types with RandomSource.create(42L);
+         * the same seed keeps a random/multipart model picking the same variant. */
+        model.collectParts(RandomSource.create(42L), parts);
+
+        for (int i = 0; i < tintLayers.length; i++)
+        {
+            tintLayers[i] = tintSources.get(i).color(state);
+        }
+
+        quadInstance.setLightCoords(light);
+        quadInstance.setOverlayCoords(overlay);
+
+        for (BlockStateModelPart part : parts)
+        {
+            for (Direction direction : Direction.values())
+            {
+                putQuads(matrices, consumers, part.getQuads(direction), quadInstance, tintLayers);
+            }
+
+            putQuads(matrices, consumers, part.getQuads(null), quadInstance, tintLayers);
+        }
+    }
+
+    private static void putQuads(PoseStack matrices, CustomVertexConsumerProvider consumers, List<BakedQuad> quads, QuadInstance quadInstance, int[] tintLayers)
+    {
+        for (BakedQuad quad : quads)
+        {
+            BakedQuad.MaterialInfo material = quad.materialInfo();
+            int tintIndex = material.tintIndex();
+            boolean tinted = tintIndex != -1 && tintIndex < tintLayers.length;
+
+            /* -1 is the untinted colour: white, which the BBS colour consumer then multiplies. */
+            quadInstance.setColor(tinted ? tintLayers[tintIndex] : -1);
+            consumers.getBuffer(material.itemRenderType()).putBakedQuad(matrices.last(), quad, quadInstance);
         }
     }
 
@@ -308,7 +393,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
          * by hand instead, and the form's own light replaces the light at that origin. */
         BlockEntityRenderState renderState = renderer.createRenderState();
 
-        renderer.extractRenderState(this.blockEntity, renderState, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false), mc.gameRenderer.getMainCamera().getCameraPos(), null);
+        renderer.extractRenderState(this.blockEntity, renderState, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false), mc.gameRenderer.mainCamera().position(), null);
 
         renderState.lightCoords = light;
 

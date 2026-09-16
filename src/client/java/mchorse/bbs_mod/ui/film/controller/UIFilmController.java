@@ -61,7 +61,7 @@ import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.PlayerUtils;
 import mchorse.bbs_mod.utils.RayTracing;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.input.KeyEvent;
@@ -118,7 +118,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
     private int pov;
     private boolean paused;
 
-    private WorldRenderContext worldRenderContext;
+    private LevelRenderContext worldRenderContext;
 
     public UIFilmController(UIFilmPanel panel)
     {
@@ -282,7 +282,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
     }
 
     /** The world render pass in progress, for the companions that draw inside it. */
-    WorldRenderContext worldRenderContext()
+    LevelRenderContext worldRenderContext()
     {
         return this.worldRenderContext;
     }
@@ -889,7 +889,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         }
     }
 
-    public void renderFrame(WorldRenderContext context)
+    public void renderFrame(LevelRenderContext context)
     {
         this.worldRenderContext = context;
 
@@ -903,7 +903,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
             if (povMode != UIFilmController.CAMERA_MODE_CAMERA && BBSSettings.recordingCameraPreview.get())
             {
-                Recorder.renderCameraPreview(this.panel.getRunner().getPosition(), Minecraft.getInstance().gameRenderer.getMainCamera(), context.matrices());
+                Recorder.renderCameraPreview(this.panel.getRunner().getPosition(), Minecraft.getInstance().gameRenderer.mainCamera(), context.poseStack());
             }
         }
 
@@ -927,7 +927,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         /* TODO(1.21.11 render): RenderSystem.disableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
     }
 
-    private void renderOrbitCenterMarker(WorldRenderContext context)
+    private void renderOrbitCenterMarker(LevelRenderContext context)
     {
         /* Nothing is turning around it while the camera is being flown. */
         if (this.getPovMode() != CAMERA_MODE_ORBIT || this.panel.isFlying() || !BBSSettings.editorOrbitCenterMarker.get())
@@ -942,12 +942,12 @@ public class UIFilmController extends UIElement implements GizmoViewport
             return;
         }
 
-        net.minecraft.client.render.Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-        double x = center.x - camera.getCameraPos().x;
-        double y = center.y - camera.getCameraPos().y;
-        double z = center.z - camera.getCameraPos().z;
+        net.minecraft.client.Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+        double x = center.x - camera.position().x;
+        double y = center.y - camera.position().y;
+        double z = center.z - camera.position().z;
         float distanceScale = BBSSettings.getScreenSizeScale((float) Math.sqrt(x * x + y * y + z * z));
-        PoseStack stack = context.matrices();
+        PoseStack stack = context.poseStack();
 
         stack.pushPose();
         stack.translate(x, y, z);

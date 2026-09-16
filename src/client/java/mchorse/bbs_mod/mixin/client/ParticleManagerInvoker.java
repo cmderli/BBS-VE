@@ -15,6 +15,6 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(ParticleEngine.class)
 public interface ParticleManagerInvoker
 {
-    @Invoker("createParticle")
+    @Invoker("makeParticle")
     public Particle bbs$createParticle(ParticleOptions parameters, double x, double y, double z, double velocityX, double velocityY, double velocityZ);
 }

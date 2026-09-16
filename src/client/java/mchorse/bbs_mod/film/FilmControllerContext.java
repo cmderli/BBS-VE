@@ -5,11 +5,11 @@ import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import net.minecraft.client.Camera;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import java.util.Map;
@@ -24,7 +24,8 @@ public class FilmControllerContext
     public Replay replay;
     public Camera camera;
     public PoseStack stack;
-    public MultiBufferSource consumers;
+    /** 26.2: the world's vertex sink is a submit-node collector, not a MultiBufferSource. */
+    public SubmitNodeCollector consumers;
     public StencilMap map;
 
     public float transition;
@@ -64,22 +65,22 @@ public class FilmControllerContext
         this.relative = false;
     }
 
-    public FilmControllerContext setup(Map<String, IEntity> entities, IEntity entity, Replay replay, WorldRenderContext context)
+    public FilmControllerContext setup(Map<String, IEntity> entities, IEntity entity, Replay replay, LevelRenderContext context)
     {
         this.reset();
 
         this.entities = entities;
         this.entity = entity;
         this.replay = replay;
-        this.camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-        this.stack = context.matrices();
-        this.consumers = context.consumers();
+        this.camera = Minecraft.getInstance().gameRenderer.mainCamera();
+        this.stack = context.poseStack();
+        this.consumers = context.submitNodeCollector();
         this.transition = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
 
         return this;
     }
 
-    public FilmControllerContext setup(Map<String, IEntity> entities, IEntity entity, Replay replay, Camera camera, PoseStack stack, MultiBufferSource consumers, float transition)
+    public FilmControllerContext setup(Map<String, IEntity> entities, IEntity entity, Replay replay, Camera camera, PoseStack stack, SubmitNodeCollector consumers, float transition)
     {
         this.reset();
 

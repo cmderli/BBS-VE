@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.film;
 
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSMod;
@@ -20,16 +21,18 @@ import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.PlayerUtils;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -69,9 +72,10 @@ public class Recorder extends WorldFilmController
      * BufferRenderer.drawWithGlobalProgram(); finished BufferBuilders go through a RenderLayer. */
     private static final RenderPipeline POSITION_COLOR_TRIS = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
-            .withLocation(net.minecraft.util.Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/recorder_camera_preview"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BlendFunction.TRANSLUCENT)
+            .withLocation(net.minecraft.resources.Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/recorder_camera_preview"))
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
             .build()
     );
 
@@ -117,9 +121,9 @@ public class Recorder extends WorldFilmController
 
         Vector4f vector = Vectors.TEMP_4F;
         Matrix4f matrix = Matrices.TEMP_4F;
-        float x = (float) (position.point.x - camera.getCameraPos().x);
-        float y = (float) (position.point.y - camera.getCameraPos().y);
-        float z = (float) (position.point.z - camera.getCameraPos().z);
+        float x = (float) (position.point.x - camera.position().x);
+        float y = (float) (position.point.y - camera.position().y);
+        float z = (float) (position.point.z - camera.position().z);
         float fov = MathUtils.toRad(position.angle.fov);
         float aspect = BBSRendering.getVideoWidth() / (float) BBSRendering.getVideoHeight();
         float thickness = 0.025F;
@@ -131,7 +135,8 @@ public class Recorder extends WorldFilmController
             .rotateX(MathUtils.toRad(-position.angle.pitch));
 
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         transformFrustum(vector, matrix, 1F, 1F);
         Draw.fillBoxTo(builder, stack, x, y, z, x + vector.x, y + vector.y, z + vector.z, thickness, 1F, 1F, 1F, 1F);
@@ -152,10 +157,25 @@ public class Recorder extends WorldFilmController
 
         if (built != null)
         {
-            /* TODO(1.21.11 render): verify at runtime. RenderLayer.draw uploads + draws with the layer
-             * pipeline; previously this was RenderSystem.setShader + BufferRenderer.drawWithGlobalProgram. */
-            getCameraPreviewLayer().draw(built);
+            /* 26.2: RenderLayer.draw(BuiltBuffer) is gone — a finished MeshData carries only vertex
+             * bytes, so the draw needs a vertex GpuBuffer, the sequential index buffer and a prepared
+             * layer (the same shape as Draw#flush). The prepared layer opens its own pass, so this
+             * stays "finish the buffer, submit it through the layer". */
+            MeshData.DrawState state = built.drawState();
+            GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+                () -> "bbs recorder camera preview",
+                GpuBuffer.USAGE_VERTEX,
+                built.vertexBuffer()
+            );
+            RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+            getCameraPreviewLayer().prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(), 0, 0, state.indexCount());
+
+            vertices.close();
+            built.close();
         }
+
+        allocator.close();
 
         /* TODO(1.21.11 render): depth-test state now lives in the RenderPipeline/RenderLayer; removed RenderSystem.disableDepthTest() */
     }
@@ -227,7 +247,9 @@ public class Recorder extends WorldFilmController
         if (this.lastPosition == null)
         {
             this.lastPosition = new Vector3d(player.getX(), player.getY(), player.getZ());
-            this.lastRotation = new Vector4f(player.getViewYRot(), player.getViewXRot(), player.getHeadYaw(), player.getBodyYaw());
+            /* 26.2: yarn's HeldItemContext#getBodyYaw (what the renamer turned into getYBodyRot)
+             * is ItemOwner#getVisualRotationYInDegrees. */
+            this.lastRotation = new Vector4f(player.getYRot(), player.getXRot(), player.getYHeadRot(), player.getVisualRotationYInDegrees());
 
             this.hp = player.getHealth();
             this.hunger = player.getFoodData().getFoodLevel();
@@ -307,7 +329,7 @@ public class Recorder extends WorldFilmController
         AABB box = player.getBoundingBox().inflate(radius);
         double radiusSq = radius * radius;
 
-        for (LivingEntity entity : player.getEntityWorld().getEntitiesOfClass(LivingEntity.class, box, (e) -> e != player && e.isAlive() && e.distanceToSqr(player) <= radiusSq))
+        for (LivingEntity entity : player.level().getEntitiesOfClass(LivingEntity.class, box, (e) -> e != player && e.isAlive() && e.distanceToSqr(player) <= radiusSq))
         {
             MobForm form = Morph.createMobForm(entity);
 
@@ -346,11 +368,11 @@ public class Recorder extends WorldFilmController
         }
     }
 
-    public void render(WorldRenderContext context)
+    public void render(LevelRenderContext context)
     {
         super.render(context);
 
-        renderCameraPreview(this.position, Minecraft.getInstance().gameRenderer.getMainCamera(), context.matrices());
+        renderCameraPreview(this.position, Minecraft.getInstance().gameRenderer.mainCamera(), context.poseStack());
     }
 
     @Override

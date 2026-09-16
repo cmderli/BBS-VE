@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ChunkSectionsToRender.class)
 public class SectionRenderStateMixin
 {
-    @Inject(method = "renderSection", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderGroup", at = @At("HEAD"), cancellable = true)
     private void onRenderSection(ChunkSectionLayerGroup group, GpuSampler terrainSampler, CallbackInfo info)
     {
         if (BBSSettings.chromaSkyEnabled.get() && !BBSSettings.chromaSkyTerrain.get())

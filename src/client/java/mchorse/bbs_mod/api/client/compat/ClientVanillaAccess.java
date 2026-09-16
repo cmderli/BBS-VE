@@ -17,11 +17,11 @@ public final class ClientVanillaAccess
 
     public static RenderTarget getFramebuffer(Minecraft client)
     {
-        return client.mainRenderTarget;
+        return client.gameRenderer.mainRenderTarget();
     }
 
     public static void setFramebuffer(Minecraft client, RenderTarget framebuffer)
     {
-        client.mainRenderTarget = framebuffer;
+        client.gameRenderer.mainRenderTarget = framebuffer;
     }
 }

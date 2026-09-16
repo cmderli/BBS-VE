@@ -6,11 +6,13 @@ import mchorse.bbs_mod.actions.ActionState;
 import mchorse.bbs_mod.audio.AudioRenderer;
 import mchorse.bbs_mod.camera.clips.misc.AudioClip;
 import mchorse.bbs_mod.client.BBSRendering;
+import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.network.ClientNetwork;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.WorldExportWindowSession;
 import mchorse.bbs_mod.utils.clips.Clips;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.platform.Window;
 
 import java.io.File;
@@ -60,7 +62,16 @@ public class WorldVideoExportSession extends VideoExportSession
         this.firstTickPaused = false;
 
         long delayMs = (long) (Math.max(0F, BBSSettings.videoDelay.get()) * 1000F);
-        boolean started = this.begin(BBSRendering.getTexture().id, size.width, size.height, delayMs);
+
+        /* TODO(26.2): a Texture has no GL name any more. VideoExportSession's int textureId reaches
+         * VideoRecorder, which reads the frame back with glGetTexImage, so it can only be fed the
+         * OpenGL backend's own name (GlTexture#glId); an unsized snapshot answers 0. Replacing that
+         * read-back with Texture.pixelsFromTexture(Texture) is what removes the int textureId and
+         * this cast — until then this path is GL-backend-only (it breaks under Prefer Vulkan). */
+        Texture snapshot = BBSRendering.getTexture();
+        int textureId = snapshot.gpuTexture instanceof GlTexture gl ? gl.glId() : 0;
+
+        boolean started = this.begin(textureId, size.width, size.height, delayMs);
 
         if (!started)
         {

@@ -1,12 +1,7 @@
 package mchorse.bbs_mod.forms.renderers.utils;
 
 import mchorse.bbs_mod.utils.colors.Color;
-import net.caffeinemc.mods.sodium.api.vertex.buffer.VertexBufferWriter;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormatElement;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.MemoryUtil;
 
 /**
  * The Sodium-aware recolor wrapper: Sodium's intrinsic vertex writers bypass the vanilla
@@ -19,56 +14,17 @@ import org.lwjgl.system.MemoryUtil;
  * {@code ColorAttribute#set}; the block is patched here instead, which needs no mixin and so does
  * not care which Sodium version is installed (only the public writer API and the vertex format's
  * own element offsets are used).</p>
+ *
+ * TODO(26.2 render): Sodium is not a dependency of this build at all (see the closing comment in
+ * build.gradle: it "comes back only once utils/iris and utils/sodium are ported"), so the
+ * {@code VertexBufferWriter} interface and its {@code push} override cannot be compiled. They were
+ * removed here; restore them — and the block-patching body that lived in push — when Sodium
+ * returns. {@link RecolorVertexConsumer#tintPackedABGR(int, Color)} is kept for exactly that.
  */
-public class RecolorVertexSodiumConsumer extends RecolorVertexConsumer implements VertexBufferWriter
+public class RecolorVertexSodiumConsumer extends RecolorVertexConsumer
 {
     public RecolorVertexSodiumConsumer(VertexConsumer consumer, Color color)
     {
         super(consumer, color);
-    }
-
-    @Override
-    public void push(MemoryStack memoryStack, long pointer, int count, VertexFormat vertexFormat)
-    {
-        if (!(this.consumer instanceof VertexBufferWriter writer))
-        {
-            return;
-        }
-
-        int offset = vertexFormat.getOffset(VertexFormatElement.COLOR);
-
-        /* A form with no colour set is the common case and multiplies by one: hand the caller's own
-         * block straight on rather than copying every vertex to change nothing. */
-        if (offset < 0 || isNeutral(this.color))
-        {
-            writer.push(memoryStack, pointer, count, vertexFormat);
-
-            return;
-        }
-
-        int stride = vertexFormat.getVertexSize();
-
-        /* The pushed block belongs to the caller and may be handed on to other writers, so the
-         * tint goes onto a copy taken on a frame of the caller's own stack. */
-        try (MemoryStack stack = memoryStack.push())
-        {
-            long copy = stack.nmalloc(Integer.BYTES, count * stride);
-
-            MemoryUtil.memCopy(pointer, copy, (long) count * stride);
-
-            for (int i = 0; i < count; i++)
-            {
-                long at = copy + (long) i * stride + offset;
-
-                MemoryUtil.memPutInt(at, tintPackedABGR(MemoryUtil.memGetInt(at), this.color));
-            }
-
-            writer.push(stack, copy, count, vertexFormat);
-        }
-    }
-
-    private static boolean isNeutral(Color color)
-    {
-        return color == null || (color.r == 1F && color.g == 1F && color.b == 1F && color.a == 1F);
     }
 }

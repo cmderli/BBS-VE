@@ -17,12 +17,12 @@ import mchorse.bbs_mod.ui.utils.renderers.InputRenderer;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -118,7 +118,7 @@ public class StructureWand
          * it belongs on the client with the rest of the wand anyway */
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) ->
         {
-            if (stack.isOf(BBSMod.STRUCTURE_WAND_ITEM))
+            if (stack.is(BBSMod.STRUCTURE_WAND_ITEM))
             {
                 for (String line : TOOLTIP)
                 {
@@ -149,7 +149,7 @@ public class StructureWand
             StructureSelection.setA(pick(mc));
         }
 
-        mc.player.swingHand(getHand(mc.player));
+        mc.player.swing(getHand(mc.player));
 
         return true;
     }
@@ -174,7 +174,7 @@ public class StructureWand
         else
         {
             StructureSelection.setB(pick(mc));
-            mc.player.swingHand(getHand(mc.player));
+            mc.player.swing(getHand(mc.player));
         }
 
         return true;
@@ -212,7 +212,7 @@ public class StructureWand
     /** Whether the wand is in the player's hands with the world in front of them, not a screen. */
     private static boolean isActive(Minecraft mc)
     {
-        return mc.player != null && mc.screen == null && isHolding(mc.player);
+        return mc.player != null && mc.gui.screen() == null && isHolding(mc.player);
     }
 
     /**
@@ -234,7 +234,9 @@ public class StructureWand
         /* Since 1.21.1 the reach is an attribute of the player, not the interaction manager */
         double reach = mc.player.blockInteractionRange();
 
-        return BlockPos.containing(eye.atLowerCornerWithOffset(look.scale(reach)));
+        /* 26.2: the Vec3 overload of atLowerCornerWithOffset is gone (the survivor takes a Vec3i
+         * plus three doubles); adding the vector is the same arithmetic it used to do. */
+        return BlockPos.containing(eye.add(look.scale(reach)));
     }
 
     private static boolean isHolding(Player player, InteractionHand hand)
@@ -300,7 +302,8 @@ public class StructureWand
 
         if (mc.player != null)
         {
-            mc.player.sendMessage(Component.literal((ok ? UIKeys.STRUCTURE_WAND_SAVED : UIKeys.STRUCTURE_WAND_SAVE_FAILED).format(name).get()), true);
+            /* 26.2: displayClientMessage(Component, true) is sendOverlayMessage. */
+            mc.player.sendOverlayMessage(Component.literal((ok ? UIKeys.STRUCTURE_WAND_SAVED : UIKeys.STRUCTURE_WAND_SAVE_FAILED).format(name).get()));
         }
 
         if (ok && name.equals(pendingRecent))
@@ -330,7 +333,7 @@ public class StructureWand
      * build almost every time. The face under the crosshair is found here too — it is a property
      * of this frame's view, and the wheel reads it.
      */
-    public static void renderWorld(WorldRenderContext context)
+    public static void renderWorld(LevelRenderContext context)
     {
         Minecraft mc = Minecraft.getInstance();
 
@@ -343,18 +346,18 @@ public class StructureWand
         }
 
         float tickDelta = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getCameraPos();
+        Vec3 camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
         AABB box = StructureSelection.getBox();
 
         pick = pick(mc);
         face = box == null ? null : findFace(mc.player.getEyePosition(tickDelta), mc.player.getViewVector(tickDelta), box);
 
-        PoseStack stack = context.matrices();
+        PoseStack stack = context.poseStack();
 
         /* One batch for the whole selection, submitted without depth testing — the blend/cull/depth
          * bracket that used to wrap this is pipeline state now, and reading through terrain is the
          * point of a selection: the box and its corners have to be visible from outside the build. */
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = beginBuffer();
 
         if (box != null)
         {
@@ -437,6 +440,25 @@ public class StructureWand
 
         return tNear > 0 ? near : far;
     }
+
+    /**
+     * Begin the frame's scratch TRIANGLES/POSITION_COLOR batch. 1.21.11 asked the Tesselator for
+     * its one growable buffer; 26.2 has no Tesselator, so the same single staging buffer is owned
+     * here and handed to a fresh builder each frame (it rewinds itself once the submitted mesh is
+     * closed). {@link Draw#flushTrianglesNoDepth(BufferBuilder)} finishes and submits it.
+     */
+    private static BufferBuilder beginBuffer()
+    {
+        if (allocator == null)
+        {
+            allocator = new ByteBufferBuilder(786432);
+        }
+
+        return new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+    }
+
+    /** The staging buffer {@link #beginBuffer()} hands to every frame's selection batch. */
+    private static ByteBufferBuilder allocator;
 
     private static void renderBox(BufferBuilder builder, PoseStack stack, Vec3 camera, AABB box)
     {
@@ -594,7 +616,7 @@ public class StructureWand
     {
         Minecraft mc = Minecraft.getInstance();
 
-        if (mc.player == null || mc.screen != null || mc.options.hideGui || !isHolding(mc.player))
+        if (mc.player == null || mc.gui.screen() != null || mc.gui.hud.isHidden() || !isHolding(mc.player))
         {
             return;
         }

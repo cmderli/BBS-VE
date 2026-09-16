@@ -4,7 +4,7 @@ import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
 import com.mojang.blaze3d.opengl.GlTexture;
 import net.minecraft.resources.Identifier;
@@ -44,8 +44,8 @@ public class FormFramebuffer implements AutoCloseable
 
         this.width = width;
         this.height = height;
-        this.color = device.createTexture(() -> "BBS form framebuffer", USAGE, TextureFormat.RGBA8, width, height, 1, 1);
-        this.depth = device.createTexture(() -> "BBS form framebuffer depth", GpuTexture.USAGE_RENDER_ATTACHMENT, TextureFormat.DEPTH32, width, height, 1, 1);
+        this.color = device.createTexture(() -> "BBS form framebuffer", USAGE, GpuFormat.RGBA8_UNORM, width, height, 1, 1);
+        this.depth = device.createTexture(() -> "BBS form framebuffer depth", GpuTexture.USAGE_RENDER_ATTACHMENT, GpuFormat.D32_FLOAT, width, height, 1, 1);
         this.colorView = device.createTextureView(this.color);
         this.depthView = device.createTextureView(this.depth);
     }

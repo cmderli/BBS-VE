@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Minecraft.class)
 public class MinecraftClientMixin
 {
-    @Inject(method = "doAttack", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "startAttack", at = @At("HEAD"), cancellable = true)
     public void wandAttack(CallbackInfoReturnable<Boolean> cir)
     {
         if (StructureWand.onAttack())
@@ -25,7 +25,7 @@ public class MinecraftClientMixin
         }
     }
 
-    @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     public void wandUse(CallbackInfo ci)
     {
         if (StructureWand.onUse())

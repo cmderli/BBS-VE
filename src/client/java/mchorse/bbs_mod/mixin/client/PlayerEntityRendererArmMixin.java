@@ -37,7 +37,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(AvatarRenderer.class)
 public class PlayerEntityRendererArmMixin
 {
-    @Inject(method = "renderRightArm", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderRightHand", at = @At("HEAD"), cancellable = true)
     private void bbs$onRenderRightArm(PoseStack matrices, SubmitNodeCollector queue, int light, Identifier skinTexture, boolean sleeveVisible, CallbackInfo info)
     {
         if (bbs$renderMorphArm(matrices, light, InteractionHand.MAIN_HAND))
@@ -46,7 +46,7 @@ public class PlayerEntityRendererArmMixin
         }
     }
 
-    @Inject(method = "renderLeftArm", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderLeftHand", at = @At("HEAD"), cancellable = true)
     private void bbs$onRenderLeftArm(PoseStack matrices, SubmitNodeCollector queue, int light, Identifier skinTexture, boolean sleeveVisible, CallbackInfo info)
     {
         if (bbs$renderMorphArm(matrices, light, InteractionHand.OFF_HAND))

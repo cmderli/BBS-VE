@@ -21,10 +21,10 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.interps.Lerps;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.InteractionHand;
 import org.joml.Matrix3x2f;
@@ -137,7 +137,7 @@ public abstract class FormRenderer <T extends Form>
             angle = -MathUtils.PI + MathUtils.PI / 8;
         }
 
-        GuiGraphics dc = context.batcher.getContext();
+        GuiGraphicsExtractor dc = context.batcher.getContext();
         Matrix3x2f pose = new Matrix3x2f(dc.pose());
 
         /* The live GUI scissor (set by the caller's batcher.clip — UIReplayList clips the preview to the
@@ -148,7 +148,7 @@ public abstract class FormRenderer <T extends Form>
          * scissor is shifted by the scroll exactly once — in lock-step with the geometry placed by pose. */
         ScreenRectangle scissor = dc.scissorStack.peek();
 
-        dc.guiRenderState.addSpecialElement(new BbsFormGuiElementRenderState(
+        dc.guiRenderState.addPicturesInPictureState(new BbsFormGuiElementRenderState(
             this, angle, context.getTransition(), pose, x1, y1, x2, y2, 1.0F, scissor));
     }
 
@@ -232,7 +232,7 @@ public abstract class FormRenderer <T extends Form>
             int u = context.light & '\uffff';
             int v = context.light >> 16 & '\uffff';
 
-            u = (int) Lerps.lerp(u, LightTexture.FULL_BLOCK, lf);
+            u = (int) Lerps.lerp(u, LightCoordsUtil.pack(15, 0), lf);
             context.light = u | v << 16;
 
             this.render3D(context);

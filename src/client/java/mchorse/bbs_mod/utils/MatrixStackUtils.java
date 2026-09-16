@@ -116,7 +116,7 @@ public class MatrixStackUtils
     public static void applyTransform(PoseStack stack, Transform transform)
     {
         stack.translate(transform.translate.x, transform.translate.y, transform.translate.z);
-        stack.rotateAround(transform.createRotation());
+        stack.mulPose(transform.createRotation());
         scaleStack(stack, transform.scale.x, transform.scale.y, transform.scale.z);
     }
 

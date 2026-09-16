@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.ModifyConstant;
 @Mixin(SkyRenderer.class)
 public class SkyRenderingMixin
 {
-    @ModifyConstant(method = "renderCelestialBodies", constant = @Constant(floatValue = -90F))
+    @ModifyConstant(method = "renderSunMoonAndStars", constant = @Constant(floatValue = -90F))
     private float rotateSunHorizontally(float rotation)
     {
         return rotation + BBSRendering.getSunHorizontalRotation();

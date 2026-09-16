@@ -98,11 +98,11 @@ public class Waveform
 
             pixels.rewindBuffer();
 
-            texture.bind();
+            /* 26.2: no texture unit to bind — the upload is a command and wrapping lives on the
+             * texture's sampler (GL_CLAMP_TO_BORDER has no AddressMode, so it clamps to edge). */
             texture.uploadTexture(pixels);
             texture.setFilter(GL11.GL_NEAREST);
-            texture.setParameter(GL11.GL_TEXTURE_WRAP_S, GL13.GL_CLAMP_TO_BORDER);
-            texture.unbind();
+            texture.setWrap(GL13.GL_CLAMP_TO_BORDER);
 
             this.sprites.add(texture);
 

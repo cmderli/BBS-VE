@@ -10,7 +10,9 @@ import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.colors.Colors;
+import net.minecraft.core.Holder;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -98,8 +100,10 @@ public class UIMobEditor extends UIElement
     {
         try
         {
-            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(Identifier.fromNamespaceAndPath(this.mobID));
-            SpawnEggItem egg = SpawnEggItem.byId(type);
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.parse(this.mobID));
+            /* 26.2: SpawnEggItem.byId returns the registry holder of the egg item rather than the
+             * SpawnEggItem itself (1.21.11's SpawnEggItem.forEntity). */
+            Item egg = SpawnEggItem.byId(type).map(Holder::value).orElse(null);
 
             return egg == null ? ItemStack.EMPTY : new ItemStack(egg);
         }
@@ -134,7 +138,7 @@ public class UIMobEditor extends UIElement
 
             matrices.pushMatrix();
             consumers.setUI(true);
-            context.batcher.getContext().renderItem(stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().item(stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
             consumers.setUI(false);
             matrices.popMatrix();
         }

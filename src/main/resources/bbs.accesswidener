@@ -39,6 +39,14 @@ accessible method net/minecraft/world/entity/LivingEntity setLivingEntityFlag (I
 accessible field net/minecraft/client/MinecraftClient framebuffer Lnet/minecraft/client/gl/Framebuffer;
 # mutable field net/minecraft/client/MinecraftClient framebuffer Lnet/minecraft/client/gl/Framebuffer;
 
+# The custom-resolution export redirects the whole frame by swapping the game's main render target
+# (BBSRendering#reassignFramebuffer). 26.2 moved that target from Minecraft.framebuffer to
+# GameRenderer.mainRenderTarget, where it is private AND final, hence the pair. Everything else about
+# the mechanism is unchanged: the world renderer builds its passes from this field. Verified with
+# javap against the 26.2 jar (private final Lcom/mojang/blaze3d/pipeline/RenderTarget; mainRenderTarget).
+accessible field net/minecraft/client/renderer/GameRenderer mainRenderTarget Lcom/mojang/blaze3d/pipeline/RenderTarget;
+mutable field net/minecraft/client/renderer/GameRenderer mainRenderTarget Lcom/mojang/blaze3d/pipeline/RenderTarget;
+
 # Mob form (player variant): the cosmetic model-parts byte — 1.21.9 renamed PlayerEntity.PLAYER_MODEL_PARTS
 # to PlayerLikeEntity.PLAYER_MODE_CUSTOMIZATION_ID and made it protected.
 # accessible field net/minecraft/entity/PlayerLikeEntity PLAYER_MODE_CUSTOMIZATION_ID Lnet/minecraft/entity/data/TrackedData;
@@ -113,3 +121,9 @@ accessible field net/minecraft/client/renderer/rendertype/RenderSetup affectsCru
 accessible field net/minecraft/client/renderer/rendertype/RenderSetup sortOnUpload Z
 accessible field net/minecraft/client/renderer/rendertype/RenderSetup layeringTransform Lnet/minecraft/client/renderer/rendertype/LayeringTransform;
 accessible class net/minecraft/client/renderer/rendertype/RenderSetup$TextureBinding
+
+# Mob form (player stand-in): 1.21.9 renamed PlayerEntity.PLAYER_MODEL_PARTS to
+# Avatar.DATA_PLAYER_MODE_CUSTOMISATION and made it protected; MobStandIn sets the cosmetic
+# model-parts byte to make every cosmetic layer visible (the 26.2 spelling of the entry
+# commented out above).
+accessible field net/minecraft/world/entity/Avatar DATA_PLAYER_MODE_CUSTOMISATION Lnet/minecraft/network/syncher/EntityDataAccessor;

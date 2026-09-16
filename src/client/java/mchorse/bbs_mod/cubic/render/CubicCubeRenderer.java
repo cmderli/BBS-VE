@@ -13,7 +13,7 @@ import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -528,24 +528,25 @@ public class CubicCubeRenderer implements ICubicRenderer
     /** Write a single finished vertex (position, uv and normal already resolved) into the buffer. */
     private void emit(BufferBuilder builder, ModelGroup group, float x, float y, float z, float u, float v, Vector3f normal)
     {
-        builder.vertex(x, y, z)
+        builder.addVertex(x, y, z)
             .setColor(this.r * group.color.r, this.g * group.color.g, this.b * group.color.b, this.a * group.color.a)
             .setUv(u, v)
-            .setUv1(this.cpuOverlayActive ? 0 : this.groupOverlay);
+            .setOverlay(this.cpuOverlayActive ? 0 : this.groupOverlay);
 
         if (this.stencilMap != null)
         {
-            builder.light(stencilMap.increment ? group.index : 0, 0);
+            builder.setUv2(stencilMap.increment ? group.index : 0, 0);
         }
         else
         {
-            int lu = (int) Lerps.lerp(this.light & '\uffff', LightTexture.FULL_BLOCK, MathUtils.clamp(group.lighting, 0F, 1F));
+            /* LightTexture.FULL_BLOCK was the constant 240, i.e. packed (15, 0). */
+            int lu = (int) Lerps.lerp(this.light & '\uffff', LightCoordsUtil.pack(15, 0), MathUtils.clamp(group.lighting, 0F, 1F));
             int lv = this.light >> 16 & '\uffff';
 
-            builder.light(lu, lv);
+            builder.setUv2(lu, lv);
         }
 
-        builder.normal(normal.x, normal.y, normal.z);
+        builder.setNormal(normal.x, normal.y, normal.z);
     }
 
     /**

@@ -14,7 +14,7 @@ import java.util.function.BooleanSupplier;
 @Mixin(IntegratedServer.class)
 public class IntegratedServerMixin
 {
-    @WrapOperation(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/MinecraftServer;tick(Ljava/util/function/BooleanSupplier;)V"))
+    @WrapOperation(method = "tickServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/MinecraftServer;tickServer(Ljava/util/function/BooleanSupplier;)V"))
     private void onTick(IntegratedServer server, BooleanSupplier supplier, Operation<Void> original)
     {
         VideoRecorder videoRecorder = BBSModClient.getVideoRecorder();

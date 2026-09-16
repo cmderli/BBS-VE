@@ -1,13 +1,16 @@
 package mchorse.bbs_mod.graphics.texture;
 
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.textures.GpuTextureView;
 import mchorse.bbs_mod.BBSMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
+import com.mojang.blaze3d.opengl.FrameBufferCache;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.opengl.GlTextureView;
 import net.minecraft.resources.Identifier;
@@ -31,6 +34,15 @@ import java.util.WeakHashMap;
  *
  * <p>Each adopted texture is registered once in the vanilla {@link net.minecraft.client.texture.TextureManager}
  * under a unique {@link Identifier}; the mapping is cached weakly by BBS {@link Texture} identity.</p>
+ *
+ * <p>26.2 port notes (the shape changed, the mechanism did not): the wrapper is not a
+ * {@link net.minecraft.client.renderer.texture.ReloadableTexture} — nothing here loads from a resource
+ * pack — so it goes in through {@code TextureManager.register} rather than {@code registerAndLoad};
+ * {@code com.mojang.blaze3d.textures.TextureFormat} became {@link GpuFormat}; the sampler cache key is
+ * {@code getSampler} now, because {@code getClampToEdge} only takes a filter; and the adopted
+ * {@code GlTexture}/{@code GlTextureView} constructors take a {@link FrameBufferCache} (an adopted id
+ * never populates it, because {@link #close()} and the subclass {@code close()} overrides stay no-ops
+ * and the wrappers are never freed).</p>
  *
  * TODO(1.21.11 render): registered wrappers are never removed from the vanilla TextureManager (small,
  * bounded leak across the bounded BBS texture set). Add explicit deregistration if texture churn grows.
@@ -88,9 +100,7 @@ public final class AdoptedTexture extends AbstractTexture
                 REGISTRY.put(texture, id);
             }
 
-            Minecraft.getInstance().getTextureManager().registerAndLoad(id,
-                new AdoptedTexture(texture.id, "bbs_adopted_" + texture.id,
-                    texture.width, texture.height, linear));
+            Minecraft.getInstance().getTextureManager().register(id, new AdoptedTexture(texture));
             LINEAR.put(texture, linear);
         }
 
@@ -137,7 +147,7 @@ public final class AdoptedTexture extends AbstractTexture
                 GLID_REGISTRY.put(glId, id);
             }
 
-            Minecraft.getInstance().getTextureManager().registerAndLoad(id,
+            Minecraft.getInstance().getTextureManager().register(id,
                 new AdoptedTexture(glId, "bbs_adopted_glid_" + glId, width, height, linear));
             GLID_STAMP.put(glId, stamp);
         }
@@ -153,8 +163,7 @@ public final class AdoptedTexture extends AbstractTexture
      */
     public static void register(Identifier id, Texture texture)
     {
-        Minecraft.getInstance().getTextureManager().registerAndLoad(id,
-            new AdoptedTexture(texture.id, "bbs_adopted_" + texture.id, texture.width, texture.height, texture.isLinear()));
+        Minecraft.getInstance().getTextureManager().register(id, new AdoptedTexture(texture));
     }
 
     /**
@@ -168,11 +177,45 @@ public final class AdoptedTexture extends AbstractTexture
     }
 
     /**
-     * Shared constructor for both entry points: adopt the existing GL id {@code glId} (zero-copy) into
-     * a vanilla {@link GlTexture}/{@link GlTextureView} pair with a clamping sampler.
+     * A BBS {@link Texture} needs no GL id at all: it already owns a device texture, a view and a
+     * sampler, so the wrapper just follows them live. That is what makes this path work on both
+     * backends, and why a texture that is reallocated (or re-filtered) after adoption still samples
+     * correctly without re-registering.
+     */
+    private AdoptedTexture(Texture source)
+    {
+        this.source = source;
+    }
+
+    /** The BBS texture {@link #getTexture()}/{@link #getTextureView()}/{@link #getSampler()} follow, or null for an adopted GL id. */
+    private final Texture source;
+
+    @Override
+    public GpuTexture getTexture()
+    {
+        return this.source != null ? this.source.gpuTexture : super.getTexture();
+    }
+
+    @Override
+    public GpuTextureView getTextureView()
+    {
+        return this.source != null ? this.source.view() : super.getTextureView();
+    }
+
+    @Override
+    public GpuSampler getSampler()
+    {
+        return this.source != null ? this.source.sampler() : super.getSampler();
+    }
+
+    /**
+     * Shared constructor for the raw-GL-id entry point: adopt the existing GL id {@code glId} (zero-copy)
+     * into a vanilla {@link GlTexture}/{@link GlTextureView} pair with a clamping sampler.
      */
     private AdoptedTexture(int glId, String label, int width, int height, boolean linear)
     {
+        this.source = null;
+
         AdoptedGlTexture glTexture = new AdoptedGlTexture(glId, label, width, height);
 
         this.texture = glTexture;
@@ -180,7 +223,7 @@ public final class AdoptedTexture extends AbstractTexture
 
         FilterMode filter = linear ? FilterMode.LINEAR : FilterMode.NEAREST;
 
-        this.sampler = RenderSystem.getSamplerCache().getClampToEdge(
+        this.sampler = RenderSystem.getSamplerCache().getSampler(
             AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, filter, filter, false);
     }
 
@@ -195,8 +238,8 @@ public final class AdoptedTexture extends AbstractTexture
     {
         private AdoptedGlTexture(int glId, String label, int width, int height)
         {
-            super(USAGE, label, TextureFormat.RGBA8,
-                Math.max(1, width), Math.max(1, height), 1, 1, glId);
+            super(USAGE, label, GpuFormat.RGBA8_UNORM,
+                Math.max(1, width), Math.max(1, height), 1, 1, glId, new FrameBufferCache());
         }
 
         @Override
@@ -211,7 +254,7 @@ public final class AdoptedTexture extends AbstractTexture
     {
         private AdoptedGlTextureView(AdoptedGlTexture texture)
         {
-            super(texture, 0, 1);
+            super(texture, 0, 1, new FrameBufferCache());
         }
 
         @Override

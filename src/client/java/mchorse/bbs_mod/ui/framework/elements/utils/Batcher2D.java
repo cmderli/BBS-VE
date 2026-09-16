@@ -15,7 +15,7 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.gui.render.TextureSetup;
@@ -31,18 +31,18 @@ import java.util.function.Supplier;
  * Ported to 1.21.11. Three big changes from 1.21.1:
  *
  * <ul>
- *   <li>The GUI is now 2D-transform based: {@link DrawContext#getMatrices()} returns an
+ *   <li>The GUI is now 2D-transform based: {@link GuiGraphicsExtractor#pose()} returns an
  *       {@link org.joml.Matrix3x2fStack} (not a 4x4 {@code MatrixStack}). The position-only vertex
  *       calls take a {@link Matrix3x2fc}; z is always 0 in the GUI.</li>
  *   <li>{@code RenderSystem.setShader(...)} / {@code BufferRenderer.drawWithGlobalProgram(...)} are
- *       gone. The GUI is two-phase/deferred: {@code DrawContext} accumulates a
- *       {@link net.minecraft.client.gui.render.state.GuiRenderState} that vanilla composites AFTER
- *       {@code Screen.render} returns. A self-issued {@code RenderLayer.draw} mid-frame would target
+ *       gone. The GUI is two-phase/deferred: {@code GuiGraphicsExtractor} accumulates a
+ *       {@link net.minecraft.client.renderer.state.gui.GuiRenderState} that vanilla composites AFTER
+ *       {@code Screen.extractRenderState} returns. A self-issued {@code RenderLayer.draw} mid-frame would target
  *       a different (un-composited) state, so solid rectangles and gradients now route through the
  *       managed {@code context.fill}/{@code context.fillGradient} path, and text through
- *       {@code context.drawText}. The batcher's {@code DrawContext} is swapped to vanilla's live
- *       per-frame context by {@code UIScreen.render} (see {@link #setContext}).</li>
- *   <li>{@code DrawContext.draw()} no longer exists (the two-phase GUI flushes deferred draws by
+ *       {@code context.text}. The batcher's {@code GuiGraphicsExtractor} is swapped to vanilla's live
+ *       per-frame context by {@code UIScreen.extractRenderState} (see {@link #setContext}).</li>
+ *   <li>{@code GuiGraphicsExtractor.draw()} no longer exists (the two-phase GUI flushes deferred draws by
  *       itself), and {@code RenderSystem.depthFunc(...)} is gone — both calls were removed.</li>
  * </ul>
  *
@@ -70,7 +70,7 @@ public class Batcher2D
 
     private static FontRenderer fontRenderer = new FontRenderer();
 
-    private GuiGraphics context;
+    private GuiGraphicsExtractor context;
     private FontRenderer font;
 
     public static FontRenderer getDefaultTextRenderer()
@@ -110,24 +110,24 @@ public class Batcher2D
     public void endBatch()
     {}
 
-    public Batcher2D(GuiGraphics context)
+    public Batcher2D(GuiGraphicsExtractor context)
     {
         this.context = context;
         this.font = getDefaultTextRenderer();
     }
 
-    public GuiGraphics getContext()
+    public GuiGraphicsExtractor getContext()
     {
         return this.context;
     }
 
     /**
-     * Swap in the live per-frame vanilla {@link DrawContext}. The 1.21.6+ GUI is two-phase: vanilla
-     * only composites the {@link net.minecraft.client.gui.render.state.GuiRenderState} that belongs
-     * to the {@code DrawContext} it passes into {@code Screen.render}. The batcher must therefore draw
-     * into that exact context each frame (set by {@code UIScreen.render}) or nothing is composited.
+     * Swap in the live per-frame vanilla {@link GuiGraphicsExtractor}. The 1.21.6+ GUI is two-phase: vanilla
+     * only composites the {@link net.minecraft.client.renderer.state.gui.GuiRenderState} that belongs
+     * to the {@code GuiGraphicsExtractor} it passes into {@code Screen.extractRenderState}. The batcher must therefore draw
+     * into that exact context each frame (set by {@code UIScreen.extractRenderState}) or nothing is composited.
      */
-    public void setContext(GuiGraphics context)
+    public void setContext(GuiGraphicsExtractor context)
     {
         this.context = context;
     }
@@ -156,23 +156,23 @@ public class Batcher2D
             return;
         }
 
-        this.context.guiRenderState.addSimpleElement(new GuiQuadMesh.State(
+        this.context.guiRenderState.addGuiElement(new GuiQuadMesh.State(
             RenderPipelines.GUI, TextureSetup.noTexture(),
             mesh.xs(), mesh.ys(), mesh.colors(), mesh.count(),
             scissor, bounds));
     }
 
     /**
-     * Open a fresh root layer in the deferred {@link net.minecraft.client.gui.render.state.GuiRenderState}.
+     * Open a fresh root layer in the deferred {@link net.minecraft.client.renderer.state.gui.GuiRenderState}.
      *
      * <p>The two-phase GUI (1.21.6+) records draws into a layer tree and composites it later. Within a
      * single root layer the z-order of overlapping elements is decided by bounds-intersection
-     * ({@code GuiRenderState.findAndGoToLayerIntersecting}), NOT recording order, so an element can be
+     * ({@code GuiRenderState.navigateToAboveHighestElementWithIntersectingBounds}), NOT recording order, so an element can be
      * overpainted by sibling chrome that was recorded earlier but climbed onto a higher sub-layer. Root
      * layers, by contrast, composite in strict insertion (painter's) order. Bracketing a draw with this
      * call therefore forces it onto its own root layer with a deterministic z relative to everything
-     * recorded before/after it. Vanilla brackets {@code renderBackground}/{@code render} exactly this way
-     * (see {@code Screen.renderWithTooltip}).</p>
+     * recorded before/after it. Vanilla brackets {@code extractBackground}/{@code extractRenderState} exactly this way
+     * (see {@code Screen.extractRenderStateWithTooltipAndSubtitles}).</p>
      */
     public void newRootLayer()
     {
@@ -306,7 +306,7 @@ public class Batcher2D
         if (color1 == color2 && color1 == color3 && color1 == color4)
         {
             /* Solid fill - composites correctly through the two-phase GUI (GuiRenderState). */
-            this.context.submitColoredRectangle(x1, y1, x2, y2, color1);
+            this.context.fill(x1, y1, x2, y2, color1);
         }
         else if (color1 == color2 && color3 == color4)
         {
@@ -341,15 +341,15 @@ public class Batcher2D
         Matrix3x2fc matrix = this.matrix();
         GuiQuadMesh mesh = new GuiQuadMesh();
 
-        mesh.addVertex(matrix, x1, y1).setColor(topLeft);
-        mesh.addVertex(matrix, x1, y2).setColor(topLeft);
-        mesh.addVertex(matrix, x2, y1).setColor(topLeft);
-        mesh.addVertex(matrix, x2, y1).setColor(topLeft);
+        mesh.addVertexWith2DPose(matrix, x1, y1).setColor(topLeft);
+        mesh.addVertexWith2DPose(matrix, x1, y2).setColor(topLeft);
+        mesh.addVertexWith2DPose(matrix, x2, y1).setColor(topLeft);
+        mesh.addVertexWith2DPose(matrix, x2, y1).setColor(topLeft);
 
-        mesh.addVertex(matrix, x2, y1).setColor(bottomRight);
-        mesh.addVertex(matrix, x1, y2).setColor(bottomRight);
-        mesh.addVertex(matrix, x2, y2).setColor(bottomRight);
-        mesh.addVertex(matrix, x2, y2).setColor(bottomRight);
+        mesh.addVertexWith2DPose(matrix, x2, y1).setColor(bottomRight);
+        mesh.addVertexWith2DPose(matrix, x1, y2).setColor(bottomRight);
+        mesh.addVertexWith2DPose(matrix, x2, y2).setColor(bottomRight);
+        mesh.addVertexWith2DPose(matrix, x2, y2).setColor(bottomRight);
 
         this.drawQuadMesh(mesh);
     }
@@ -358,10 +358,10 @@ public class Batcher2D
         /* c1 ---- c2
          * |        |
          * c3 ---- c4 */
-        builder.addVertex(matrix, x, y).setColor(color1);
-        builder.addVertex(matrix, x, y + h).setColor(color3);
-        builder.addVertex(matrix, x + w, y + h).setColor(color4);
-        builder.addVertex(matrix, x + w, y).setColor(color2);
+        builder.addVertexWith2DPose(matrix, x, y).setColor(color1);
+        builder.addVertexWith2DPose(matrix, x, y + h).setColor(color3);
+        builder.addVertexWith2DPose(matrix, x + w, y + h).setColor(color4);
+        builder.addVertexWith2DPose(matrix, x + w, y).setColor(color2);
     }
 
     public void surfaceBox(int x1, int y1, int x2, int y2, int fill, boolean shadow, boolean border)
@@ -497,10 +497,10 @@ public class Batcher2D
             float x2 = (float) (x - Math.cos(a2) * radius);
             float y2 = (float) (y + Math.sin(a2) * radius);
 
-            mesh.addVertex(matrix, x, y).setColor(opaque);
-            mesh.addVertex(matrix, x1, y1).setColor(shadow);
-            mesh.addVertex(matrix, x2, y2).setColor(shadow);
-            mesh.addVertex(matrix, x2, y2).setColor(shadow);
+            mesh.addVertexWith2DPose(matrix, x, y).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, x1, y1).setColor(shadow);
+            mesh.addVertexWith2DPose(matrix, x2, y2).setColor(shadow);
+            mesh.addVertexWith2DPose(matrix, x2, y2).setColor(shadow);
         }
 
         this.drawQuadMesh(mesh);
@@ -528,10 +528,10 @@ public class Batcher2D
             float ix2 = (float) (x - Math.cos(a2) * offset);
             float iy2 = (float) (y + Math.sin(a2) * offset);
 
-            mesh.addVertex(matrix, x, y).setColor(opaque);
-            mesh.addVertex(matrix, ix1, iy1).setColor(opaque);
-            mesh.addVertex(matrix, ix2, iy2).setColor(opaque);
-            mesh.addVertex(matrix, ix2, iy2).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, x, y).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, ix1, iy1).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, ix2, iy2).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, ix2, iy2).setColor(opaque);
         }
 
         for (int i = 0; i < segments; i++)
@@ -547,10 +547,10 @@ public class Batcher2D
             float ox2 = (float) (x - Math.cos(a2) * radius);
             float oy2 = (float) (y + Math.sin(a2) * radius);
 
-            mesh.addVertex(matrix, ix1, iy1).setColor(opaque);
-            mesh.addVertex(matrix, ox1, oy1).setColor(shadow);
-            mesh.addVertex(matrix, ox2, oy2).setColor(shadow);
-            mesh.addVertex(matrix, ix2, iy2).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, ix1, iy1).setColor(opaque);
+            mesh.addVertexWith2DPose(matrix, ox1, oy1).setColor(shadow);
+            mesh.addVertexWith2DPose(matrix, ox2, oy2).setColor(shadow);
+            mesh.addVertexWith2DPose(matrix, ix2, iy2).setColor(opaque);
         }
 
         this.drawQuadMesh(mesh);
@@ -876,7 +876,7 @@ public class Batcher2D
         }
 
         BBSProfiler.count(BBSProfiler.Section.UI_DRAW_CALLS);
-        this.context.drawString(this.font.getRenderer(), label, (int) x, (int) y, color, shadow);
+        this.context.text(this.font.getRenderer(), label, (int) x, (int) y, color, shadow);
     }
 
     /* Text helpers */

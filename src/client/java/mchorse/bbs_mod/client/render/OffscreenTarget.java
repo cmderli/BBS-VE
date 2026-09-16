@@ -4,7 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.opengl.GlTexture;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 
 /**
  * A reusable device-owned colour target for custom-shader GUI effects (marching ants, pixelate/
@@ -45,7 +45,7 @@ public class OffscreenTarget
 
         this.texture = RenderSystem.getDevice().createTexture(this.label,
             GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_COPY_SRC,
-            TextureFormat.RGBA8, w, h, 1, 1);
+            GpuFormat.RGBA8_UNORM, w, h, 1, 1);
         this.view = RenderSystem.getDevice().createTextureView(this.texture);
 
         this.width = w;

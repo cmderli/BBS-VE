@@ -73,14 +73,14 @@ public class UIModelBlockEntityList extends UIList<ModelBlockEntity>
     private static Vec3 eye()
     {
         Minecraft mc = Minecraft.getInstance();
-        Camera camera = mc.gameRenderer.getMainCamera();
+        Camera camera = mc.gameRenderer.mainCamera();
 
         if (camera != null)
         {
-            return camera.getCameraPos();
+            return camera.position();
         }
 
-        return mc.player == null ? Vec3.ZERO : mc.player.getEntityPos();
+        return mc.player == null ? Vec3.ZERO : mc.player.position();
     }
 
     private double distance(ModelBlockEntity element)
@@ -99,7 +99,7 @@ public class UIModelBlockEntityList extends UIList<ModelBlockEntity>
 
         for (ModelBlockEntity element : this.list)
         {
-            this.distances.put(element, element.getBlockPos().getCenter().distanceTo(eye));
+            this.distances.put(element, Vec3.atCenterOf(element.getBlockPos()).distanceTo(eye));
         }
 
         this.list.sort(Comparator.comparingDouble(this::distance));

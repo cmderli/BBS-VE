@@ -89,8 +89,8 @@ public class MobStandIn
         catch (Exception e)
         {}
 
-        Identifier identifier = Identifier.tryBuild(id);
-        EntityType<?> type = identifier != null && BuiltInRegistries.ENTITY_TYPE.containsKey(identifier) ? BuiltInRegistries.ENTITY_TYPE.get(identifier) : null;
+        Identifier identifier = Identifier.tryParse(id);
+        EntityType<?> type = identifier != null && BuiltInRegistries.ENTITY_TYPE.containsKey(identifier) ? BuiltInRegistries.ENTITY_TYPE.getValue(identifier) : null;
 
         /* 1.21.2: EntityType.create(World) -> create(World, SpawnReason). */
         this.entity = type == null ? null : type.create(world, EntitySpawnReason.COMMAND);
@@ -99,7 +99,8 @@ public class MobStandIn
         {
             this.entity = new RemotePlayer(world, slim ? SLIM : WIDE);
             /* 1.21.9: PlayerEntity.PLAYER_MODEL_PARTS moved to PlayerLikeEntity.PLAYER_MODE_CUSTOMIZATION_ID
-             * (same tracked byte, renamed; opened via bbs.accesswidener). All cosmetic layers on, as before. */
+             * (same tracked byte, renamed; opened via bbs.accesswidener). All cosmetic layers on, as before.
+             * 26.2 spelling of that field: net.minecraft.world.entity.Avatar.DATA_PLAYER_MODE_CUSTOMISATION. */
             this.entity.getEntityData().set(Avatar.DATA_PLAYER_MODE_CUSTOMISATION, (byte) 0b1111111);
         }
 
@@ -112,7 +113,7 @@ public class MobStandIn
                 /* 1.21.6 persistence rewrite: Entity.readNbt(NbtCompound) -> readData(ReadView).
                  * The user-typed NBT can be anything, and a mob that fails mid-read is still
                  * usable — it just ignores the broken tags, like the old readNbt did. */
-                this.entity.load(TagValueInput.create(ProblemReporter.DISCARDING, world.getRegistryManager(), compound));
+                this.entity.load(TagValueInput.create(ProblemReporter.DISCARDING, world.registryAccess(), compound));
             }
             catch (Exception e)
             {}
@@ -134,14 +135,15 @@ public class MobStandIn
         this.entity.tick();
 
         /* 1.21.9: Entity prevPitch/prevYaw -> lastPitch/lastYaw; LivingEntity prevHeadYaw/
-         * prevBodyYaw -> lastHeadYaw/lastBodyYaw. */
+         * prevBodyYaw -> lastHeadYaw/lastBodyYaw. (26.2 spells those last two yHeadRotO/yBodyRotO,
+         * the interpolated pair of the yHeadRot/yBodyRot set below.) */
         this.entity.xRotO = this.prevPitch;
         this.entity.yRotO = 0F;
 
         if (this.entity instanceof LivingEntity livingEntity)
         {
-            livingEntity.lastHeadYaw = this.prevYawHead;
-            livingEntity.lastBodyYaw = 0F;
+            livingEntity.yHeadRotO = this.prevYawHead;
+            livingEntity.yBodyRotO = 0F;
 
             /* Limb swing is so ugly */
             if (livingEntity.walkAnimation instanceof LimbAnimatorAccessor a && source.getLimbAnimator() instanceof LimbAnimatorAccessor b)

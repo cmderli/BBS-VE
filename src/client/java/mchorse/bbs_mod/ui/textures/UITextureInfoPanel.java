@@ -68,7 +68,7 @@ public class UITextureInfoPanel extends UIElement
                     filter = b.getValue() ? GL30.GL_LINEAR_MIPMAP_NEAREST : GL30.GL_NEAREST_MIPMAP_NEAREST;
                 }
 
-                this.texture.bind();
+                /* 26.2: no bound-texture state — filtering is the sampler the batcher binds. */
                 this.texture.setFilter(filter);
             }
         });
@@ -77,14 +77,16 @@ public class UITextureInfoPanel extends UIElement
         {
             if (this.texture != null)
             {
-                this.texture.bind();
-
                 if (!this.texture.isMipmap())
                 {
                     this.texture.generateMipmap();
                 }
 
-                this.texture.setParameter(GL30.GL_TEXTURE_MAX_LEVEL, b.getValue() ? 4 : 0);
+                /* 26.2: GL_TEXTURE_MAX_LEVEL does not exist (the chain is built at upload time);
+                 * "sample the chain or not" is the sampler's mipmapped flag, which is exactly
+                 * what Texture#setFilterMipmap(linear, mipmap) sets. REPORTED as a behavioural
+                 * mapping that needs review: it also re-applies the linear toggle's filter. */
+                this.texture.setFilterMipmap(this.linear.getValue(), b.getValue());
             }
         });
 
@@ -123,7 +125,6 @@ public class UITextureInfoPanel extends UIElement
             if (texture != null && texture != BBSModClient.getTextures().getError())
             {
                 this.texture = texture;
-                this.texture.bind();
                 this.linear.setValue(this.texture.isLinear());
                 this.mipmap.setValue(this.texture.isReallyMipmap());
             }

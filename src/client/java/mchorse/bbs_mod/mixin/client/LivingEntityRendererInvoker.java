@@ -9,13 +9,13 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(LivingEntityRenderer.class)
 public interface LivingEntityRendererInvoker
 {
-    @Invoker("getAnimationCounter")
+    @Invoker("getWhiteOverlayProgress")
     float bbs$getAnimationCounter(LivingEntityRenderState state);
 
     /* State-based since 1.21.2: the entity and the tick delta are already baked into the render
      * state, and the scale attribute rides along on it too — hence four arguments, not six.
      * Hand swing has no accessor left at all; it is a plain field on the state. */
-    @Invoker("setupTransforms")
+    @Invoker("setupRotations")
     void bbs$setupTransforms(LivingEntityRenderState state, PoseStack matrices, float animationProgress, float bodyYaw);
 
     @Invoker("scale")

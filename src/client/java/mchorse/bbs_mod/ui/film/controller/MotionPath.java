@@ -18,11 +18,11 @@ import mchorse.bbs_mod.settings.values.ui.ValueMotionPath;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import net.minecraft.client.Camera;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -80,7 +80,7 @@ public class MotionPath
         "swipe", "jump", "jump_alt", "hurt", "land", "shoot", "consume", "base_pre", "base_post"
     };
 
-    public static void render(WorldRenderContext context, ValueMotionPath config, UIFilmController controller, Replay replay, FilmTarget target, float currentTick)
+    public static void render(LevelRenderContext context, ValueMotionPath config, UIFilmController controller, Replay replay, FilmTarget target, float currentTick)
     {
         if (replay == null || replay.relative.get())
         {
@@ -109,7 +109,7 @@ public class MotionPath
 
     /* Drawing */
 
-    private static void draw(WorldRenderContext context, ValueMotionPath config, Trajectory trajectory, float currentTick)
+    private static void draw(LevelRenderContext context, ValueMotionPath config, Trajectory trajectory, float currentTick)
     {
         float first = trajectory.first();
         float last = trajectory.last();
@@ -128,18 +128,19 @@ public class MotionPath
 
         /* 1.21.11: the relocated Fabric WorldRenderContext no longer exposes the camera, so it comes
          * from the game renderer — the same one the context was built around. */
-        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-        PoseStack stack = context.matrices();
+        Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+        PoseStack stack = context.poseStack();
 
-        double cx = camera.getCameraPos().x;
-        double cy = camera.getCameraPos().y;
-        double cz = camera.getCameraPos().z;
+        double cx = camera.position().x;
+        double cy = camera.position().y;
+        double cz = camera.position().z;
 
         Matrix4f matrix = stack.last().pose();
         float halfWidth = config.width.get() * 0.5F;
 
         /* Depth/blend/cull and the program all live in the Draw pipeline the flush below submits to. */
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         /* The interpolated curve: a camera-facing ribbon with a dot on every
          * tick (so the spacing shows speed), the exact endpoints kept. */
@@ -198,6 +199,7 @@ public class MotionPath
         }
 
         Draw.flushTriangles(builder);
+        allocator.close();
 
     }
 

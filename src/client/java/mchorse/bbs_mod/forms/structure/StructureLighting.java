@@ -134,7 +134,8 @@ public class StructureLighting
                     continue;
                 }
 
-                source.setWithOffset(packed);
+                /* 26.2: MutableBlockPos.setWithOffset(long) is gone; set(long) is the direct replacement. */
+                source.set(packed);
 
                 BlockState sourceState = data.getBlockState(source);
 
@@ -156,8 +157,10 @@ public class StructureLighting
                      * light even though the slab itself is see-through) */
                     /* 1.21.11: both calls lost their view/position arguments — a block state knows
                      * its own opacity and its own shapes now. */
-                    int opacity = LightEngine.getLightBlockInto(
-                        sourceState, targetState, direction, targetState.getLightBlock());
+                    /* 26.2: getLightBlockInto/getLightBlock were renamed to
+                     * getLightDampeningInto/getLightDampening (same arguments, same meaning). */
+                    int opacity = LightEngine.getLightDampeningInto(
+                        sourceState, targetState, direction, targetState.getLightDampening());
                     int next = level - Math.max(1, opacity);
 
                     if (next > levels.get(targetPacked))

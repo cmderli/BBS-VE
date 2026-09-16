@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(EntityRenderer.class)
 public class EntityRendererMixin
 {
-    @Inject(method = "renderLabelIfPresent", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V", at = @At("HEAD"), cancellable = true)
     public void onRenderLabelIfPresent(CallbackInfo info)
     {
         if (FormUtilsClient.getCurrentForm() instanceof MobForm form && form.isPlayer())
@@ -29,7 +29,7 @@ public class EntityRendererMixin
      * (the 1.21.2 render-state split stopped threading the entity through render()).
      * See {@link IRenderStateEntityHolder}.
      */
-    @Inject(method = "getAndUpdateRenderState(Lnet/minecraft/entity/Entity;F)Lnet/minecraft/client/render/entity/state/EntityRenderState;", at = @At("RETURN"))
+    @Inject(method = "createRenderState(Lnet/minecraft/world/entity/Entity;F)Lnet/minecraft/client/renderer/entity/state/EntityRenderState;", at = @At("RETURN"))
     private void bbs$stashRenderedEntity(Entity entity, float tickDelta, CallbackInfoReturnable<EntityRenderState> info)
     {
         EntityRenderState state = info.getReturnValue();

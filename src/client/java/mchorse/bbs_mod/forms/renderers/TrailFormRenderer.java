@@ -2,6 +2,7 @@ package mchorse.bbs_mod.forms.renderers;
 
 import com.mojang.blaze3d.platform.CompareOp;
 
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import mchorse.bbs_mod.graphics.InverseView;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.BBSModClient;
@@ -9,6 +10,8 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.camera.Camera;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.client.BBSShaders;
+import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
+import mchorse.bbs_mod.forms.FormRenderCapture;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import mchorse.bbs_mod.forms.ITickable;
 import mchorse.bbs_mod.forms.entities.IEntity;
@@ -18,17 +21,19 @@ import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.RenderPipelines;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.resources.Identifier;
@@ -59,9 +64,10 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
     private static final RenderPipeline AXES_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/trail_axes"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
             .withCull(false)
             .build()
     );
@@ -99,8 +105,39 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
         {
             /* TODO(1.21.11 render): verify at runtime. RenderLayer.draw uploads + draws with the
              * layer pipeline; previously this was BufferRenderer.drawWithGlobalProgram. */
-            layer.draw(built);
+            drawLayer(layer, built);
         }
+    }
+
+    /**
+     * 26.2's replacement for {@code RenderLayer.draw(BuiltBuffer)}, including what
+     * {@code RenderLayerMixin}'s hook did on 1.21.11: while a {@link FormRenderCapture} session is
+     * open (deferred item-model rendering) the draw is captured instead of executed — no GL pass is
+     * open at item-record time — and otherwise the layer's hijack runnable fires before the draw.
+     *
+     * <p>The finished vertices then go to a device buffer and the layer's shared sequential index
+     * buffer feeds {@code PreparedRenderType.drawFromBuffer}, which opens the pass on the layer's own
+     * output target (the same translation {@code Draw#flush} and {@code Gizmo#flush} use).</p>
+     */
+    private static void drawLayer(RenderType layer, MeshData built)
+    {
+        if (FormRenderCapture.isActive())
+        {
+            FormRenderCapture.capture(layer, built);
+
+            return;
+        }
+
+        CustomVertexConsumerProvider.drawLayer(layer);
+
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(() -> "bbs trail geometry", GpuBuffer.USAGE_VERTEX, built.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(), 0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
     }
 
     public TrailFormRenderer(TrailForm form)
@@ -148,7 +185,11 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             axisOffset *= scale;
             outlineOffset *= scale;
 
-            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+            /* 26.2 has no Tesselator: the growable staging buffer it owned is created here, sized
+             * like the one Draw/Gizmo build their immediate geometry on, and released after the
+             * draw below. */
+            ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+            BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
             Draw.fillBox(builder, stack, -outlineOffset, -outlineSize, -outlineOffset, outlineOffset, outlineSize, outlineOffset, 0, 0, 0);
             Draw.fillBox(builder, stack, -axisOffset, -axisSize, -axisOffset, axisOffset, axisSize, axisOffset, 0, 1, 0);
@@ -157,6 +198,8 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
              * BufferRenderer.drawWithGlobalProgram. The no-depth POSITION_COLOR pipeline now
              * encodes both the shader and the disabled depth test. */
             flush(builder, getAxesLayer());
+
+            allocator.close();
 
             return;
         }
@@ -249,7 +292,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
          * GPU to drop the side facing away — drawn without culling the back lands on equal depth,
          * LEQUAL lets it through, and the two sides double-blend and shimmer with the viewpoint. */
         boolean packed = BBSRendering.isIrisWorldForms();
-        VertexFormat format = packed ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
+        VertexFormat format = packed ? DefaultVertexFormat.ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
 
         stack.pushPose();
 
@@ -270,7 +313,9 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
         m.set(RenderSystem.getModelViewMatrixCopy()).invert();
         m.mul(new Matrix4f(camInverse).invert());
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
+        /* The Tesselator's growable buffer, owned here for the strip's batch (see the axes path). */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, format);
 
         for (it = trails.iterator(); it.hasNext(); last = trail)
         {
@@ -372,9 +417,11 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             }
             else
             {
-                BBSShaders.getBoundBillboardLayer().draw(built);
+                drawLayer(BBSShaders.getBoundBillboardLayer(), built);
             }
         }
+
+        allocator.close();
 
         stack.popPose();
     }
@@ -397,8 +444,8 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
         builder.addVertex(m, x, y, z)
             .setColor(1F, 1F, 1F, 1F)
             .setUv(u, v)
-            .setUv1(OverlayTexture.NO_OVERLAY)
-            .setUv2(LightTexture.FULL_BRIGHT)
+            .setOverlay(OverlayTexture.NO_OVERLAY)
+            .setLight(LightCoordsUtil.FULL_BRIGHT)
             .setNormal(nx, ny, nz);
     }
 

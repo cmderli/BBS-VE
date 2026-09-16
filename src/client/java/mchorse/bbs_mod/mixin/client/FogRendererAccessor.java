@@ -10,7 +10,7 @@ import java.util.List;
 @Mixin(FogRenderer.class)
 public interface FogRendererAccessor
 {
-    @Accessor("FOG_MODIFIERS")
+    @Accessor("FOG_ENVIRONMENTS")
     static List<FogEnvironment> bbs$getFogModifiers()
     {
         throw new UnsupportedOperationException();

@@ -9,6 +9,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.Consumable;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.sounds.SoundSource;
@@ -110,7 +111,7 @@ public class ItemUseEffects
             return;
         }
 
-        RandomSource random = world.random;
+        RandomSource random = world.getRandom();
         double x = entity.getX();
         double y = entity.getY() + entity.getEyeHeight();
         double z = entity.getZ();
@@ -126,7 +127,7 @@ public class ItemUseEffects
 
         if (action == ItemUseAnimation.DRINK)
         {
-            playSound(world, x, y, z, consumeSound(entity, consumable, stack), 0.5F, Mth.randomBetweenInclusive(random, 0.9F, 1F));
+            playSound(world, x, y, z, consumeSound(entity, consumable, stack), 0.5F, Mth.nextFloat(random, 0.9F, 1F));
 
             return;
         }
@@ -142,9 +143,9 @@ public class ItemUseEffects
             Vec3 position = new Vec3((random.nextFloat() - 0.5D) * 0.3D, -random.nextFloat() * 0.6D - 0.3D, 0.6D)
                 .xRot(pitch)
                 .yRot(yaw)
-                .atLowerCornerWithOffset(x, y, z);
+                .add(x, y, z);
 
-            world.addParticle(new ItemParticleOption(ParticleTypes.ITEM, stack), position.x, position.y, position.z, velocity.x, velocity.y + 0.05D, velocity.z);
+            world.addParticle(new ItemParticleOption(ParticleTypes.ITEM, ItemStackTemplate.fromNonEmptyStack(stack)), position.x, position.y, position.z, velocity.x, velocity.y + 0.05D, velocity.z);
         }
 
         playSound(world, x, y, z, consumeSound(entity, consumable, stack),
@@ -180,7 +181,7 @@ public class ItemUseEffects
     {
         if (sound != null && world instanceof ClientLevel clientWorld)
         {
-            clientWorld.playSoundClient(x, y, z, sound, SoundSource.PLAYERS, volume, pitch, false);
+            clientWorld.playLocalSound(x, y, z, sound, SoundSource.PLAYERS, volume, pitch, false);
         }
     }
 
@@ -194,6 +195,6 @@ public class ItemUseEffects
             return;
         }
 
-        playSound(world, entity.getX(), entity.getY(), entity.getZ(), SoundEvents.PLAYER_BURP, 0.5F, world.random.nextFloat() * 0.1F + 0.9F);
+        playSound(world, entity.getX(), entity.getY(), entity.getZ(), SoundEvents.PLAYER_BURP, 0.5F, world.getRandom().nextFloat() * 0.1F + 0.9F);
     }
 }

@@ -6,25 +6,23 @@ import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.client.renderer.MorphRenderer;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import mchorse.bbs_mod.forms.renderers.utils.FramebufferDebug;
-import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import net.minecraft.client.Camera;
 import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
 import net.minecraft.client.renderer.LevelRenderer;
-import org.joml.Matrix4f;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LevelRenderer.class)
 public class WorldRendererMixin
 {
     /* 1.21.11 renamed and privatized the outlines framebuffer field. */
-    @Shadow
-    private RenderTarget entityOutlineFramebuffer;
+    @Shadow @Final
+    private RenderTarget entityOutlineTarget;
 
     /* Deferred form translucency spans the frame: forms enqueue their translucent pass while
      * entities render, and the queue flushes at the end of WorldRenderEvents.AFTER_ENTITIES (see
@@ -62,11 +60,11 @@ public class WorldRendererMixin
      * colour rather than the chroma colour.
      */
     @Inject(
-        method = "renderSky(Lnet/minecraft/client/render/FrameGraphBuilder;Lnet/minecraft/client/render/Camera;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V",
+        method = "addSkyPass(Lcom/mojang/blaze3d/framegraph/FrameGraphBuilder;Lnet/minecraft/client/renderer/state/level/CameraRenderState;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V",
         at = @At("HEAD"),
         cancellable = true
     )
-    private void onRenderSky(FrameGraphBuilder frameGraphBuilder, Camera camera, GpuBufferSlice fog, CallbackInfo info)
+    private void onRenderSky(FrameGraphBuilder frameGraphBuilder, CameraRenderState camera, GpuBufferSlice fog, CallbackInfo info)
     {
         if (BBSSettings.chromaSkyEnabled.get())
         {
@@ -74,43 +72,14 @@ public class WorldRendererMixin
         }
     }
 
-    @Inject(at = @At("RETURN"), method = "loadEntityOutlinePostProcessor")
-    private void onLoadEntityOutlineShader(CallbackInfo info)
+    @Inject(at = @At("RETURN"), method = "resize")
+    private void onResized(int width, int height, CallbackInfo info)
     {
-        BBSRendering.resizeExtraFramebuffers();
-    }
-
-    @Inject(at = @At("RETURN"), method = "onResized")
-    private void onResized(CallbackInfo info)
-    {
-        if (this.entityOutlineFramebuffer == null)
+        if (this.entityOutlineTarget == null)
         {
             return;
         }
 
         BBSRendering.resizeExtraFramebuffers();
-    }
-
-    /**
-     * Ortho frustum widening: substitute the culling projection with the loose ortho frame
-     * (20-block lower bound) so ortho frames don't clip sections near the screen edges when
-     * zoomed in. On 1.21.1 this was a {@code @ModifyArg} on the {@code GameRenderer.renderWorld}
-     * call site of {@code setupFrustum}; in 1.21.11 the method is private and called from inside
-     * {@code WorldRenderer.render} (verified against the bytecode: the view matrix is argument 0,
-     * the projection argument 1), so the hook moved here. The projection the world actually
-     * renders with is substituted separately in {@code GameRendererMixin#onSetWorldProjection}
-     * (the UBO upload) and {@code GameRendererMixin#onRenderProjectionArg} (Sodium's chunk capture).
-     */
-    @ModifyArg(
-        method = "render",
-        at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/client/render/WorldRenderer;setupFrustum(Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/client/render/Frustum;"
-        ),
-        index = 1
-    )
-    private Matrix4f onSetupFrustumProjection(Matrix4f projection)
-    {
-        return BBSRendering.getOrthoProjection(Minecraft.getInstance().gameRenderer, projection, 20F);
     }
 }

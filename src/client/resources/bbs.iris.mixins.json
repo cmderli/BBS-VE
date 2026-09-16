@@ -1,0 +1,21 @@
+{
+    "required": false,
+    "minVersion": "0.8",
+    "package": "mchorse.bbs_mod.mixin.client.iris",
+    "compatibilityLevel": "JAVA_25",
+    "client": [
+        "IrisMixin",
+        "HandRendererMixin",
+        "CelestialUniformsMixin",
+        "ShadowMatricesMixin",
+        "JcppProcessorMixin",
+        "ShaderPackMixin",
+        "CustomUniformsAccessor",
+        "CustomUniformsBuilderMixin",
+        "SliderElementWidgetMixin",
+        "StringElementWidgetInvoker"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

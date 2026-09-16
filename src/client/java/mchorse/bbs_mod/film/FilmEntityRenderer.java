@@ -30,9 +30,9 @@ import mchorse.bbs_mod.utils.joml.Vectors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.Camera;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.util.LightCoordsUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
@@ -73,7 +73,7 @@ public class FilmEntityRenderer
         boolean relative = context.replay != null && context.relative;
         Vector3d origin = relative
             ? context.replay.getRelativeOrigin()
-            : new Vector3d(camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z);
+            : new Vector3d(camera.position().x, camera.position().y, camera.position().z);
 
         double cx = origin.x;
         double cy = origin.y;
@@ -129,7 +129,7 @@ public class FilmEntityRenderer
         BlockPos pos = BlockPos.containing(position.x, position.y + 0.5D, position.z);
         int sky = entity.getWorld().getBrightness(LightLayer.SKY, pos);
         int torch = entity.getWorld().getBrightness(LightLayer.BLOCK, pos);
-        int light = LightTexture.pack(torch, sky);
+        int light = LightCoordsUtil.pack(torch, sky);
         int overlay = OverlayTexture.pack(OverlayTexture.u(0F), OverlayTexture.v(entity.getHurtTimer() > 0));
 
         FormRenderingContext formContext = new FormRenderingContext()
@@ -414,7 +414,7 @@ public class FilmEntityRenderer
         stack.popPose();
     }
 
-    static void renderNameTag(IEntity entity, Component text, PoseStack matrices, MultiBufferSource vertexConsumers, int light)
+    static void renderNameTag(IEntity entity, Component text, PoseStack matrices, SubmitNodeCollector vertexConsumers, int light)
     {
         boolean sneaking = !entity.isSneaking();
         float hitboxH = (float) entity.getPickingHitbox().h + 0.5F;
@@ -423,21 +423,22 @@ public class FilmEntityRenderer
         matrices.translate(0F, hitboxH, 0F);
         /* 1.21.11: EntityRenderManager.getRotation() is gone — the dispatcher carries the camera
          * itself now, and the camera's rotation is the same billboard turn it used to hand out. */
-        matrices.rotateAround(Minecraft.getInstance().gameRenderer.getMainCamera().rotation());
+        matrices.mulPose(Minecraft.getInstance().gameRenderer.mainCamera().rotation());
         matrices.scale(-0.025F, -0.025F, 0.025F);
 
-        Matrix4f matrix4f = matrices.last().pose();
         Font textRenderer = Minecraft.getInstance().font;
 
         float opacity = Minecraft.getInstance().options.getBackgroundOpacity(0.25F);
         int background = (int) (opacity * 255F) << 24;
         float h = (float) (-textRenderer.width(text) / 2);
 
-        textRenderer.drawInBatch(text, h, 0, 0x20ffffff, false, matrix4f, vertexConsumers, sneaking ? Font.TextLayerType.SEE_THROUGH : Font.TextLayerType.NORMAL, background, light);
+        /* 26.2: text is submitted into the world's submit-node collector instead of being written
+         * into a MultiBufferSource; the arg order is (light, color, background, outline). */
+        vertexConsumers.submitText(matrices, h, 0F, text.getVisualOrderText(), false, sneaking ? Font.DisplayMode.SEE_THROUGH : Font.DisplayMode.NORMAL, light, 0x20ffffff, background, 0);
 
         if (sneaking)
         {
-            textRenderer.drawInBatch(text, h, 0, -1, false, matrix4f, vertexConsumers, Font.TextLayerType.NORMAL, 0, light);
+            vertexConsumers.submitText(matrices, h, 0F, text.getVisualOrderText(), false, Font.DisplayMode.NORMAL, light, -1, 0, 0);
         }
 
         matrices.popPose();

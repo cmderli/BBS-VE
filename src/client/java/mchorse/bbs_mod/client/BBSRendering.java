@@ -37,14 +37,14 @@ import mchorse.bbs_mod.utils.iris.ShaderCurves;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.MainTarget;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.render.state.GuiRenderState;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.GameRenderer;
@@ -318,13 +318,13 @@ public class BBSRendering
         FogRendererAccessor.bbs$getFogModifiers().add(0, new FogEnvironment()
         {
             @Override
-            public boolean shouldApply(FogType submersionType, Entity entity)
+            public boolean isApplicable(FogType submersionType, Entity entity)
             {
                 return BBSRendering.isOrthoActive();
             }
 
             @Override
-            public void applyStartEndModifier(FogData fogData, Camera camera, ClientLevel clientWorld, float f, DeltaTracker renderTickCounter)
+            public void setupFog(FogData fogData, Camera camera, ClientLevel clientWorld, float f, DeltaTracker renderTickCounter)
             {
                 fogData.environmentalStart = 1_000_000F;
                 fogData.renderDistanceStart = 1_000_000F;
@@ -337,7 +337,7 @@ public class BBSRendering
 
         ModelBlockEntityUpdateCallback.EVENT.register((entity) ->
         {
-            if (entity.getWorld().isClient())
+            if (entity.getLevel().isClientSide())
             {
                 capturedModelBlocks.add(entity);
             }
@@ -364,11 +364,11 @@ public class BBSRendering
         Minecraft mc = Minecraft.getInstance();
 
         buffers.add(mc.levelRenderer.entityOutlineTarget());
-        buffers.add(mc.levelRenderer.getTranslucentTarget());
-        buffers.add(mc.levelRenderer.getItemEntityTarget());
-        buffers.add(mc.levelRenderer.getParticlesTarget());
-        buffers.add(mc.levelRenderer.getWeatherTarget());
-        buffers.add(mc.levelRenderer.getCloudsTarget());
+        buffers.add(mc.levelRenderer.translucentTarget());
+        buffers.add(mc.levelRenderer.itemEntityTarget());
+        buffers.add(mc.levelRenderer.particlesTarget());
+        buffers.add(mc.levelRenderer.weatherTarget());
+        buffers.add(mc.levelRenderer.cloudsTarget());
 
         for (RenderTarget buffer : buffers)
         {
@@ -419,7 +419,7 @@ public class BBSRendering
                 framebuffer.resize(w, h);
             }
 
-            clientFramebuffer = mc.getMainRenderTarget();
+            clientFramebuffer = mc.gameRenderer.mainRenderTarget();
 
             reassignFramebuffer(framebuffer);
 
@@ -448,7 +448,10 @@ public class BBSRendering
 
     private static void reassignFramebuffer(RenderTarget framebuffer)
     {
-        Minecraft.getInstance().mainRenderTarget = framebuffer;
+        /* The user-facing framebuffer lives on GameRenderer in 26.2 (Minecraft.framebuffer is gone).
+         * Swapping it is still how the world render is redirected; see the bbs.accesswidener entry
+         * that makes the field writable from outside. */
+        Minecraft.getInstance().gameRenderer.mainRenderTarget = framebuffer;
     }
 
     /**
@@ -694,7 +697,7 @@ public class BBSRendering
         GL30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
 
         GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, captureDrawFramebuffer);
-        GL30.glFramebufferTexture2D(GL30.GL_DRAW_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, texture.id, 0);
+        GL30.glFramebufferTexture2D(GL30.GL_DRAW_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, ((GlTexture) texture.gpuTexture).glId(), 0);
         GL11.glDrawBuffer(GL30.GL_COLOR_ATTACHMENT0);
 
         boolean scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
@@ -705,7 +708,7 @@ public class BBSRendering
             GlStateManager._disableScissorTest();
         }
 
-        GlStateManager._colorMask(true, true, true, true);
+        GlStateManager._colorMask(0xF);
 
         /* GL_LINEAR only where it actually resamples: at 1:1 — every display that is not HiDPI — a nearest
          * blit is the same copy the snapshot has always been. */
@@ -716,7 +719,7 @@ public class BBSRendering
             sourceWidth == w && sourceHeight == h ? GL11.GL_NEAREST : GL11.GL_LINEAR
         );
 
-        GlStateManager._colorMask(mask[0], mask[1], mask[2], mask[3]);
+        GlStateManager._colorMask((mask[0] ? 1 : 0) | (mask[1] ? 2 : 0) | (mask[2] ? 4 : 0) | (mask[3] ? 8 : 0));
 
         if (scissor)
         {
@@ -760,9 +763,9 @@ public class BBSRendering
 
             if (texture.width != w || texture.height != h)
             {
-                texture.bind();
+                /* 26.2 has no texture binding to bracket a resize with: setSize reallocates the
+                 * device texture itself. */
                 texture.setSize(w, h);
-                texture.unbind();
             }
 
             blitIntoSnapshot(texture, w, h);
@@ -806,7 +809,7 @@ public class BBSRendering
         }
     }
 
-    public static void renderHud(GuiGraphics drawContext, float tickDelta)
+    public static void renderHud(GuiGraphicsExtractor drawContext, float tickDelta)
     {
         Batcher2D batcher2D = new Batcher2D(drawContext);
 
@@ -889,7 +892,7 @@ public class BBSRendering
         entityPassRenderLast = false;
     }
 
-    public static void renderCoolStuff(WorldRenderContext worldRenderContext)
+    public static void renderCoolStuff(LevelRenderContext worldRenderContext)
     {
         /* 1.21.11: the relocated Fabric WorldRenderContext (api.client.rendering.v1.world) again threads a real
          * MatrixStack through context.matrices(), so the previous position-matrix rebuild is no longer needed. */
@@ -897,7 +900,7 @@ public class BBSRendering
         /* Feed the world camera orientation into the holder that replaced RenderSystem's inverse view rotation
          * matrix, so billboards and particles keep facing the camera in world space. The context no longer
          * exposes camera()/positionMatrix(); pull the camera from the game renderer directly. */
-        InverseView.set(new Matrix3f().rotation(Minecraft.getInstance().gameRenderer.getMainCamera().rotation()));
+        InverseView.set(new Matrix3f().rotation(Minecraft.getInstance().gameRenderer.mainCamera().rotation()));
 
         /* Draw morph forms collected during the (build-phase) entity render. AFTER_ENTITIES is the only
          * world context where the BBS immediate form pipeline lands correctly (entity queue flushed +
@@ -911,7 +914,7 @@ public class BBSRendering
 
         try
         {
-            if (Minecraft.getInstance().screen instanceof UIScreen screen)
+            if (Minecraft.getInstance().gui.screen() instanceof UIScreen screen)
             {
                 screen.renderInWorld(worldRenderContext);
             }
@@ -1008,7 +1011,9 @@ public class BBSRendering
          * which matters here because chunk occlusion culling is off (see
          * setOrthoDistance). */
         float near = -minHalfHeight;
-        float far = renderer.getDepthFar();
+        /* 26.2 moved the perspective far plane from GameRenderer#getDepthFar to Camera#depthFar, which
+         * has no getter; the extracted camera render state carries the same number and is public. */
+        float far = renderer.gameRenderState().levelRenderState.cameraRenderState.depthFar;
 
         return new Matrix4f().setOrtho(-halfWidth, halfWidth, -halfHeight, halfHeight, near, far);
     }

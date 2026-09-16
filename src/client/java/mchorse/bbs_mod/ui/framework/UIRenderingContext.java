@@ -3,7 +3,7 @@ package mchorse.bbs_mod.ui.framework;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.graphics.texture.TextureManager;
 import mchorse.bbs_mod.ui.framework.elements.utils.Batcher2D;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,17 +14,17 @@ public class UIRenderingContext
 
     private List<Runnable> runnables = new ArrayList<>();
 
-    public UIRenderingContext(GuiGraphics context)
+    public UIRenderingContext(GuiGraphicsExtractor context)
     {
         this.batcher = new Batcher2D(context);
     }
 
     /**
-     * Swap in the live per-frame vanilla {@link DrawContext}. Must be called once per frame (from
-     * {@code UIScreen.render}) before any drawing, so the batcher draws into the {@code GuiRenderState}
+     * Swap in the live per-frame vanilla {@link GuiGraphicsExtractor}. Must be called once per frame (from
+     * {@code UIScreen.extractRenderState}) before any drawing, so the batcher draws into the {@code GuiRenderState}
      * vanilla actually composites (two-phase GUI, 1.21.6+).
      */
-    public void setContext(GuiGraphics context)
+    public void setContext(GuiGraphicsExtractor context)
     {
         this.batcher.setContext(context);
     }

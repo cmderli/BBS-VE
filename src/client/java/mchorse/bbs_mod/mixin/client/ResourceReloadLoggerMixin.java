@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ResourceLoadStateTracker.class)
 public class ResourceReloadLoggerMixin
 {
-    @Inject(method = "finish", at = @At("TAIL"))
+    @Inject(method = "finishReload", at = @At("TAIL"))
     public void onOnFinishedLoading(CallbackInfo info)
     {
         BBSModClient.getSounds().deleteSounds();

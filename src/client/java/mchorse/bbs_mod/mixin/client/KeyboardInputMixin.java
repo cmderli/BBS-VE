@@ -5,7 +5,7 @@ import mchorse.bbs_mod.ui.dashboard.UIDashboard;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.framework.UIBaseMenu;
 import mchorse.bbs_mod.ui.framework.UIScreen;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.KeyboardInput;
@@ -42,7 +42,7 @@ public abstract class KeyboardInputMixin extends ClientInput
      */
     private static boolean isBoundKeyDown(KeyMapping binding)
     {
-        InputConstants.Key key = KeyBindingHelper.getBoundKeyOf(binding);
+        InputConstants.Key key = KeyMappingHelper.getBoundKeyOf(binding);
 
         if (key.getValue() == GLFW.GLFW_KEY_UNKNOWN)
         {

@@ -9,7 +9,9 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
@@ -44,13 +46,13 @@ public class StructureRenderWorld implements BlockAndTintGetter
         {
             @Nullable
             @Override
-            public LightChunk getChunk(int chunkX, int chunkZ)
+            public LightChunk getChunkForLighting(int chunkX, int chunkZ)
             {
                 return null;
             }
 
             @Override
-            public net.minecraft.world.BlockGetter getWorld()
+            public BlockGetter getLevel()
             {
                 return StructureRenderWorld.this;
             }
@@ -68,8 +70,8 @@ public class StructureRenderWorld implements BlockAndTintGetter
 
         /* 1.21.11: DynamicRegistryManager.get() is gone; getOrThrow is the direct replacement here
          * (the biome registry is always present on a loaded client world). */
-        Registry<Biome> registry = mc.level.getRegistryManager().lookupOrThrow(Registries.BIOME);
-        Identifier identifier = Identifier.tryBuild(id == null ? "" : id);
+        Registry<Biome> registry = mc.level.registryAccess().lookupOrThrow(Registries.BIOME);
+        Identifier identifier = Identifier.tryParse(id == null ? "" : id);
         Biome biome = identifier == null ? null : registry.getValue(identifier);
 
         if (biome == null)
@@ -88,10 +90,13 @@ public class StructureRenderWorld implements BlockAndTintGetter
         return biome;
     }
 
+    /* 26.2: the directional face shade lives on CardinalLighting now; getShade(Direction, boolean)
+     * is gone, and CardinalLighting.DEFAULT holds exactly the overworld values this used to
+     * return for shaded == true (0.5 / 1.0 / 0.8 / 0.6). */
     @Override
-    public float getShade(Direction direction, boolean shaded)
+    public CardinalLighting cardinalLighting()
     {
-        return StructureLighting.getBrightness(direction, shaded);
+        return CardinalLighting.DEFAULT;
     }
 
     @Override
@@ -143,7 +148,7 @@ public class StructureRenderWorld implements BlockAndTintGetter
     }
 
     @Override
-    public int getBottomY()
+    public int getMinY()
     {
         return 0;
     }

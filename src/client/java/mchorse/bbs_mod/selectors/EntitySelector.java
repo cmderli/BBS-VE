@@ -33,7 +33,7 @@ public class EntitySelector implements IMapSerializable
             return false;
         }
 
-        Identifier id = BuiltInRegistries.ENTITY_TYPE.getId(mcEntity.getType());
+        Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(mcEntity.getType());
 
         if (!id.equals(this.entity))
         {
@@ -44,7 +44,7 @@ public class EntitySelector implements IMapSerializable
 
         if (this.nbt != null)
         {
-            TagValueOutput view = TagValueOutput.createWithContext(ProblemReporter.DISCARDING);
+            TagValueOutput view = TagValueOutput.createWithoutContext(ProblemReporter.DISCARDING);
 
             mcEntity.save(view);
 
@@ -70,8 +70,8 @@ public class EntitySelector implements IMapSerializable
     {
         for (String key : source.keySet())
         {
-            Tag a = source.read(key);
-            Tag b = base.read(key);
+            Tag a = source.get(key);
+            Tag b = base.get(key);
 
             if (a instanceof CompoundTag aCompound && b instanceof CompoundTag bCompound)
             {
@@ -93,7 +93,7 @@ public class EntitySelector implements IMapSerializable
 
         if (data.has("enabled")) this.enabled = data.getBool("enabled");
         if (data.has("form")) this.form = FormUtils.fromData(data.getMap("form"));
-        if (data.has("entity")) this.entity = Identifier.fromNamespaceAndPath(data.getString("entity"));
+        if (data.has("entity")) this.entity = Identifier.parse(data.getString("entity"));
         if (data.has("name")) this.name = data.getString("name");
         if (data.has("nbt"))
         {

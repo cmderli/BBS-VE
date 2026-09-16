@@ -24,7 +24,7 @@ import mchorse.bbs_mod.ui.utils.Gizmo;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
@@ -109,7 +109,7 @@ public class FilmStencilPicker
         InverseView.set(new Matrix3f(this.controller.panel.lastView).invert());
 
         /* Render the stencil */
-        PoseStack worldStack = this.controller.worldRenderContext().matrices();
+        PoseStack worldStack = this.controller.worldRenderContext().poseStack();
 
         worldStack.pushPose();
         worldStack.setIdentity();
@@ -192,7 +192,7 @@ public class FilmStencilPicker
     }
 
 
-    private void renderStencil(WorldRenderContext renderContext, UIContext context, boolean altPressed)
+    private void renderStencil(LevelRenderContext renderContext, UIContext context, boolean altPressed)
     {
         Area viewport = this.controller.panel.preview.getViewport();
 

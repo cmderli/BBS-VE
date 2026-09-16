@@ -171,7 +171,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
             {
                 boolean shadersEnabled = BBSRendering.isIrisShadersEnabled();
 
-                VertexFormat format = shadersEnabled ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.PARTICLE;
+                VertexFormat format = shadersEnabled ? DefaultVertexFormat.ENTITY : DefaultVertexFormat.PARTICLE;
 
                 /* 1.21.5: ParticleEmitter.render now takes the target RenderLayer directly instead of a
                  * Supplier<ShaderProgram> (ShaderProgram + GameRenderer.getXxxProgram() were removed).

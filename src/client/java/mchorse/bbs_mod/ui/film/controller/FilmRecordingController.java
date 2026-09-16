@@ -69,7 +69,7 @@ public class FilmRecordingController
     {
         if (groups != null && groups.contains("outside"))
         {
-            Minecraft.getInstance().setScreen(null);
+            Minecraft.getInstance().setScreenAndShow(null);
 
             Replay replay = this.controller.panel.replayEditor.getReplay();
             int index = this.controller.panel.getData().replays.getList().indexOf(replay);

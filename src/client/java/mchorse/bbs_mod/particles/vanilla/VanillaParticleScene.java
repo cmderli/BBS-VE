@@ -10,7 +10,7 @@ import mchorse.bbs_mod.mixin.client.ParticleManagerInvoker;
 import mchorse.bbs_mod.utils.MathUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.particle.SingleQuadParticle;
-import net.minecraft.client.renderer.state.QuadParticleRenderState;
+import net.minecraft.client.renderer.state.level.QuadParticleRenderState;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -194,7 +194,7 @@ public class VanillaParticleScene
                 {
                     try
                     {
-                        billboard.extractRotatedQuad(this.submittable, this.camera, transition);
+                        billboard.extract(this.submittable, this.camera, transition);
                     }
                     catch (Exception e)
                     {
@@ -239,7 +239,9 @@ public class VanillaParticleScene
 
             for (SingleQuadParticle.Layer type : this.used)
             {
-                provider.draw(this.layer(type));
+                /* 1.21.11's VertexConsumerProvider.Immediate#draw(RenderLayer) is 26.2's
+                 * BufferSource#endBatch(RenderType): flush this one layer only. */
+                provider.endBatch(this.layer(type));
             }
 
             this.used.clear();

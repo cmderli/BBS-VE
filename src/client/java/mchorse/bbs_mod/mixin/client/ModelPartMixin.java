@@ -68,7 +68,7 @@ public abstract class ModelPartMixin implements IBBSModelPart
      * <p>This runs for every model part in the game, so the guard is one static field read and
      * nothing else.</p>
      */
-    @ModifyVariable(method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumer;III)V", at = @At("HEAD"), ordinal = 0, argsOnly = true)
+    @ModifyVariable(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;III)V", at = @At("HEAD"), ordinal = 0, argsOnly = true)
     private int bbs$pickingLight(int light)
     {
         MobRenderContext context = MobRenderContext.current();

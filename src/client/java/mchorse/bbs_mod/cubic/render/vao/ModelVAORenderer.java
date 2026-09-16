@@ -10,7 +10,7 @@ import mchorse.bbs_mod.client.render.picker.BBSPickerRenderer;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
@@ -48,7 +48,10 @@ public class ModelVAORenderer
      */
     public static void render(ModelVAO modelVAO, PoseStack stack, float r, float g, float b, float a, int light, int overlay, boolean cull)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
+        /* 1.21.11 built this on the Tesselator's growable buffer; 26.2 has no Tesselator, so the
+         * batch owns a ByteBufferBuilder for as long as the finished MeshData needs it. */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.ENTITY);
 
         modelVAO.writeImmediate(builder, stack, r, g, b, a, light, overlay);
 
@@ -63,6 +66,8 @@ public class ModelVAORenderer
                 BBSModClient.getTextures().getLastBound(), a, null,
                 captureModelView(stack).getTranslation(new Vector3f()));
         }
+
+        allocator.close();
     }
 
     /**
@@ -72,7 +77,8 @@ public class ModelVAORenderer
      */
     public static void renderPicking(ModelVAO modelVAO, PoseStack stack, float r, float g, float b, float a, int light, int overlay, RenderPipeline picker)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.ENTITY);
 
         modelVAO.writeImmediate(builder, stack, r, g, b, a, light, overlay);
 
@@ -84,5 +90,7 @@ public class ModelVAORenderer
              * gets the global model-view, the same argument the cubic/BOBJ picking draws pass. */
             BBSPickerRenderer.draw(picker, built, RenderSystem.getModelViewMatrixCopy());
         }
+
+        allocator.close();
     }
 }

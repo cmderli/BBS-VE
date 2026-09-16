@@ -61,7 +61,7 @@ import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -428,7 +428,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         boolean additive = this.form.additiveColor.get();
 
         this.renderModel(this.entity, stack, model,
-            LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY,
+            LightCoordsUtil.pack(15, 15), OverlayTexture.NO_OVERLAY,
             contextColor, formColor, additive, true, null, transition, null);
 
         /* The attached body parts, on the model that was just drawn. They ride the world path through
@@ -443,7 +443,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         this.renderBodyParts(new FormRenderingContext()
-            .set(FormRenderType.ENTITY, this.entity, stack, LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, transition)
+            .set(FormRenderType.ENTITY, this.entity, stack, LightCoordsUtil.pack(15, 15), OverlayTexture.NO_OVERLAY, transition)
             .inUI());
 
         stack.popPose();
@@ -662,7 +662,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             stack.pushPose();
             MatrixStackUtils.multiply(stack, matrix);
             MatrixStackUtils.applyTransform(stack, armorSlot.transform);
-            stack.rotateAround(Axis.XP.rotationDegrees(180F));
+            stack.mulPose(Axis.XP.rotationDegrees(180F));
 
             /* TODO(1.21.11 render): blend/depth state is now pipeline-encoded; hijack hook left as a no-op. */
             CustomVertexConsumerProvider.hijackVertexFormat((l) -> {});
@@ -709,8 +709,8 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
                 stack.pushPose();
                 MatrixStackUtils.multiply(stack, matrix);
-                stack.rotateAround(Axis.XP.rotationDegrees(90F));
-                stack.rotateAround(Axis.YP.rotationDegrees(180F));
+                stack.mulPose(Axis.XP.rotationDegrees(90F));
+                stack.mulPose(Axis.YP.rotationDegrees(180F));
                 stack.translate(0F, 0.125F, 0F);
                 MatrixStackUtils.applyTransform(stack, armorSlot.transform);
 
@@ -776,11 +776,11 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         float f = mainHand ? 1F : -1F;
 
         stack.translate(f * 0.64F, -0.6F, -0.72F);
-        stack.rotateAround(Axis.YP.rotationDegrees(f * 45F));
+        stack.mulPose(Axis.YP.rotationDegrees(f * 45F));
         stack.translate(f * -1F, 3.6F, 3.5F);
-        stack.rotateAround(Axis.ZP.rotationDegrees(f * 120F));
-        stack.rotateAround(Axis.XP.rotationDegrees(200F));
-        stack.rotateAround(Axis.YP.rotationDegrees(f * -135F));
+        stack.mulPose(Axis.ZP.rotationDegrees(f * 120F));
+        stack.mulPose(Axis.XP.rotationDegrees(200F));
+        stack.mulPose(Axis.YP.rotationDegrees(f * -135F));
         stack.translate(f * 5.6F, 0F, 0F);
     }
 
@@ -835,7 +835,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             model.clearChannels();
 
             matrices.pushPose();
-            matrices.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            matrices.mulPose(Axis.YP.rotation(MathUtils.PI));
             MatrixStackUtils.applyTransform(matrices, slot.transform);
 
             BBSModClient.getTextures().bindTexture(this.albedo("", texture));
@@ -896,10 +896,10 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             }
             this.evaluateChannels(context.entity, model, context.getTransition());
 
-            context.stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            context.stack.mulPose(Axis.YP.rotation(MathUtils.PI));
             if (context.world != null)
             {
-                context.world.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                context.world.mulPose(Axis.YP.rotation(MathUtils.PI));
             }
 
             BBSModClient.getTextures().bindTexture(this.albedo("", texture));
@@ -920,11 +920,11 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                 /* picker_models samples Sampler0 for the alpha cutout. Bridge the bound (raw-GL) model texture
                  * into a vanilla GpuTextureView via AdoptedTexture so BBSPickerRenderer can bind it. */
                 Texture tex = BBSModClient.getTextures().getTexture(texture);
-                net.minecraft.util.Identifier adopted = AdoptedTexture.identifier(tex);
+                net.minecraft.resources.Identifier adopted = AdoptedTexture.identifier(tex);
 
                 if (adopted != null)
                 {
-                    net.minecraft.client.texture.AbstractTexture at = Minecraft.getInstance().getTextureManager().getTexture(adopted);
+                    net.minecraft.client.renderer.texture.AbstractTexture at = Minecraft.getInstance().getTextureManager().getTexture(adopted);
 
                     BBSPickerRenderer.setSampler0(at.getTextureView(), at.getSampler());
                 }
@@ -1060,10 +1060,10 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             }
             else
             {
-                context.stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                context.stack.mulPose(Axis.YP.rotation(MathUtils.PI));
                 if (context.world != null)
                 {
-                    context.world.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                    context.world.mulPose(Axis.YP.rotation(MathUtils.PI));
                 }
             }
 
@@ -1116,7 +1116,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             model.form = this.form;
             ModelIKRuntime.apply(model, null, null);
 
-            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            stack.mulPose(Axis.YP.rotation(MathUtils.PI));
             this.captureMatrices(model);
         }
 
@@ -1155,7 +1155,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                 }
                 else
                 {
-                    stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                    stack.mulPose(Axis.YP.rotation(MathUtils.PI));
                 }
 
                 MatrixStackUtils.applyTransform(stack, part.transform.get());
@@ -1253,7 +1253,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             this.evaluateChannels(entity, model, transition);
         }
 
-        stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+        stack.mulPose(Axis.YP.rotation(MathUtils.PI));
         this.captureMatrices(model);
 
         Vector3f result = null;

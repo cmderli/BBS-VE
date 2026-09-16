@@ -97,7 +97,9 @@ public class RecolorVertexConsumer implements VertexConsumer
         int green = (argb >> 8) & 0xFF;
         int blue = argb & 0xFF;
 
-        return this.color(red, green, blue, alpha);
+        /* 26.2 kept only setColor; the old color(int,int,int,int) alias is gone, so the unpacked
+         * components go through this class's own four-arg override, which applies the tint. */
+        return this.setColor(red, green, blue, alpha);
     }
 
     @Override

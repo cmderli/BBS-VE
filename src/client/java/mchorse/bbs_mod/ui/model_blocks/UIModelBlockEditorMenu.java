@@ -105,7 +105,7 @@ public class UIModelBlockEditorMenu extends UIBaseMenu
 
         Camera camera = new Camera();
 
-        camera.position.set(player.getEntityPos().x, player.getEntityPos().y + 1D, player.getEntityPos().z);
+        camera.position.set(player.position().x, player.position().y + 1D, player.position().z);
         camera.rotation.set(0, MathUtils.toRad(player.yBodyRot), 0);
 
         /* setup() — not a raw position/rotation write: the orbit smoothly chases its target*

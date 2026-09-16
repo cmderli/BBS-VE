@@ -2,7 +2,8 @@ package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.client.renderer.MorphRenderer;
 import net.minecraft.client.gui.render.pip.GuiEntityRenderer;
-import net.minecraft.client.gui.render.state.pip.GuiEntityRenderState;
+import net.minecraft.client.renderer.state.gui.pip.GuiEntityRenderState;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,19 +23,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class EntityGuiElementRendererMixin
 {
     @Inject(
-        method = "render(Lnet/minecraft/client/gui/render/state/special/EntityGuiElementRenderState;Lnet/minecraft/client/util/math/MatrixStack;)V",
+        method = "renderToTexture(Lnet/minecraft/client/renderer/state/gui/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;)V",
         at = @At("HEAD")
     )
-    private void bbs$guiEntityBegin(GuiEntityRenderState state, PoseStack matrices, CallbackInfo info)
+    private void bbs$guiEntityBegin(GuiEntityRenderState state, PoseStack matrices, SubmitNodeCollector collector, CallbackInfo info)
     {
         MorphRenderer.setGuiPass(true);
     }
 
     @Inject(
-        method = "render(Lnet/minecraft/client/gui/render/state/special/EntityGuiElementRenderState;Lnet/minecraft/client/util/math/MatrixStack;)V",
+        method = "renderToTexture(Lnet/minecraft/client/renderer/state/gui/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;)V",
         at = @At("RETURN")
     )
-    private void bbs$guiEntityEnd(GuiEntityRenderState state, PoseStack matrices, CallbackInfo info)
+    private void bbs$guiEntityEnd(GuiEntityRenderState state, PoseStack matrices, SubmitNodeCollector collector, CallbackInfo info)
     {
         MorphRenderer.setGuiPass(false);
     }

@@ -224,8 +224,8 @@ public class GizmoPie
 
         stack.pushPose();
 
-        if (axis == Axis.X) stack.rotateAround(com.mojang.math.Axis.ZP.rotation(MathUtils.PI / 2F));
-        if (axis == Axis.Z) stack.rotateAround(com.mojang.math.Axis.XP.rotation(MathUtils.PI / 2F));
+        if (axis == Axis.X) stack.rotateAround(com.mojang.math.Axis.ZP.rotation(MathUtils.PI / 2F), 0F, 0F, 0F);
+        if (axis == Axis.Z) stack.rotateAround(com.mojang.math.Axis.XP.rotation(MathUtils.PI / 2F), 0F, 0F, 0F);
 
         int color = axis == Axis.X ? Colors.RED : (axis == Axis.Y ? Colors.GREEN : Colors.BLUE);
         float r = Colors.getR(color);

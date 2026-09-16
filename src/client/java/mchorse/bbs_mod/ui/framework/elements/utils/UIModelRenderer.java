@@ -31,7 +31,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Intersectiond;
@@ -658,7 +658,9 @@ public abstract class UIModelRenderer extends UIElement
     {
         Matrix4f matrix4f = this.createCameraStack().last().pose();
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+        /* 26.2 has no Tesselator: the batch's staging buffer is owned here and released after the flush. */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
 
         for (int x = 0; x <= 10; x ++)
         {
@@ -689,5 +691,6 @@ public abstract class UIModelRenderer extends UIElement
         }
 
         Draw.flushLines(builder);
+        allocator.close();
     }
 }

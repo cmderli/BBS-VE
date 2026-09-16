@@ -17,7 +17,7 @@ import mchorse.bbs_mod.utils.joml.Vectors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Camera;
 import net.minecraft.commands.arguments.ParticleArgument;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleOptions;
@@ -116,9 +116,9 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
         }
         else
         {
-            Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+            Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
 
-            translation.add(camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z);
+            translation.add(camera.position().x, camera.position().y, camera.position().z);
 
             this.worldRenderTicks = RENDER_GRACE_TICKS;
         }
@@ -153,7 +153,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
              * getTickProgress(false) came out CONSTANT WITHIN A TICK here (probe: the τ-keyed
              * dedupe admitted exactly ~20 renders/sec), which both froze the lerp and starved the
              * redraw — the field is the real per-frame interpolant. */
-            net.minecraft.client.render.DeltaTracker counter = Minecraft.getInstance().getDeltaTracker();
+            net.minecraft.client.DeltaTracker counter = Minecraft.getInstance().getDeltaTracker();
             float transition = counter instanceof mchorse.bbs_mod.mixin.client.RenderTickCounterAccessor accessor
                 ? accessor.bbs$getTickDelta()
                 : counter.getGameTimeDeltaPartialTick(false);
@@ -384,17 +384,19 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
 
             if (bareId && type == ParticleTypes.BLOCK)
             {
-                return new BlockParticleOption(ParticleTypes.BLOCK, BuiltInRegistries.BLOCK.get(Identifier.fromNamespaceAndPath(args)).defaultBlockState());
+                return new BlockParticleOption(ParticleTypes.BLOCK, BuiltInRegistries.BLOCK.getValue(Identifier.parse(args)).defaultBlockState());
             }
 
             if (bareId && type == ParticleTypes.ITEM)
             {
-                return new ItemParticleOption(ParticleTypes.ITEM, new ItemStack(BuiltInRegistries.ITEM.get(Identifier.fromNamespaceAndPath(args))));
+                /* 26.2's ItemParticleOption takes an ItemStackTemplate: the ItemStack form is gone,
+                 * and a one-item stack with no components is exactly what this template builds. */
+                return new ItemParticleOption(ParticleTypes.ITEM, new ItemStackTemplate(BuiltInRegistries.ITEM.getValue(Identifier.parse(args))));
             }
 
             StringReader reader = new StringReader(settings.particle.toString() + args);
 
-            return ParticleArgument.readParticle(reader, world.getRegistryManager());
+            return ParticleArgument.readParticle(reader, world.registryAccess());
         }
         catch (Exception e)
         {

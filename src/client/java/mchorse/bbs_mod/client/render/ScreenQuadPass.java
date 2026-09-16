@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.client.render;
 
+import com.mojang.blaze3d.IndexType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
@@ -8,23 +9,24 @@ import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.textures.GpuSampler;
+import mchorse.bbs_mod.graphics.gpu.BBSGpu;
+import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.renderer.MappableRingBuffer;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
+import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.OptionalInt;
 import java.util.function.Consumer;
 
 /**
@@ -67,7 +69,7 @@ public class ScreenQuadPass
 
         GpuBuffer ubo = uboRing.currentBuffer();
 
-        try (GpuBuffer.MappedView view = encoder.mapBuffer(ubo, false, true))
+        try (GpuBufferSlice.MappedView view = ubo.slice(0L, UBO_SIZE).map(false, true))
         {
             writer.accept(Std140Builder.intoBuffer(view.data()));
         }
@@ -79,8 +81,7 @@ public class ScreenQuadPass
     {
         if (nearestSampler == null)
         {
-            nearestSampler = RenderSystem.getSamplerCache().getClampToEdge(
-                AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.NEAREST, FilterMode.NEAREST, false);
+            nearestSampler = BBSGpu.clampToEdge(FilterMode.NEAREST, false);
         }
 
         return nearestSampler;
@@ -90,8 +91,7 @@ public class ScreenQuadPass
     {
         if (linearSampler == null)
         {
-            linearSampler = RenderSystem.getSamplerCache().getClampToEdge(
-                AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.LINEAR, FilterMode.LINEAR, false);
+            linearSampler = BBSGpu.clampToEdge(FilterMode.LINEAR, false);
         }
 
         return linearSampler;
@@ -205,34 +205,39 @@ public class ScreenQuadPass
 
         GpuBuffer projection = projectionRing.currentBuffer();
 
-        try (GpuBuffer.MappedView view = encoder.mapBuffer(projection, false, true))
+        try (GpuBufferSlice.MappedView view = projection.slice(0L, 64).map(false, true))
         {
             Std140Builder.intoBuffer(view.data())
                 .putMat4f(new Matrix4f().ortho(0F, quad.targetWidth, quad.targetHeight, 0F, -1000F, 1000F));
         }
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        /* 26.2 dropped the Tesselator: a BufferBuilder is built on a ByteBufferBuilder (which owns the
+         * native arena, so it is closed with the mesh) and finished into MeshData. */
+        ByteBufferBuilder bytes = ByteBufferBuilder.exactlySized(DefaultVertexFormat.POSITION_TEX_COLOR.getVertexSize() * 4);
+        BufferBuilder builder = new BufferBuilder(bytes, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
-        builder.vertex(quad.x, quad.y + quad.h, 0F).setUv(quad.u1, quad.v2).setColor(quad.color);
-        builder.vertex(quad.x + quad.w, quad.y + quad.h, 0F).setUv(quad.u2, quad.v2).setColor(quad.color);
-        builder.vertex(quad.x + quad.w, quad.y, 0F).setUv(quad.u2, quad.v1).setColor(quad.color);
-        builder.vertex(quad.x, quad.y, 0F).setUv(quad.u1, quad.v1).setColor(quad.color);
+        builder.addVertex(quad.x, quad.y + quad.h, 0F).setUv(quad.u1, quad.v2).setColor(quad.color);
+        builder.addVertex(quad.x + quad.w, quad.y + quad.h, 0F).setUv(quad.u2, quad.v2).setColor(quad.color);
+        builder.addVertex(quad.x + quad.w, quad.y, 0F).setUv(quad.u2, quad.v1).setColor(quad.color);
+        builder.addVertex(quad.x, quad.y, 0F).setUv(quad.u1, quad.v1).setColor(quad.color);
 
         MeshData buffer = builder.build();
 
         if (buffer == null)
         {
+            bytes.close();
+
             return false;
         }
 
-        VertexFormat format = quad.pipeline.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
-        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
+        VertexFormat format = buffer.drawState().format();
+        GpuBuffer vertexBuffer = device.createBuffer(() -> "bbs:screen_quad", GpuBuffer.USAGE_VERTEX, buffer.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().primitiveTopology());
         GpuBuffer indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
-        VertexFormat.IndexType indexType = sequential.type();
+        IndexType indexType = sequential.type();
 
         try (RenderPass pass = encoder.createRenderPass(() -> name, quad.target,
-            quad.clear ? OptionalInt.of(0x00000000) : OptionalInt.empty()))
+            quad.clear ? Optional.of(GuiRenderer.CLEAR_COLOR) : Optional.empty()))
         {
             pass.setPipeline(quad.pipeline);
             RenderSystem.bindDefaultUniforms(pass);
@@ -254,13 +259,15 @@ public class ScreenQuadPass
                 pass.bindTexture(quad.sampler3Name, quad.sampler3, quad.sampler3Sampler == null ? nearest() : quad.sampler3Sampler);
             }
 
-            pass.setVertexBuffer(0, vertexBuffer);
+            pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
         }
         finally
         {
             buffer.close();
+            vertexBuffer.close();
+            bytes.close();
         }
 
         return true;

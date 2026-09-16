@@ -60,10 +60,10 @@ public class ModelVAO
             normal.set(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
             normalMatrix.transform(normal);
 
-            builder.vertex(vertex.x, vertex.y, vertex.z)
+            builder.addVertex(vertex.x, vertex.y, vertex.z)
                 .setColor(r, g, b, a)
                 .setUv(texCoords[i * 2], texCoords[i * 2 + 1])
-                .setUv1(overlay)
+                .setOverlay(overlay)
                 .setUv2(lu, lv)
                 .setNormal(normal.x, normal.y, normal.z);
         }

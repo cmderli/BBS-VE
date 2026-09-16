@@ -5,7 +5,7 @@ import mchorse.bbs_mod.forms.FormUtilsClient;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.Lightmap;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -84,7 +84,7 @@ public class FormShadows
 
                 for (int by = maxY; by >= minY; by--)
                 {
-                    addPiece(pieces, world, chunk, mutable.setWithOffset(bx, by, bz), x, y, z, alpha);
+                    addPiece(pieces, world, chunk, mutable.set(bx, by, bz), x, y, z, alpha);
                 }
             }
         }
@@ -97,7 +97,7 @@ public class FormShadows
     {
         float pieceAlpha = alpha - (float) (y - pos.getY()) * 0.5F;
 
-        BlockPos down = pos.down();
+        BlockPos down = pos.below();
         BlockState state = chunk.getBlockState(down);
 
         if (state.getRenderShape() == RenderShape.INVISIBLE)
@@ -124,7 +124,7 @@ public class FormShadows
             return;
         }
 
-        float brightness = Mth.clamp(pieceAlpha * 0.5F * LightTexture.getBrightness(world.getDimension(), light), 0F, 1F);
+        float brightness = Mth.clamp(pieceAlpha * 0.5F * Lightmap.getBrightness(world.dimensionType(), light), 0F, 1F);
 
         pieces.add(new EntityRenderState.ShadowPiece((float) (pos.getX() - x), (float) (pos.getY() - y), (float) (pos.getZ() - z), shape, brightness));
     }
@@ -145,7 +145,7 @@ public class FormShadows
          * the film's AFTER_ENTITIES context takes (name tags etc.) — instead of a bare Tessellator
          * whose BuiltBuffer lifecycle we would own. consumers.draw() ends the batch properly. */
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
-        VertexConsumer builder = consumers.getBuffer(RenderTypes.entityShadow(net.minecraft.util.Identifier.withDefaultNamespace("textures/misc/shadow.png")));
+        VertexConsumer builder = consumers.getBuffer(RenderTypes.entityShadow(net.minecraft.resources.Identifier.withDefaultNamespace("textures/misc/shadow.png")));
         Matrix4f matrix = matrices.last().pose();
 
         for (EntityRenderState.ShadowPiece piece : pieces)
@@ -169,11 +169,11 @@ public class FormShadows
             vertex(builder, matrix, color, x2, y1, z1, u2, v1);
         }
 
-        consumers.draw();
+        consumers.endBatch();
     }
 
     private static void vertex(VertexConsumer builder, Matrix4f matrix, int color, float x, float y, float z, float u, float v)
     {
-        builder.addVertex(matrix, x, y, z).setColor(color).setUv(u, v).setUv1(OverlayTexture.NO_OVERLAY).setUv2(15728880).setNormal(0F, 1F, 0F);
+        builder.addVertex(matrix, x, y, z).setColor(color).setUv(u, v).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0F, 1F, 0F);
     }
 }

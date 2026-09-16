@@ -5,12 +5,13 @@ import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.platform.Lighting;
-import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix4f;
+import org.joml.Vector4f;
 import org.joml.Matrix4fStack;
 
 /**
@@ -58,9 +59,9 @@ public class ModelPreviewRenderer
     public static Matrix4f PROJECTION = null;
 
     /** Adopted {@link net.minecraft.util.Identifier} of the current model texture (set by {@code ModelFormRenderer}). */
-    public static net.minecraft.util.Identifier TEXTURE = null;
+    public static net.minecraft.resources.Identifier TEXTURE = null;
 
-    private final PerspectiveProjectionMatrixBuffer projection = new PerspectiveProjectionMatrixBuffer("bbs_model_preview");
+    private final ProjectionMatrixBuffer projection = new ProjectionMatrixBuffer("bbs_model_preview");
 
     /** The diffuse-light slice bound before {@link #begin} took over; {@link #end} restores it. */
     private com.mojang.blaze3d.buffers.GpuBufferSlice previousLights;
@@ -83,8 +84,8 @@ public class ModelPreviewRenderer
 
         GpuDevice device = RenderSystem.getDevice();
 
-        this.color = device.createTexture("bbs_preview_color", USAGE, TextureFormat.RGBA8, w, h, 1, 1);
-        this.depth = device.createTexture("bbs_preview_depth", USAGE, TextureFormat.DEPTH32, w, h, 1, 1);
+        this.color = device.createTexture("bbs_preview_color", USAGE, GpuFormat.RGBA8_UNORM, w, h, 1, 1);
+        this.depth = device.createTexture("bbs_preview_depth", USAGE, GpuFormat.D32_FLOAT, w, h, 1, 1);
         this.colorView = device.createTextureView(this.color);
         this.depthView = device.createTextureView(this.depth);
 
@@ -104,7 +105,7 @@ public class ModelPreviewRenderer
          * GUI_TEXTURED blit (texel.a * vertex.a) then composites the model over the panel with the empty
          * area transparent. The model draws opaque via entityCutoutNoCull, so its silhouette stays alpha=1. */
         RenderSystem.getDevice().createCommandEncoder()
-            .clearColorAndDepthTextures(this.color, 0x00000000, this.depth, 1.0D);
+            .clearColorAndDepthTextures(this.color, new Vector4f(0F, 0F, 0F, 0F), this.depth, 1.0D);
 
         RenderSystem.backupProjectionMatrix();
         RenderSystem.setProjectionMatrix(this.projection.getBuffer(projectionMatrix), ProjectionType.PERSPECTIVE);
@@ -128,7 +129,7 @@ public class ModelPreviewRenderer
          * good" value: the enclosing phase owns the choice, we only borrow the binding. */
         this.previousLights = RenderSystem.getShaderLights();
 
-        Minecraft.getInstance().gameRenderer.getLighting().setupFor(Lighting.Type.ENTITY_IN_UI);
+        Minecraft.getInstance().gameRenderer.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
 
         RenderSystem.outputColorTextureOverride = this.colorView;
         RenderSystem.outputDepthTextureOverride = this.depthView;

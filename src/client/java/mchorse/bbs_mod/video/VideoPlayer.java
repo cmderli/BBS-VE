@@ -467,9 +467,9 @@ public class VideoPlayer
             this.texture.setWrap(GL13.GL_CLAMP_TO_EDGE);
         }
 
-        this.texture.bind();
+        /* 26.2: no texture unit to bind; the target argument is ignored by Texture (see the
+         * deprecated uploadTexture overload). */
         this.texture.uploadTexture(GL11.GL_TEXTURE_2D, 0, this.width, this.height, this.frameBuffer);
-        this.texture.unbind();
 
         this.currentFrame = frame;
     }

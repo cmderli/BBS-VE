@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.api.client.events;
 
 import mchorse.bbs_mod.film.BaseFilmController;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.event.Event;
 import net.fabricmc.fabric.api.event.EventFactory;
 
@@ -84,7 +84,7 @@ public class FilmEvents
 
     public static interface Render
     {
-        public void onFilmRender(BaseFilmController controller, WorldRenderContext context);
+        public void onFilmRender(BaseFilmController controller, LevelRenderContext context);
     }
 
     public static interface Shutdown

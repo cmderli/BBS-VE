@@ -2,6 +2,7 @@ package mchorse.bbs_mod.forms;
 
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.forms.entities.IEntity;
@@ -215,7 +216,7 @@ public class FormRenderCapture
         {
             FormUtilsClient.render(form, new FormRenderingContext()
                 .set(FormRenderType.fromModelMode(displayContext), formEntity, matrices, light, overlay, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false))
-                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.mainCamera()));
         }
         finally
         {
@@ -243,7 +244,7 @@ public class FormRenderCapture
 
             for (Captured single : entry.getValue())
             {
-                queue.submitParticleGroup(matrices, layer, (matricesEntry, consumer) -> emit(single, layer.mode(), consumer));
+                queue.submitCustomGeometry(matrices, layer, (matricesEntry, consumer) -> emit(single, layer.primitiveTopology(), consumer));
             }
         }
     }
@@ -261,10 +262,10 @@ public class FormRenderCapture
      * assuming: a triangle becomes a quad with a doubled last vertex (the second, degenerate
      * triangle rasterises to nothing), a quad becomes its two triangles.
      */
-    public static void emit(Captured captured, VertexFormat.Mode target, VertexConsumer consumer)
+    public static void emit(Captured captured, PrimitiveTopology target, VertexConsumer consumer)
     {
         MeshData.DrawState params = captured.params();
-        VertexFormat.Mode source = params.mode();
+        PrimitiveTopology source = params.primitiveTopology();
         int count = params.vertexCount();
 
         if (source == target)
@@ -319,30 +320,34 @@ public class FormRenderCapture
 
         for (VertexFormatElement element : format.getElements())
         {
-            int offset = base + format.getOffset(element);
+            /* 26.2 identifies an element by its semantic NAME (DefaultVertexFormat.*_SEMANTIC_NAME)
+             * and carries its own byte offset; the 1.21.11 usage()/index() pair behind them is gone. */
+            int offset = base + element.offset();
+            String semantic = element.name();
 
-            switch (element.usage())
+            if (DefaultVertexFormat.POSITION_SEMANTIC_NAME.equals(semantic))
             {
-                case POSITION -> consumer.addVertex(data.getFloat(offset), data.getFloat(offset + 4), data.getFloat(offset + 8));
-                case COLOR -> consumer.setColor(data.get(offset) & 0xFF, data.get(offset + 1) & 0xFF, data.get(offset + 2) & 0xFF, data.get(offset + 3) & 0xFF);
-                case UV ->
-                {
-                    if (element.index() == 0)
-                    {
-                        consumer.setUv(data.getFloat(offset), data.getFloat(offset + 4));
-                    }
-                    else if (element.index() == 1)
-                    {
-                        consumer.setUv1(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
-                    }
-                    else if (element.index() == 2)
-                    {
-                        consumer.setUv2(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
-                    }
-                }
-                case NORMAL -> consumer.setNormal(data.get(offset) / 127F, data.get(offset + 1) / 127F, data.get(offset + 2) / 127F);
-                default ->
-                {}
+                consumer.addVertex(data.getFloat(offset), data.getFloat(offset + 4), data.getFloat(offset + 8));
+            }
+            else if (DefaultVertexFormat.COLOR_SEMANTIC_NAME.equals(semantic))
+            {
+                consumer.setColor(data.get(offset) & 0xFF, data.get(offset + 1) & 0xFF, data.get(offset + 2) & 0xFF, data.get(offset + 3) & 0xFF);
+            }
+            else if (DefaultVertexFormat.UV0_SEMANTIC_NAME.equals(semantic))
+            {
+                consumer.setUv(data.getFloat(offset), data.getFloat(offset + 4));
+            }
+            else if (DefaultVertexFormat.UV1_SEMANTIC_NAME.equals(semantic))
+            {
+                consumer.setUv1(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
+            }
+            else if (DefaultVertexFormat.UV2_SEMANTIC_NAME.equals(semantic))
+            {
+                consumer.setUv2(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
+            }
+            else if (DefaultVertexFormat.NORMAL_SEMANTIC_NAME.equals(semantic))
+            {
+                consumer.setNormal(data.get(offset) / 127F, data.get(offset + 1) / 127F, data.get(offset + 2) / 127F);
             }
         }
     }

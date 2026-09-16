@@ -16,9 +16,8 @@ import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.core.BlockPos;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
@@ -530,7 +529,7 @@ public class ParticleComponentAppearanceBillboard extends ParticleComponentBase 
             builder.addVertex(matrix, vertex.x, vertex.y, vertex.z)
                 .setUv(u, v)
                 .setColor(particle.r, particle.g, particle.b, particle.a)
-                .setUv2(this.light)
+                .setLight(this.light)
                 ;
         }
         else
@@ -539,8 +538,8 @@ public class ParticleComponentAppearanceBillboard extends ParticleComponentBase 
             builder.addVertex(matrix, vertex.x, vertex.y, vertex.z)
                 .setColor(particle.r, particle.g, particle.b, particle.a)
                 .setUv(u, v)
-                .setUv1(overlay)
-                .setUv2(this.light)
+                .setOverlay(overlay)
+                .setLight(this.light)
                 .setNormal(this.n.x, this.n.y, this.n.z)
                 ;
         }
@@ -597,7 +596,7 @@ public class ParticleComponentAppearanceBillboard extends ParticleComponentBase 
         builder.addVertex(matrix, vertex.x, vertex.y, 0F)
             .setUv(u, v)
             .setColor(particle.r, particle.g, particle.b, particle.a)
-            .setUv2(LightTexture.FULL_BRIGHT)
+            .setLight(LightCoordsUtil.FULL_BRIGHT)
             ;
     }
 
@@ -645,13 +644,13 @@ public class ParticleComponentAppearanceBillboard extends ParticleComponentBase 
 
         if (emitter == null || emitter.lit || emitter.world == null)
         {
-            this.light = LightTexture.pack(15, 15);
+            this.light = LightCoordsUtil.pack(15, 15);
         }
         else
         {
             Vector3d pos = particle.getGlobalPosition(emitter);
             BlockPos blockPos = new BlockPos((int) pos.x, (int) pos.y, (int) pos.z);
-            int lightLevel = LevelRenderer.getLightColor(emitter.world, blockPos);
+            int lightLevel = LightCoordsUtil.getLightCoords(emitter.world, blockPos);
 
             this.light = lightLevel;
         }

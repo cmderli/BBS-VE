@@ -11,8 +11,8 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
+import net.minecraft.client.renderer.rendertype.PreparedRenderType;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -60,11 +60,15 @@ public class PickingReplay
 
         for (Map.Entry<RenderType, List<FormRenderCapture.Captured>> entry : captured.entrySet())
         {
-            RenderSetup.TextureAndSampler texture = sampler0(entry.getKey());
+            PreparedRenderType.Texture texture = sampler0(entry.getKey());
 
             BBSPickerRenderer.setSampler0(texture.textureView(), texture.sampler());
 
-            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.NEW_ENTITY);
+            /* The source buffers come in whatever formats the vanilla renderers used, so the QUADS the
+             * replay emits have no fixed size up front; ByteBufferBuilder grows on demand, exactly like
+             * the Tesselator's buffer did. */
+            ByteBufferBuilder bytes = new ByteBufferBuilder(DefaultVertexFormat.ENTITY.getVertexSize() * 32);
+            BufferBuilder builder = new BufferBuilder(bytes, PrimitiveTopology.QUADS, DefaultVertexFormat.ENTITY);
 
             for (FormRenderCapture.Captured single : entry.getValue())
             {
@@ -77,6 +81,8 @@ public class PickingReplay
             {
                 BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrixCopy());
             }
+
+            bytes.close();
         }
     }
 
@@ -85,24 +91,28 @@ public class PickingReplay
      * geometry points there, and a layer that samples nothing of its own (glint) only duplicates
      * geometry the base layer has already written.
      */
-    private static RenderSetup.TextureAndSampler sampler0(RenderType layer)
+    private static PreparedRenderType.Texture sampler0(RenderType layer)
     {
-        RenderSetup.TextureAndSampler texture = layer.state.getTextures().get("Sampler0");
-
-        if (texture != null)
+        /* 1.21.11 read the layer's TextureSetup straight out of its RenderSetup; 26.2 keeps the setup
+         * private and resolves it through prepare(), which is also what turns the layer's texture id
+         * into the view + sampler pair the picker pass binds. */
+        for (PreparedRenderType.Texture texture : layer.prepare().textures())
         {
-            return texture;
+            if (texture.name().equals("Sampler0"))
+            {
+                return texture;
+            }
         }
 
         AbstractTexture atlas = Minecraft.getInstance().getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS);
 
-        return new RenderSetup.TextureAndSampler(atlas.getTextureView(), atlas.getSampler());
+        return new PreparedRenderType.Texture("Sampler0", atlas.getTextureView(), atlas.getSampler());
     }
 
     /** Re-emit one captured buffer as QUADS, doubling the last vertex of each triangle. */
     private static void emit(FormRenderCapture.Captured captured, VertexConsumer consumer)
     {
-        VertexFormat.Mode mode = captured.params().mode();
+        PrimitiveTopology mode = captured.params().primitiveTopology();
         int count = captured.params().vertexCount();
 
         if (mode == PrimitiveTopology.QUADS)
@@ -140,35 +150,31 @@ public class PickingReplay
         int overlay = OverlayTexture.NO_OVERLAY;
         int light = 0;
 
+        /* 26.2's VertexFormatElement is (semantic name, offset, GpuFormat): the usage/index pair of
+         * 1.21.11 became the semantic name, so the element is matched by DefaultVertexFormat's own
+         * name constants instead of by usage enum. */
         for (VertexFormatElement element : format.getElements())
         {
-            int offset = base + format.getOffset(element);
+            int offset = base + element.offset();
+            String name = element.name();
 
-            switch (element.usage())
+            if (name.equals(DefaultVertexFormat.POSITION_SEMANTIC_NAME))
             {
-                case POSITION ->
-                {
-                    x = data.getFloat(offset);
-                    y = data.getFloat(offset + 4);
-                    z = data.getFloat(offset + 8);
-                }
-                case UV ->
-                {
-                    if (element.index() == 0)
-                    {
-                        u = data.getFloat(offset);
-                        v = data.getFloat(offset + 4);
-                    }
-                    else if (element.index() == 2)
-                    {
-                        /* The light channel, where a mob form's parts wrote their bone ids (see
-                         * MobRenderContext.partLight) — dropping it would flatten every bone back
-                         * onto the form's own id. */
-                        light = Short.toUnsignedInt(data.getShort(offset)) | Short.toUnsignedInt(data.getShort(offset + 2)) << 16;
-                    }
-                }
-                default ->
-                {}
+                x = data.getFloat(offset);
+                y = data.getFloat(offset + 4);
+                z = data.getFloat(offset + 8);
+            }
+            else if (name.equals(DefaultVertexFormat.UV0_SEMANTIC_NAME))
+            {
+                u = data.getFloat(offset);
+                v = data.getFloat(offset + 4);
+            }
+            else if (name.equals(DefaultVertexFormat.UV2_SEMANTIC_NAME))
+            {
+                /* The light channel, where a mob form's parts wrote their bone ids (see
+                 * MobRenderContext.partLight) — dropping it would flatten every bone back
+                 * onto the form's own id. */
+                light = Short.toUnsignedInt(data.getShort(offset)) | Short.toUnsignedInt(data.getShort(offset + 2)) << 16;
             }
         }
 
@@ -177,8 +183,8 @@ public class PickingReplay
         consumer.addVertex(x, y, z)
             .setColor(255, 255, 255, 255)
             .setUv(u, v)
-            .setUv1(overlay)
-            .setUv2(light)
+            .setOverlay(overlay)
+            .setLight(light)
             .setNormal(0F, 1F, 0F);
     }
 }

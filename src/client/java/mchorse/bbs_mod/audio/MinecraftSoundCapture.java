@@ -111,7 +111,7 @@ public class MinecraftSoundCapture implements SoundEventListener
             return;
         }
 
-        net.minecraft.client.sound.SoundManager soundManager = Minecraft.getInstance().getSoundManager();
+        net.minecraft.client.sounds.SoundManager soundManager = Minecraft.getInstance().getSoundManager();
         Iterator<CapturedSound> it = this.playingLoops.iterator();
 
         while (it.hasNext())
@@ -157,7 +157,7 @@ public class MinecraftSoundCapture implements SoundEventListener
      * once, because with the master volume at zero vanilla never creates sources,
      * and isPlaying() stays false for sounds that are logically still playing.
      */
-    private boolean hasLoopEnded(net.minecraft.client.sound.SoundManager soundManager, CapturedSound loop)
+    private boolean hasLoopEnded(net.minecraft.client.sounds.SoundManager soundManager, CapturedSound loop)
     {
         if (loop.instance instanceof TickableSoundInstance tickable && tickable.isStopped())
         {
@@ -208,7 +208,7 @@ public class MinecraftSoundCapture implements SoundEventListener
 
         /* UI clicks (vanilla buttons, BBS's own clicks) are master category, relative
          * and unattenuated - they aren't part of the scene either */
-        if (category == SoundSource.MASTER && relative && attenuationType == SoundInstance.AttenuationType.NONE)
+        if (category == SoundSource.MASTER && relative && attenuationType == SoundInstance.Attenuation.NONE)
         {
             return;
         }
@@ -237,7 +237,7 @@ public class MinecraftSoundCapture implements SoundEventListener
             this.frames.size(),
             instance.getX(), instance.getY(), instance.getZ(),
             relative,
-            attenuationType == SoundInstance.AttenuationType.LINEAR,
+            attenuationType == SoundInstance.Attenuation.LINEAR,
             volume, pitch, range, loop
         );
 

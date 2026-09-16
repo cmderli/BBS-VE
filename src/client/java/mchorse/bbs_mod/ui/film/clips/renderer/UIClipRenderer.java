@@ -135,10 +135,10 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
 
                 /* One quad per segment: the two triangles shared an edge and covered exactly this
                  * quadrilateral (QUADS is what the deferred GUI can composite). */
-                builder.addVertex(matrix, prevPoint.x, prevPoint.y).setColor(c);
-                builder.addVertex(matrix, prevPoint.x, y2).setColor(c);
-                builder.addVertex(matrix, point.x, y2).setColor(c);
-                builder.addVertex(matrix, point.x, point.y).setColor(c);
+                builder.addVertexWith2DPose(matrix, prevPoint.x, prevPoint.y).setColor(c);
+                builder.addVertexWith2DPose(matrix, prevPoint.x, y2).setColor(c);
+                builder.addVertexWith2DPose(matrix, point.x, y2).setColor(c);
+                builder.addVertexWith2DPose(matrix, point.x, point.y).setColor(c);
             }
 
             prevKeyframe = keyframe;
@@ -149,10 +149,10 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
         {
             Vector2f point = this.calculateEnvelopePoint(vector, (int) prevKeyframe.getTick(), prevKeyframe.getValue().floatValue(), duration, x1, y1, x2, y2);
 
-            builder.addVertex(matrix, point.x, point.y).setColor(c);
-            builder.addVertex(matrix, point.x, y2).setColor(c);
-            builder.addVertex(matrix, x2, y2).setColor(c);
-            builder.addVertex(matrix, x2, point.y).setColor(c);
+            builder.addVertexWith2DPose(matrix, point.x, point.y).setColor(c);
+            builder.addVertexWith2DPose(matrix, point.x, y2).setColor(c);
+            builder.addVertexWith2DPose(matrix, x2, y2).setColor(c);
+            builder.addVertexWith2DPose(matrix, x2, point.y).setColor(c);
         }
     }
 
@@ -183,10 +183,10 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
             float y = y1 + height * (1 - MathUtils.clamp(envelope.factor(duration, duration * f), 0F, 1F));
 
             /* The two triangles of each step share an edge and form one quad exactly. */
-            builder.addVertex(matrix, prevX, prevY).setColor(c);
-            builder.addVertex(matrix, prevX, y2).setColor(c);
-            builder.addVertex(matrix, x, y2).setColor(c);
-            builder.addVertex(matrix, x, y).setColor(c);
+            builder.addVertexWith2DPose(matrix, prevX, prevY).setColor(c);
+            builder.addVertexWith2DPose(matrix, prevX, y2).setColor(c);
+            builder.addVertexWith2DPose(matrix, x, y2).setColor(c);
+            builder.addVertexWith2DPose(matrix, x, y).setColor(c);
 
             prevX = x;
             prevY = y;

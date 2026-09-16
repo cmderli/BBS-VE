@@ -198,7 +198,7 @@ public class Window
 
         /* Without a screen up the pointer is Minecraft's, hidden for the game - showing it
          * again is only ever this code's business over a screen. */
-        if (!hide && Minecraft.getInstance().screen == null)
+        if (!hide && Minecraft.getInstance().gui.screen() == null)
         {
             return;
         }

@@ -1,12 +1,7 @@
 package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.forms.renderers.mob.MobRenderContext;
-import net.minecraft.client.renderer.OutlineBufferSource;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
-import net.minecraft.client.renderer.SubmitNodeStorage;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -31,10 +26,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class ModelCommandRendererMixin
 {
     @Inject(
-        method = "render(Lnet/minecraft/client/render/command/OrderedRenderCommandQueueImpl$ModelCommand;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/VertexConsumer;Lnet/minecraft/client/render/OutlineVertexConsumerProvider;Lnet/minecraft/client/render/VertexConsumerProvider$Immediate;)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/Model;setAngles(Ljava/lang/Object;)V", shift = At.Shift.AFTER)
+        method = "prepareModel(Lnet/minecraft/client/renderer/feature/ModelFeatureRenderer$Submit;)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/Model;setupAnim(Ljava/lang/Object;)V", shift = At.Shift.AFTER)
     )
-    private void bbs$applyMobPose(SubmitNodeStorage.ModelSubmit<?> command, RenderType layer, VertexConsumer consumer, OutlineBufferSource outline, MultiBufferSource.BufferSource crumbling, CallbackInfo info)
+    private void bbs$applyMobPose(ModelFeatureRenderer.Submit<?> command, CallbackInfo info)
     {
         MobRenderContext context = MobRenderContext.current();
 
@@ -45,10 +40,10 @@ public class ModelCommandRendererMixin
     }
 
     @Inject(
-        method = "render(Lnet/minecraft/client/render/command/OrderedRenderCommandQueueImpl$ModelCommand;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/VertexConsumer;Lnet/minecraft/client/render/OutlineVertexConsumerProvider;Lnet/minecraft/client/render/VertexConsumerProvider$Immediate;)V",
+        method = "prepareModel(Lnet/minecraft/client/renderer/feature/ModelFeatureRenderer$Submit;)V",
         at = @At("TAIL")
     )
-    private void bbs$restoreMobPose(SubmitNodeStorage.ModelSubmit<?> command, RenderType layer, VertexConsumer consumer, OutlineBufferSource outline, MultiBufferSource.BufferSource crumbling, CallbackInfo info)
+    private void bbs$restoreMobPose(ModelFeatureRenderer.Submit<?> command, CallbackInfo info)
     {
         MobRenderContext context = MobRenderContext.current();
 

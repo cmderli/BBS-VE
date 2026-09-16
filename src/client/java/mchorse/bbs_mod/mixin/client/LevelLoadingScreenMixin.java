@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LevelLoadingScreen.class)
 public class LevelLoadingScreenMixin
 {
-    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "onClose", at = @At("HEAD"), cancellable = true)
     private void waitForDashboard(CallbackInfo ci)
     {
         /* Keep rendering the loading screen between build steps. Finishing synchronously

@@ -100,7 +100,6 @@ public class TextureManager implements IWatchDogListener
                 Texture texture = new Texture();
                 texture.setFilter(GL11.GL_NEAREST);
                 texture.uploadTexture(pixels);
-                texture.unbind();
 
                 this.error = texture;
             }
@@ -140,8 +139,12 @@ public class TextureManager implements IWatchDogListener
         /* TODO(1.21.11 render): RenderSystem.setShaderTexture(unit, id) was removed by the GPU-pipeline
          * rewrite (samplers are now bound through the RenderPipeline). Falling back to a raw GL active-
          * texture bind to preserve the legacy unit-binding behaviour; verify at runtime that custom
-         * shaders that relied on this still pick the texture up. */
-        texture.bind(unit);
+         * shaders that relied on this still pick the texture up.
+         *
+         * 26.2: that fallback is gone too — {@code Texture.bind(unit)} no longer exists, because there
+         * is no "current texture unit" any more. The bookkeeping above (tracking + lastBound) is all
+         * this method can still do; a caller that needs the texture in a draw has to hand
+         * {@code texture.view()}/{@code texture.sampler()} to {@code RenderPass.bindTexture(...)}. */
     }
 
     /**
@@ -156,12 +159,14 @@ public class TextureManager implements IWatchDogListener
 
     public void bind(Link texture)
     {
-        this.getTexture(texture).bind();
+        this.bind(texture, 0);
     }
 
     public void bind(Link texture, int unit)
     {
-        this.getTexture(texture).bind(unit);
+        /* 26.2 has no ambient texture binding; routing through bindTexture keeps the same
+         * "resolve the link, track it, remember it as lastBound" effect. */
+        this.bindTexture(texture, unit);
     }
 
     public boolean has(Link link)
@@ -237,7 +242,7 @@ public class TextureManager implements IWatchDogListener
                 return this.getError();
             }
 
-            texture = Texture.textureFromPixels(pixels, GL11.GL_NEAREST);
+            texture = Texture.textureFromPixels(pixels, TextureFilter.NEAREST);
 
             byKey.put(key, texture);
 
@@ -377,7 +382,7 @@ public class TextureManager implements IWatchDogListener
                         {}
                     }
 
-                    texture = Texture.textureFromPixels(pixels, filter);
+                    texture = Texture.textureFromPixels(pixels, TextureFilter.fromLegacyGL(filter));
 
                     System.out.println("Texture \"" + link + "\" was loaded!");
 

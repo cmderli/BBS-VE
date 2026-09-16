@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.graphics;
 
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.opengl.GlTexture;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
@@ -68,7 +69,7 @@ public class ScreenPixelProbe
         requestX = -1;
         requestY = -1;
 
-        net.minecraft.client.gl.RenderTarget framebuffer = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget framebuffer = Minecraft.getInstance().gameRenderer.mainRenderTarget();
 
         if (framebuffer == null || framebuffer.getColorTexture() == null
             || x < 0 || y < 0 || x >= framebuffer.width || y >= framebuffer.height)

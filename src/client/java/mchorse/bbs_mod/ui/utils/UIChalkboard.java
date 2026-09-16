@@ -123,7 +123,6 @@ public class UIChalkboard extends UIElement
 
         this.pixels = Pixels.fromSize(Math.round(this.area.w * scale), Math.round(this.area.h * scale));
         this.pixels.rewindBuffer();
-        this.texture.bind();
         this.texture.updateTexture(this.pixels);
     }
 
@@ -156,7 +155,6 @@ public class UIChalkboard extends UIElement
                 }
 
                 this.pixels.rewindBuffer();
-                this.texture.bind();
                 this.texture.updateTexture(this.pixels);
 
                 this.lastX = x;

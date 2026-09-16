@@ -9,7 +9,8 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.world.level.CardinalLighting;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.ColorResolver;
 import net.minecraft.world.level.lighting.LevelLightEngine;
@@ -65,20 +66,13 @@ public class SingleBlockRenderView implements BlockAndTintGetter
     }
 
     @Override
-    public float getShade(Direction direction, boolean shaded)
+    public CardinalLighting cardinalLighting()
     {
-        if (!shaded)
-        {
-            return 1F;
-        }
-
-        return switch (direction)
-        {
-            case DOWN -> 0.5F;
-            case NORTH, SOUTH -> 0.8F;
-            case WEST, EAST -> 0.6F;
-            default -> 1F;
-        };
+        /* 26.2 replaced BlockAndTintGetter#getShade(Direction, boolean) with the baked
+         * CardinalLighting, and the values the fluid renderer used before are exactly the
+         * defaults (CardinalLighting.DEFAULT = down 0.5, up 1.0, north/south 0.8, west/east 0.6),
+         * so the old switch is now this constant. */
+        return CardinalLighting.DEFAULT;
     }
 
     @Override
@@ -98,7 +92,7 @@ public class SingleBlockRenderView implements BlockAndTintGetter
     @Override
     public int getRawBrightness(BlockPos pos, int ambientDarkness)
     {
-        return Math.max(this.getLightLevel(LightLayer.SKY, pos) - ambientDarkness, this.getLightLevel(LightLayer.BLOCK, pos));
+        return Math.max(this.getBrightness(LightLayer.SKY, pos) - ambientDarkness, this.getBrightness(LightLayer.BLOCK, pos));
     }
 
     @Override
@@ -110,7 +104,7 @@ public class SingleBlockRenderView implements BlockAndTintGetter
         {
             /* The form has no place in the world of its own — biome tint comes from where
              * the camera is, so a water form matches the water it stands next to. */
-            return world.getColor(BlockPos.containing(Minecraft.getInstance().gameRenderer.getMainCamera().getCameraPos()), colorResolver);
+            return world.getBlockTint(BlockPos.containing(Minecraft.getInstance().gameRenderer.mainCamera().position()), colorResolver);
         }
 
         return DEFAULT_TINT;
@@ -123,7 +117,7 @@ public class SingleBlockRenderView implements BlockAndTintGetter
     }
 
     @Override
-    public int getBottomY()
+    public int getMinY()
     {
         return -64;
     }

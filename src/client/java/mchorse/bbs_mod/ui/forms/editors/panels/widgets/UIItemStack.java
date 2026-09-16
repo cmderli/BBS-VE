@@ -60,7 +60,7 @@ public class UIItemStack extends UIElement
 
     public void setStack(ItemStack stack)
     {
-        this.stack = stack == null ? ItemStack.EMPTY : stack.copyFrom();
+        this.stack = stack == null ? ItemStack.EMPTY : stack.copy();
     }
 
     public UIItemStack placeholder(Icon icon)
@@ -120,8 +120,8 @@ public class UIItemStack extends UIElement
 
             matrices.pushMatrix();
             consumers.setUI(true);
-            context.batcher.getContext().renderItem(this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
-            context.batcher.getContext().renderItemDecorations(context.batcher.getFont().getRenderer(), this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().item(this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().itemDecorations(context.batcher.getFont().getRenderer(), this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
             consumers.setUI(false);
             matrices.popMatrix();
         }
@@ -182,7 +182,8 @@ public class UIItemStack extends UIElement
             return;
         }
 
-        Identifier id = BuiltInRegistries.ITEM.getId(stack.getItem());
+        /* 26.2: Registry.getId(T) returns the numeric id; the Identifier is Registry.getKey(T). */
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         StringBuilder command = new StringBuilder("give @s ").append(id);
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
 

@@ -17,7 +17,7 @@ import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.util.Mth;
@@ -50,7 +50,7 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
          * MUST come from these — building the models off the PLAYER layer put the 64x32 armor
          * texture onto player-model UVs, which is exactly the garbled full-body leather look. */
         armorRenderer = new ArmorRenderer(
-            ModelLayers.PLAYER_ARMOR.map((layer) -> new HumanoidModel(ctx.getPart(layer))),
+            ModelLayers.PLAYER_ARMOR.map((layer) -> new HumanoidModel(ctx.bakeLayer(layer))),
             ctx.bakeLayer(ModelLayers.ELYTRA),
             ctx.getEquipmentAssets()
         );
@@ -128,7 +128,7 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
         {
             FormUtilsClient.render(form, new FormRenderingContext()
                 .set(FormRenderType.ENTITY, entity.getFormEntity(), matrices, state.lightCoords, overlay, state.tickDelta)
-                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.mainCamera()));
         }
         finally
         {
@@ -147,7 +147,7 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
     {
         if (!state.hasPose(Pose.SLEEPING))
         {
-            matrices.rotateAround(Axis.YP.rotationDegrees(-state.bodyRot));
+            matrices.mulPose(Axis.YP.rotationDegrees(-state.bodyRot));
         }
 
         DeathPose.apply(matrices, state.deathTime);

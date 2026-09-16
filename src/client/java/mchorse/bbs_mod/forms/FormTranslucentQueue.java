@@ -8,10 +8,8 @@ import mchorse.bbs_mod.forms.renderers.utils.FormOverlay;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.blaze3d.vertex.Tesselator;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -203,7 +201,7 @@ public class FormTranslucentQueue
              * the replay. */
             RenderType opaque = layer(variant.withPass(PASS_OPAQUE).withDepthWrite(true), tinted);
 
-            opaque.draw(built);
+            CustomVertexConsumerProvider.drawImmediate(opaque, built);
             add(new BufferCommand(deferred, captured, origin).overlay(overlay));
         }
         else if (needsWholeDefer(stencilMap, alpha))
@@ -238,7 +236,7 @@ public class FormTranslucentQueue
         {
             RenderType layer = layer(variant, tinted);
 
-            layer.draw(built);
+            CustomVertexConsumerProvider.drawImmediate(layer, built);
         }
     }
 
@@ -417,18 +415,9 @@ public class FormTranslucentQueue
         {
             this.applyOverlay();
 
-            BufferBuilder builder = Tesselator.getInstance().begin(this.captured.params().mode(), this.captured.params().format());
-
-            /* Same mode in and out, so emit() copies the vertices straight through; it is shared with
-             * the item path, which does need the rewrite. */
-            FormRenderCapture.emit(this.captured, this.captured.params().mode(), builder);
-
-            MeshData built = builder.build();
-
-            if (built != null)
-            {
-                this.layer.draw(built);
-            }
+            /* The captured bytes go straight back through the layer: 26.2 has no BuiltBuffer to
+             * build here, and the staging buffer the draw goes through generates the indices. */
+            CustomVertexConsumerProvider.drawImmediate(this.layer, this.captured);
         }
     }
 

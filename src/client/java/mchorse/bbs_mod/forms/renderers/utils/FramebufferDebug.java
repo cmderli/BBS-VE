@@ -83,7 +83,7 @@ public class FramebufferDebug
             last = now;
             LOGGER.info("[BBS FB] ===== frame {} ===== pack={} graphics={} mainColor={} window={}x{}",
                 frame, staticCall("net.irisshaders.iris.Iris", "getCurrentPackName"),
-                mc.options.graphicsPreset().get(), texture(mc.getMainRenderTarget().getColorTexture()),
+                mc.options.graphicsPreset().get(), texture(mc.gameRenderer.mainRenderTarget().getColorTexture()),
                 mc.getWindow().getWidth(), mc.getWindow().getHeight());
         }
     }
@@ -354,7 +354,7 @@ public class FramebufferDebug
         try
         {
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readback);
-            GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, gl.getGlId(), mipLevel);
+            GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, gl.glId(), mipLevel);
             GL11.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
 
             if (GL30.glCheckFramebufferStatus(GL30.GL_READ_FRAMEBUFFER) == GL30.GL_FRAMEBUFFER_COMPLETE)

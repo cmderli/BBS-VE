@@ -2,7 +2,7 @@ package mchorse.bbs_mod.graphics;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
-import net.minecraft.client.gui.render.state.GuiElementRenderState;
+import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.gui.render.TextureSetup;
 import org.jspecify.annotations.Nullable;
@@ -13,10 +13,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p><b>Why this exists (1.21.11):</b> keyframe shapes / track bars used to be built into a {@code BufferBuilder}
  * and submitted with an immediate {@code RenderLayer.draw(builtBuffer)}. The 1.21.6+ GUI is two-phase: vanilla
- * RECORDS draws into a {@code GuiRenderState} during {@code Screen.render} and composites them afterwards, so an
+ * RECORDS draws into a {@code GuiRenderState} during {@code Screen.extractRenderState} and composites them afterwards, so an
  * immediate mid-frame {@code RenderLayer.draw} is overpainted by the deferred composite (and runs with the wrong
- * projection) — the keyframes were invisible. Vanilla's {@code DrawContext.fill} avoids that by recording a
- * {@link net.minecraft.client.gui.render.state.ColoredQuadGuiElementRenderState}; we mirror exactly that for
+ * projection) — the keyframes were invisible. Vanilla's {@code GuiGraphicsExtractor.fill} avoids that by recording a
+ * {@link net.minecraft.client.renderer.state.gui.ColoredRectangleRenderState}; we mirror exactly that for
  * arbitrary keyframe quad geometry. The geometry the shape renderers emit is all 4-vertex groups (QUADS), which
  * is mandatory: {@code GuiRenderer} composites every simple element through the hard-wired QUADS sequential
  * index buffer, so TRIANGLE_STRIP/TRIANGLES cannot go through this path.</p>
@@ -138,7 +138,7 @@ public class GuiQuadMesh implements VertexConsumer
     @Override
     public VertexConsumer setColor(int red, int green, int blue, int alpha)
     {
-        return this.color((alpha << 24) | (red << 16) | (green << 8) | blue);
+        return this.setColor((alpha << 24) | (red << 16) | (green << 8) | blue);
     }
 
     @Override

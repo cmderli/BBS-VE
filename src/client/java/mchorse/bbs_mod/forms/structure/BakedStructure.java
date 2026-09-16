@@ -3,27 +3,32 @@ package mchorse.bbs_mod.forms.structure;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandler;
-import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry;
+import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRendering;
+import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.PrimitiveTopology;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.Sheets;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.BlockModelPart;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.block.FluidModel;
+import net.minecraft.client.renderer.block.FluidRenderer;
+import net.minecraft.client.renderer.block.FluidStateModelSet;
+import net.minecraft.client.renderer.block.ModelBlockRenderer;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.level.material.FluidState;
@@ -60,6 +65,9 @@ public class BakedStructure
 
     private static final Direction[] DIRECTIONS = Direction.values();
 
+    /** Fabric's FluidRendering asks for a "default renderer" to fall back to vanilla tesselation. */
+    private static final FluidRendering.DefaultRenderer FLUID_DEFAULT_RENDERER = new FluidRendering.DefaultRenderer() {};
+
     /** Scratch builder reused across bakes (grows once and stays). */
 
     private final List<BakedLayer> layers = new ArrayList<>();
@@ -94,19 +102,25 @@ public class BakedStructure
     {
         BakedStructure result = new BakedStructure(world);
 
-        BlockRenderDispatcher manager = Minecraft.getInstance().getBlockRenderer();
+        /* 26.2 has no BlockRenderDispatcher: block models are tesselated by ModelBlockRenderer into
+         * a BlockQuadOutput, and fluids by FluidRenderer (routed through Fabric's FluidRendering so
+         * custom fluid handlers still apply). Both take the client BlockAndTintGetter and write
+         * quads/vertices where we tell them to. */
+        ModelBlockRenderer renderer = new ModelBlockRenderer(true, true, Minecraft.getInstance().getBlockColors());
+        FluidStateModelSet fluidModels = Minecraft.getInstance().getModelManager().getFluidStateModelSet();
+        FluidRenderer fluidRenderer = new FluidRenderer(fluidModels);
+        BlockStateModelSet blockModels = Minecraft.getInstance().getModelManager().getBlockStateModelSet();
         RandomSource random = RandomSource.create();
-        PoseStack matrices = new PoseStack();
         TransformingVertexConsumer fluidConsumer = new TransformingVertexConsumer(new Matrix4f(), new Matrix3f());
 
         for (Map.Entry<BlockPos, BlockState> e : data.getBlocks().entrySet())
         {
-            result.collectSprites(manager, world, e.getKey(), e.getValue(), random);
+            result.collectSprites(blockModels, fluidModels, e.getKey(), e.getValue(), random);
         }
 
         for (ChunkSectionLayer layer : ChunkSectionLayer.values())
         {
-            BufferBuilder builder = beginBuffer(layer.pipeline().getVertexFormatMode(), layer.pipeline().getVertexFormat());
+            BufferBuilder builder = beginBuffer(layer.pipeline().getPrimitiveTopology(), layer.vertexFormat());
 
             for (Map.Entry<BlockPos, BlockState> e : data.getBlocks().entrySet())
             {
@@ -114,20 +128,31 @@ public class BakedStructure
                 BlockState state = e.getValue();
                 FluidState fluid = state.getFluidState();
 
-                if (!fluid.isEmpty() && ItemBlockRenderTypes.getRenderLayer(fluid) == layer)
+                /* 26.2: the fluid's terrain layer is on its FluidModel now (ItemBlockRenderTypes is
+                 * gone), which is the same answer the old getRenderLayer(fluid) gave. */
+                if (!fluid.isEmpty() && fluidModels.get(fluid).layer() == layer)
                 {
                     fluidConsumer.target(builder, pos.getX() & ~15, pos.getY() & ~15, pos.getZ() & ~15);
-                    manager.renderLiquid(pos, world, fluidConsumer, state, fluid);
+                    FluidRendering.render(fluidRenderer, FluidRenderingRegistry.get(fluid.getType()), world, pos,
+                        (fluidLayer) -> fluidConsumer, state, fluid, FLUID_DEFAULT_RENDERER);
                 }
 
-                if (state.getRenderShape() == RenderShape.MODEL && ItemBlockRenderTypes.getChunkRenderType(state) == layer)
+                if (state.getRenderShape() == RenderShape.MODEL)
                 {
-                    matrices.pushPose();
-                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     /* 1.21.11 takes the model's parts rather than the seeded Random: the model
-                     * picks its variant from the random itself, and renderBlock draws what it got. */
-                    manager.renderBatched(state, pos, world, matrices, builder, true, manager.getBlockModel(state).collectParts(random));
-                    matrices.popPose();
+                     * picks its variant from the random itself, and renderBlock draws what it got.
+                     * 26.2 moves that choice into tesselateBlock (it collects the parts and seeds
+                     * its own random), and the quad's own MaterialInfo carries the terrain layer
+                     * the old getChunkRenderType(state) answered, so the layer is picked per quad. */
+                    renderer.tesselateBlock(
+                        (x, y, z, quad, instance) ->
+                        {
+                            if (quad.materialInfo().layer() == layer)
+                            {
+                                builder.putBlockBakedQuad(x, y, z, quad, instance);
+                            }
+                        },
+                        pos.getX(), pos.getY(), pos.getZ(), world, pos, state, blockModels.get(state), state.getSeed(pos));
                 }
             }
 
@@ -161,30 +186,34 @@ public class BakedStructure
     }
 
     /** Remember which sprites the block/fluid at this position uses (for Sodium animation). */
-    private void collectSprites(BlockRenderDispatcher manager, StructureRenderWorld world, BlockPos pos, BlockState state, RandomSource random)
+    private void collectSprites(BlockStateModelSet blockModels, FluidStateModelSet fluidModels, BlockPos pos, BlockState state, RandomSource random)
     {
         if (state.getRenderShape() == RenderShape.MODEL)
         {
-            BlockStateModel model = manager.getBlockModel(state);
+            BlockStateModel model = blockModels.get(state);
+            List<BlockStateModelPart> parts = new ArrayList<>();
 
             random.setSeed(state.getSeed(pos));
 
             /* 1.21.11: a state's model is a list of parts, and each part answers getQuads(direction)
              * — the (state, direction, random) triple the old BakedModel took is split across the
-             * two calls. Null is still the "no particular face" bucket. */
-            for (BlockModelPart part : model.collectParts(random))
+             * two calls. Null is still the "no particular face" bucket.
+             * 26.2: collectParts fills a caller-supplied list. */
+            model.collectParts(random, parts);
+
+            for (BlockStateModelPart part : parts)
             {
                 for (Direction direction : DIRECTIONS)
                 {
                     for (BakedQuad quad : part.getQuads(direction))
                     {
-                        this.sprites.add(quad.sprite());
+                        this.sprites.add(quad.materialInfo().sprite());
                     }
                 }
 
                 for (BakedQuad quad : part.getQuads(null))
                 {
-                    this.sprites.add(quad.sprite());
+                    this.sprites.add(quad.materialInfo().sprite());
                 }
             }
         }
@@ -193,16 +222,16 @@ public class BakedStructure
 
         if (!fluid.isEmpty())
         {
-            FluidRenderHandler handler = FluidRenderHandlerRegistry.INSTANCE.get(fluid.getType());
+            /* 26.2: FluidRenderHandler lost getFluidSprites — a fluid's sprites live on its
+             * baked FluidModel (still/flowing/overlay materials) now. */
+            FluidModel model = fluidModels.get(fluid);
+            Material.Baked[] materials = { model.stillMaterial(), model.flowingMaterial(), model.overlayMaterial() };
 
-            if (handler != null)
+            for (Material.Baked material : materials)
             {
-                for (TextureAtlasSprite sprite : handler.getFluidSprites(world, pos, fluid))
+                if (material != null)
                 {
-                    if (sprite != null)
-                    {
-                        this.sprites.add(sprite);
-                    }
+                    this.sprites.add(material.sprite());
                 }
             }
         }
@@ -227,7 +256,8 @@ public class BakedStructure
     /** Layers whose per-vertex alpha is real opacity; everything else is opaque (alpha ignorable). */
     private static boolean isTranslucent(ChunkSectionLayer layer)
     {
-        return layer == ChunkSectionLayer.TRANSLUCENT || layer == ChunkSectionLayer.TRIPWIRE;
+        /* 26.2: ChunkSectionLayer is down to SOLID, CUTOUT and TRANSLUCENT — TRIPWIRE is gone. */
+        return layer == ChunkSectionLayer.TRANSLUCENT;
     }
 
     /**
@@ -249,7 +279,8 @@ public class BakedStructure
             return Sheets.translucentBlockItemSheet();
         }
 
-        return Sheets.cutoutBlockSheet();
+        /* 26.2: cutoutBlockSheet is gone; cutoutBlockItemSheet is the surviving name. */
+        return Sheets.cutoutBlockItemSheet();
     }
 
     /**
@@ -341,10 +372,21 @@ public class BakedStructure
     }
 
     /** Begin a scratch vertex buffer for the given draw mode + format. */
-    private static BufferBuilder beginBuffer(VertexFormat.Mode mode, VertexFormat format)
+    private static BufferBuilder beginBuffer(PrimitiveTopology topology, VertexFormat format)
     {
-        return Tesselator.getInstance().begin(mode, format);
+        /* 1.21.11 built every batch on the one growable Tesselator buffer; 26.2 has no Tesselator,
+         * so the same shared staging buffer (786432 was the old default size) is owned here. It
+         * rewinds itself once the finished MeshData of the previous batch is closed. */
+        if (allocator == null)
+        {
+            allocator = new ByteBufferBuilder(786432);
+        }
+
+        return new BufferBuilder(allocator, topology, format);
     }
+
+    /** The staging buffer {@link #beginBuffer(PrimitiveTopology, VertexFormat)} hands out. */
+    private static ByteBufferBuilder allocator;
 
     /** End the builder and copy its vertices into a tight {@code POSITION_COLOR_TEXTURE_LIGHT_NORMAL}
      *  ({@link BakedBuffer#STRIDE}-byte) template. Returns null if the builder was empty; a
@@ -393,12 +435,14 @@ public class BakedStructure
         }
 
         /* Since 1.21.1 the elements are constants on VertexFormatElement and the format
-         * hands out their offsets itself (-1 when it has no such element). */
-        int posOffset = format.getOffset(VertexFormatElement.POSITION);
-        int colorOffset = format.getOffset(VertexFormatElement.COLOR);
-        int uvOffset = format.getOffset(VertexFormatElement.UV0);
-        int lightOffset = format.getOffset(VertexFormatElement.UV2);
-        int normalOffset = format.getOffset(VertexFormatElement.NORMAL);
+         * hands out their offsets itself (-1 when it has no such element).
+         * 26.2: the constants are the semantic names and the offsets come off the element
+         * (VertexFormat.getOffset is gone); getElement answers null for a missing one. */
+        int posOffset = offset(format, DefaultVertexFormat.POSITION_SEMANTIC_NAME);
+        int colorOffset = offset(format, DefaultVertexFormat.COLOR_SEMANTIC_NAME);
+        int uvOffset = offset(format, DefaultVertexFormat.UV0_SEMANTIC_NAME);
+        int lightOffset = offset(format, DefaultVertexFormat.UV2_SEMANTIC_NAME);
+        int normalOffset = offset(format, DefaultVertexFormat.NORMAL_SEMANTIC_NAME);
 
         if (posOffset < 0 || colorOffset < 0 || uvOffset < 0 || lightOffset < 0 || normalOffset < 0)
         {
@@ -420,6 +464,14 @@ public class BakedStructure
         return copy;
     }
 
+    /** Byte offset of a semantic element in the format, or -1 when the format has no such element. */
+    private static int offset(VertexFormat format, String name)
+    {
+        VertexFormatElement element = format.getElement(name);
+
+        return element == null ? -1 : element.offset();
+    }
+
     /** Emit one fully-specified vertex (since 1.21.1 it closes itself at the next one). */
     private static void emitVertex(VertexConsumer out, float x, float y, float z, int r, int g, int b, int a,
         float u, float v, int overlay, int blockLight, int skyLight, float nx, float ny, float nz)
@@ -427,7 +479,9 @@ public class BakedStructure
         out.addVertex(x, y, z)
             .setColor(r, g, b, a)
             .setUv(u, v)
-            .setUv1(overlay)
+            /* 26.2: the packed 1-int overlay/light setters are setOverlay/setLight (the 2-int
+             * setUv1/setUv2 forms survive and are used for the light pair below). */
+            .setOverlay(overlay)
             .setUv2(blockLight, skyLight)
             .setNormal(nx, ny, nz);
     }

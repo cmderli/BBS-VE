@@ -98,7 +98,8 @@ public class MultiLinkThread implements Runnable
                 {
                     Texture newTexture = BBSModClient.getTextures().createTexture(location);
 
-                    newTexture.bind();
+                    /* 26.2: no texture unit to bind — the upload is a command and binding moved to
+                     * the sampler the pass hands in with the texture. */
                     newTexture.uploadTexture(pixels);
 
                     if (newTexture.isMipmap())

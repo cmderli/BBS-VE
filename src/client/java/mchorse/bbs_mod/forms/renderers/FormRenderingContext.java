@@ -66,7 +66,7 @@ public class FormRenderingContext
             float bodyYaw = Lerps.lerp(entity.getPrevBodyYaw(), entity.getBodyYaw(), transition);
 
             this.world.translate(x, y, z);
-            this.world.rotateAround(Axis.YP.rotationDegrees(-bodyYaw));
+            this.world.mulPose(Axis.YP.rotationDegrees(-bodyYaw));
         }
 
         return this;
@@ -80,9 +80,9 @@ public class FormRenderingContext
         return this;
     }
 
-    public FormRenderingContext camera(net.minecraft.client.render.Camera /* NECESSARY */ camera)
+    public FormRenderingContext camera(net.minecraft.client.Camera /* NECESSARY */ camera)
     {
-        this.camera.position.set(camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z);
+        this.camera.position.set(camera.position().x, camera.position().y, camera.position().z);
         this.camera.rotation.set(MathUtils.toRad(-camera.xRot()), MathUtils.toRad(camera.yRot()), 0F);
         this.camera.fov = MathUtils.toRad(Minecraft.getInstance().options.fov().get());
         this.camera.view.identity().rotate(camera.rotation());

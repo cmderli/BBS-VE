@@ -1,6 +1,5 @@
 package mchorse.bbs_mod.mixin.client;
 
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.RenderPass;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.render.special.BbsFormGuiElementRenderer;
@@ -10,8 +9,7 @@ import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.CachedOrthoProjectionMatrixBuffer;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.Projection;
 import com.mojang.blaze3d.platform.Window;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -38,12 +36,9 @@ public class GuiRendererMixin
     @ModifyVariable(method = "<init>", at = @At("HEAD"), argsOnly = true)
     private static List<PictureInPictureRenderer<?>> bbs$addBbsRenderers(List<PictureInPictureRenderer<?>> original)
     {
-        MultiBufferSource.BufferSource immediate =
-            Minecraft.getInstance().renderBuffers().bufferSource();
-
         List<PictureInPictureRenderer<?>> list = new ArrayList<>(original);
 
-        list.add(new BbsFormGuiElementRenderer(immediate));
+        list.add(new BbsFormGuiElementRenderer());
 
         return list;
     }
@@ -65,21 +60,23 @@ public class GuiRendererMixin
     }
 
     @Redirect(
-        method = "renderPreparedDraws",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/ProjectionMatrix2;set(FF)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;")
+        method = "draw",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/Projection;setupOrtho(FFFFZ)V")
     )
-    private GpuBufferSlice bbs$guiProjection(CachedOrthoProjectionMatrixBuffer matrix, float width, float height)
+    private void bbs$guiProjection(Projection projection, float zNear, float zFar, float width, float height, boolean invertY)
     {
         float scale = bbs$scale();
 
         if (scale <= 0F)
         {
-            return matrix.getBuffer(width, height);
+            projection.setupOrtho(zNear, zFar, width, height, invertY);
+
+            return;
         }
 
         Window window = Minecraft.getInstance().getWindow();
 
-        return matrix.getBuffer(window.getWidth() / scale, window.getHeight() / scale);
+        projection.setupOrtho(zNear, zFar, window.getWidth() / scale, window.getHeight() / scale, invertY);
     }
 
     /**
@@ -89,7 +86,7 @@ public class GuiRendererMixin
      * so its own box blur with the live radius runs in the slot; frames without a BBS mark
      * (vanilla screens, pause menu) keep vanilla's blur.
      */
-    @Redirect(method = "renderPreparedDraws", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/GameRenderer;renderBlur()V"))
+    @Redirect(method = "draw", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;processBlurEffect()V"))
     private void bbs$interfaceBlur(GameRenderer renderer)
     {
         if (!InterfaceBlur.render())
@@ -114,8 +111,8 @@ public class GuiRendererMixin
         /* Vanilla's own arithmetic with a float scale: bottom-left origin, and a rect that rounds down
          * to nothing still clamps to zero rather than going negative. */
         pass.enableScissor(
-            (int) (rect.getLeft() * scale),
-            (int) (height - rect.getBottom() * scale),
+            (int) (rect.left() * scale),
+            (int) (height - rect.bottom() * scale),
             Math.max(0, (int) (rect.width() * scale)),
             Math.max(0, (int) (rect.height() * scale)));
 

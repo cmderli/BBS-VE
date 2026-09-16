@@ -27,13 +27,13 @@ public class WindowMixin
     private int framebufferHeight;
 
     @Shadow
-    private int scaledWidth;
+    private int guiScaledWidth;
 
     @Shadow
-    private int scaledHeight;
+    private int guiScaledHeight;
 
     @Shadow
-    private int scaleFactor;
+    private int guiScale;
 
     /**
      * While BBS UI is open, its ui_scale setting replaces whatever scale vanilla derived from the
@@ -47,7 +47,7 @@ public class WindowMixin
      * projection and scissor. Anything else that maps GUI units to pixels must go through
      * {@link BBSModClient#getGUIScale()} rather than read the window's rounded factor.</p>
      */
-    @ModifyVariable(method = "setScaleFactor", at = @At("HEAD"), argsOnly = true)
+    @ModifyVariable(method = "setGuiScale", at = @At("HEAD"), argsOnly = true)
     private int bbs$overrideScaleFactor(int scaleFactor)
     {
         float custom = BBSModClient.getCustomGUIScale();
@@ -68,7 +68,7 @@ public class WindowMixin
      * them here is what actually makes ui_scale 1.5 mean 1.5 — rounded up, exactly as vanilla rounds
      * its own division, so the last partial GUI pixel still exists.</p>
      */
-    @Inject(method = "setScaleFactor", at = @At("TAIL"))
+    @Inject(method = "setGuiScale", at = @At("TAIL"))
     private void bbs$fractionalScaledSize(int scaleFactor, CallbackInfo info)
     {
         float custom = BBSModClient.getCustomGUIScale();
@@ -80,11 +80,11 @@ public class WindowMixin
 
         float scale = BBSModClient.clampGUIScale(custom, this.framebufferWidth, this.framebufferHeight);
 
-        this.scaledWidth = (int) Math.ceil(this.framebufferWidth / scale);
-        this.scaledHeight = (int) Math.ceil(this.framebufferHeight / scale);
+        this.guiScaledWidth = (int) Math.ceil(this.framebufferWidth / scale);
+        this.guiScaledHeight = (int) Math.ceil(this.framebufferHeight / scale);
     }
 
-    @Inject(method = "getWidth", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getScreenWidth", at = @At("HEAD"), cancellable = true)
     public void onGetWidth(CallbackInfoReturnable<Integer> info)
     {
         if (BBSRendering.canReplaceFramebuffer())
@@ -93,7 +93,7 @@ public class WindowMixin
         }
     }
 
-    @Inject(method = "getHeight", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getScreenHeight", at = @At("HEAD"), cancellable = true)
     public void onGetHeight(CallbackInfoReturnable<Integer> info)
     {
         if (BBSRendering.canReplaceFramebuffer())
@@ -102,7 +102,7 @@ public class WindowMixin
         }
     }
 
-    @Inject(method = "getFramebufferWidth", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getWidth", at = @At("HEAD"), cancellable = true)
     public void onGetFramebufferWidth(CallbackInfoReturnable<Integer> info)
     {
         if (BBSRendering.canReplaceFramebuffer())
@@ -111,7 +111,7 @@ public class WindowMixin
         }
     }
 
-    @Inject(method = "getFramebufferHeight", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getHeight", at = @At("HEAD"), cancellable = true)
     public void onGetFramebufferHeight(CallbackInfoReturnable<Integer> info)
     {
         if (BBSRendering.canReplaceFramebuffer())
@@ -120,7 +120,7 @@ public class WindowMixin
         }
     }
 
-    @Inject(method = "getScaledWidth", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getGuiScaledWidth", at = @At("HEAD"), cancellable = true)
     public void onGetScaledWidth(CallbackInfoReturnable<Integer> info)
     {
         if (BBSRendering.canReplaceFramebuffer())
@@ -132,7 +132,7 @@ public class WindowMixin
         }
     }
 
-    @Inject(method = "getScaledHeight", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getGuiScaledHeight", at = @At("HEAD"), cancellable = true)
     public void onGetScaledHeight(CallbackInfoReturnable<Integer> info)
     {
         if (BBSRendering.canReplaceFramebuffer())

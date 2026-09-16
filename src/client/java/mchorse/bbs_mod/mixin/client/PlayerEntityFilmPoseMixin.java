@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Player.class)
 public class PlayerEntityFilmPoseMixin
 {
-    @Inject(method = "updatePose", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void bbsFilmUpdatePose(CallbackInfo info)
     {
         if ((Object) this instanceof LocalPlayer player)

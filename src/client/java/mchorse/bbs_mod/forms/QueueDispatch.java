@@ -4,7 +4,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
@@ -33,6 +34,7 @@ import org.joml.Quaternionf;
 public class QueueDispatch
 {
     private static FeatureRenderDispatcher dispatcher;
+    private static SubmitNodeStorage storage;
 
     private static FeatureRenderDispatcher get()
     {
@@ -40,14 +42,19 @@ public class QueueDispatch
         {
             Minecraft mc = Minecraft.getInstance();
 
+            /* 26.2's dispatcher is built over the frame's own render buffers, model manager, atlas
+             * manager, font and game render state; the block renderer and the outline/crumbling
+             * buffer sources of 1.21.11 no longer exist. The submit storage is the queue this class
+             * hands out, and renderAllFeatures() drains it (PreparedFrame#close clears the phases),
+             * so it is reusable across flushes. */
+            storage = new SubmitNodeStorage();
+
             dispatcher = new FeatureRenderDispatcher(
-                new net.minecraft.client.render.command.SubmitNodeStorage(),
-                mc.getBlockRenderer(),
-                FormUtilsClient.getProvider(),
+                mc.gameRenderer.renderBuffers(),
+                mc.getModelManager(),
                 mc.getAtlasManager(),
-                mc.renderBuffers().outlineBufferSource(),
-                mc.renderBuffers().crumblingBufferSource(),
-                mc.font
+                mc.font,
+                mc.gameRenderer.gameRenderState()
             );
         }
 
@@ -56,7 +63,9 @@ public class QueueDispatch
 
     public static SubmitNodeCollector queue()
     {
-        return get().getSubmitNodeStorage();
+        get();
+
+        return storage;
     }
 
     /** The dispatcher itself — {@code ImmediateGui} builds its private GuiRenderer over it. */
@@ -72,7 +81,7 @@ public class QueueDispatch
      */
     public static void flush()
     {
-        get().renderAllFeatures();
+        get().renderAllFeatures(storage);
     }
 
     /**
@@ -80,13 +89,12 @@ public class QueueDispatch
      */
     public static CameraRenderState cameraState()
     {
-        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
         CameraRenderState state = new CameraRenderState();
-        Vec3 pos = camera.getCameraPos();
+        Vec3 pos = camera.position();
 
         state.initialized = true;
         state.pos = pos;
-        state.entityPos = pos;
         state.blockPos = camera.blockPosition();
         state.orientation = new Quaternionf(camera.rotation());
 

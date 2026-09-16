@@ -329,7 +329,8 @@ public class PlayerSkins
         {
             Texture texture = BBSModClient.getTextures().createTexture(link);
 
-            texture.bind();
+            /* 26.2: no texture unit to bind — the upload is a command and binding moved to the
+             * sampler the pass hands in with the texture. */
             texture.uploadTexture(Pixels.fromPNGStream(stream));
 
             System.out.println("Player skin \"" + link + "\" was loaded!");

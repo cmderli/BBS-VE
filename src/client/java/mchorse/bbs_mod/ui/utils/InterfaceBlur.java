@@ -7,7 +7,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.PostChainConfig;
 import net.minecraft.client.renderer.PostChain;
 import net.minecraft.client.renderer.UniformValue;
-import net.minecraft.client.renderer.CachedOrthoProjectionMatrixBuffer;
+import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import net.minecraft.resources.Identifier;
 import org.joml.Vector2f;
@@ -59,7 +60,19 @@ public class InterfaceBlur
     private static PostChain processor;
 
     /** Owned by us because {@link PostEffectProcessor#parseEffect} takes one and ShaderLoader's is private. */
-    private static CachedOrthoProjectionMatrixBuffer projection;
+    private static ProjectionMatrixBuffer projection;
+
+    /**
+     * The near/far/invert {@code ShaderLoader} builds its own post-chain projection with. 26.2 made
+     * the projection and its UBO two separate objects handed to {@code PostChain.load}, so the
+     * matrix is owned here next to the buffer it is uploaded through.
+     */
+    private static final Projection POST_CHAIN_PROJECTION = new Projection();
+
+    static
+    {
+        POST_CHAIN_PROJECTION.setupOrtho(0.1F, 1000F, 1F, 1F, false);
+    }
 
     /** The radius baked into the built effect; a different one means a rebuild. */
     private static float builtRadius = Float.NaN;
@@ -148,7 +161,7 @@ public class InterfaceBlur
         /* The frame graph sizes the swap target off the framebuffer and puts the result back into
          * it, so the blend/framebuffer/texture-unit restoration 1.21.1 had to do by hand afterwards
          * has nothing left to undo — a render pass owns its own state now. */
-        processor.process(mc.getMainRenderTarget(), GraphicsResourceAllocator.UNPOOLED);
+        processor.process(mc.gameRenderer.mainRenderTarget(), GraphicsResourceAllocator.UNPOOLED);
 
         return true;
     }
@@ -161,10 +174,10 @@ public class InterfaceBlur
         {
             /* The same near/far/invert ShaderLoader builds its own with, so our passes project
              * their screen quad exactly like every vanilla post effect does. */
-            projection = new CachedOrthoProjectionMatrixBuffer("bbs_interface_blur", 0.1F, 1000F, false);
+            projection = new ProjectionMatrixBuffer("bbs_interface_blur");
 
             processor = PostChain.load(pipeline(radius), mc.getTextureManager(),
-                Set.of(PostChain.MAIN_TARGET_ID), Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "interface_blur"), projection);
+                Set.of(PostChain.MAIN_TARGET_ID), Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "interface_blur"), POST_CHAIN_PROJECTION, projection);
 
             builtRadius = radius;
 

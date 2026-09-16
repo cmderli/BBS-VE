@@ -96,7 +96,10 @@ public class ParticleComponentMotionCollision extends ParticleComponentBase impl
             }
 
             AABB box = new AABB(prev.x - r, prev.y - r, prev.z - r, prev.x + r, prev.y + r, prev.z + r);
-            Vec3 vec = Entity.collideWithShapes(null, new Vec3(x, y, z), box, emitter.world, Collections.emptyList());
+            /* 26.2's collideWithShapes is the private (Vec3, AABB, List) helper; the public
+             * entry point is collideBoundingBox, which is what this call always was. The cast picks
+             * the Entity overload — vanilla's own callers pass a null entity here. */
+            Vec3 vec = Entity.collideBoundingBox((Entity) null, new Vec3(x, y, z), box, emitter.world, Collections.emptyList());
 
             if (vec.x != x || vec.y != y || vec.z != z)
             {

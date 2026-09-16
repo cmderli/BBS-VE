@@ -31,7 +31,7 @@ public class ImmersiveMorphingCameraController implements ICameraController
         float bodyYaw = MathUtils.toRad(Lerps.lerp(player.yBodyRotO, player.yBodyRot, transition));
 
         camera.position.set(player.xo, player.yo, player.zo);
-        camera.position.lerp(new Vector3d(player.getEntityPos().x, player.getEntityPos().y, player.getEntityPos().z), transition);
+        camera.position.lerp(new Vector3d(player.position().x, player.position().y, player.position().z), transition);
         camera.rotation.set(0, bodyYaw, 0);
 
         if (renderer == null)

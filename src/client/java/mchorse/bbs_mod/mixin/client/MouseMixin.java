@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(MouseHandler.class)
 public class MouseMixin
 {
-    @Inject(method = "onMouseScroll", at = @At("HEAD"))
+    @Inject(method = "onScroll", at = @At("HEAD"))
     public void mouseScroll(long window, double horizontal, double vertical, CallbackInfo ci)
     {
         if (window == Window.getWindow())
@@ -21,7 +21,7 @@ public class MouseMixin
     }
 
     /** A notch the structure wand spends on its box must not reach the hotbar. */
-    @Inject(method = "onMouseScroll", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
     public void wandScroll(long window, double horizontal, double vertical, CallbackInfo ci)
     {
         if (window == Window.getWindow() && StructureWand.onScroll(vertical))

@@ -112,8 +112,9 @@ public class TextureLayer
             buffer.limit(buffer.capacity());
             buffer.position(top * this.pixels.width * this.pixels.bits);
 
-            band.bind();
-            band.uploadTexture(band.target, 0, this.pixels.width, rows, buffer);
+            /* 26.2: no texture unit to bind; the target argument is ignored by Texture (see the
+             * deprecated uploadTexture overload), so the band uploads into layer 0. */
+            band.uploadTexture(0, 0, this.pixels.width, rows, buffer);
         }
 
         this.pixels.rewindBuffer();

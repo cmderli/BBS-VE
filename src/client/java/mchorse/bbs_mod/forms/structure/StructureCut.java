@@ -91,7 +91,9 @@ public class StructureCut
 
         if (mc.player != null)
         {
-            mc.player.sendMessage(Component.literal((ok ? UIKeys.STRUCTURE_CUT_DONE : UIKeys.STRUCTURE_CUT_FAILED).format(StructureManager.assetId(name)).get()), true);
+            /* 26.2: LocalPlayer.displayClientMessage(Component, boolean) is gone; the action-bar
+             * (overlay == true) half is sendOverlayMessage. */
+            mc.player.sendOverlayMessage(Component.literal((ok ? UIKeys.STRUCTURE_CUT_DONE : UIKeys.STRUCTURE_CUT_FAILED).format(StructureManager.assetId(name)).get()));
         }
 
         if (ok)

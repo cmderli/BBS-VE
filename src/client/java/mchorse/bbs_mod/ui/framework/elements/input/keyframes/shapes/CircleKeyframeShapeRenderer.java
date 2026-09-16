@@ -49,10 +49,10 @@ public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
             float outerX2 = x;
             float outerY2 = y;
 
-            builder.addVertex(matrix, innerX1, innerY1).setColor(c);
-            builder.addVertex(matrix, outerX1, outerY1).setColor(c);
-            builder.addVertex(matrix, outerX2, outerY2).setColor(c);
-            builder.addVertex(matrix, innerX2, innerY2).setColor(c);
+            builder.addVertexWith2DPose(matrix, innerX1, innerY1).setColor(c);
+            builder.addVertexWith2DPose(matrix, outerX1, outerY1).setColor(c);
+            builder.addVertexWith2DPose(matrix, outerX2, outerY2).setColor(c);
+            builder.addVertexWith2DPose(matrix, innerX2, innerY2).setColor(c);
         }
     }
 
@@ -62,9 +62,9 @@ public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
         float centerSize = offset * 0.2f;
         float half = centerSize * 2;
 
-        builder.addVertex(matrix, x - half, y - half).setColor(c);
-        builder.addVertex(matrix, x - half, y + half).setColor(c);
-        builder.addVertex(matrix, x + half, y + half).setColor(c);
-        builder.addVertex(matrix, x + half, y - half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x - half, y - half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x - half, y + half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x + half, y + half).setColor(c);
+        builder.addVertexWith2DPose(matrix, x + half, y - half).setColor(c);
     }
 }

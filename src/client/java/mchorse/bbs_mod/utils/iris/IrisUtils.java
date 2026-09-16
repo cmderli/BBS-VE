@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.utils.iris;
 
+import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSModClient;
@@ -75,6 +76,19 @@ public class IrisUtils
 
     /** BBS textures already announced to Iris' tracker; announcing one twice would only churn holders. */
     private static final Set<Texture> textureSet = new HashSet<>();
+
+    /**
+     * The GL name a BBS texture is known by, or {@code -1} when it has none.
+     *
+     * <p>1.21.11 read this straight off {@code Texture.id}. 26.2's {@link Texture} owns a device
+     * texture instead, and only the OpenGL backend's has a name, so the id has to be asked of the
+     * device object. Iris still speaks GL names — it has no Vulkan backend at all — which is the same
+     * assumption {@link mchorse.bbs_mod.graphics.texture.AdoptedTexture#adopt} makes.</p>
+     */
+    static int glId(Texture texture)
+    {
+        return texture != null && texture.gpuTexture instanceof GlTexture gl ? gl.glId() : -1;
+    }
 
     /** The slider snapshot each tracked variant was last registered with, by GL name. */
     private static final Map<Integer, String> trackedPbrVariants = new HashMap<>();
@@ -254,24 +268,25 @@ public class IrisUtils
      */
     public static void trackPbrVariant(Texture variant, Link albedo, float smoothness, float metallic, float sss, float emission, float relief)
     {
+        int id = glId(variant);
         String snapshot = Math.round(smoothness * 255F) + ":" + Math.round(metallic * 255F)
             + ":" + Math.round(sss * 255F) + ":" + Math.round(emission * 255F) + ":" + Math.round(relief * 255F);
-        String last = trackedPbrVariants.put(variant.id, snapshot);
+        String last = trackedPbrVariants.put(id, snapshot);
 
         if (!snapshot.equals(last))
         {
-            TextureTracker.INSTANCE.trackTexture(variant.id, new IrisPbrConstWrapper(albedo, variant.id, smoothness, metallic, sss, emission, relief));
+            TextureTracker.INSTANCE.trackTexture(id, new IrisPbrConstWrapper(albedo, id, smoothness, metallic, sss, emission, relief));
 
             if (last != null)
             {
                 /* Closes the old holder's maps as it removes it — the queue-and-load below overwrites
                  * the map entry without closing anything, so the drop has to come first or a dragged
                  * slider would leak two GL textures a frame. */
-                PBRTextureManager.INSTANCE.onDeleteTexture(variant.id);
+                PBRTextureManager.INSTANCE.onDeleteTexture(id);
 
                 /* Queue, then build: getOrLoadHolder is the only way in, and it only queues when the
                  * holder is missing — which is exactly what the drop just made true. */
-                PBRTextureManager.INSTANCE.getOrLoadHolder(variant.id);
+                PBRTextureManager.INSTANCE.getOrLoadHolder(id);
                 PBRTextureManager.INSTANCE.onNewFrame();
 
                 PBRTextureManager.notifyPBRTexturesChanged();
@@ -307,7 +322,7 @@ public class IrisUtils
                     index = texture.getParent().textures.indexOf(texture);
                 }
 
-                TextureTracker.INSTANCE.trackTexture(texture.id, new IrisTextureWrapper(key, index));
+                TextureTracker.INSTANCE.trackTexture(glId(texture), new IrisTextureWrapper(key, index));
             }
 
             textureSet.add(texture);

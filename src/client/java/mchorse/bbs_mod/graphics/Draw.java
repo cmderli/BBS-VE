@@ -2,7 +2,10 @@ package mchorse.bbs_mod.graphics;
 
 import com.mojang.blaze3d.platform.CompareOp;
 
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -13,11 +16,12 @@ import mchorse.bbs_mod.utils.Axis;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.MathUtils;
 import net.minecraft.client.renderer.RenderPipelines;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.resources.Identifier;
@@ -52,9 +56,10 @@ public class Draw
     private static final RenderPipeline POSITION_COLOR_TRIS = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/draw_position_color"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
             .withCull(false)
             .build()
     );
@@ -63,9 +68,10 @@ public class Draw
     private static final RenderPipeline POSITION_COLOR_TRIS_NO_DEPTH = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/draw_position_color_no_depth"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
             .withCull(false)
             .build()
     );
@@ -76,9 +82,10 @@ public class Draw
     private static final RenderPipeline POSITION_COLOR_LINES = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/draw_position_color_lines"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.DEBUG_LINES)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.DEBUG_LINES)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
             .withCull(false)
             .build()
     );
@@ -150,17 +157,40 @@ public class Draw
         flush(builder, getPositionColorNoDepthLayer());
     }
 
-    /** Finish a buffer and submit it through the given layer (no-op on an empty buffer). */
+    /**
+     * Finish a buffer and submit it through the given layer (no-op on an empty buffer).
+     *
+     * <p>26.2 has no {@code RenderLayer.draw(BuiltBuffer)}: a finished {@link MeshData} carries only
+     * vertex bytes, and the draw needs a vertex {@link GpuBuffer}, the layer's shared sequential
+     * index buffer ({@code RenderSystem.getSequentialBuffer}, exactly what {@code RenderLayer.draw}
+     * used to bind for QUADS/TRIANGLES/DEBUG_LINES) and a {@code PreparedRenderType}. The prepared
+     * layer opens its own pass on its output target and binds the pipeline, dynamic transforms and
+     * textures, so this stays the same call shape as before: build, finish, submit.</p>
+     */
     private static void flush(BufferBuilder builder, RenderType layer)
     {
         MeshData built = builder.build();
 
-        if (built != null)
+        if (built == null)
         {
-            /* TODO(1.21.11 render): verify at runtime. RenderLayer.draw uploads + draws with the
-             * layer pipeline; previously this was BufferRenderer.drawWithGlobalProgram. */
-            layer.draw(built);
+            return;
         }
+
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+            () -> "bbs immediate geometry",
+            GpuBuffer.USAGE_VERTEX,
+            built.vertexBuffer()
+        );
+
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(),
+            0, 0, state.indexCount());
+
+        /* The bytes now live in the device buffer; the staging memory is the caller's to release. */
+        vertices.close();
+        built.close();
     }
 
     public static void renderBox(PoseStack stack, double x, double y, double z, double w, double h, double d)
@@ -175,11 +205,13 @@ public class Draw
 
     public static void renderBox(PoseStack stack, double x, double y, double z, double w, double h, double d, float r, float g, float b, float a)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         renderBox(builder, stack, x, y, z, w, h, d, r, g, b, a);
 
         flush(builder, getPositionColorLayer());
+        allocator.close();
     }
 
     /**
@@ -268,8 +300,8 @@ public class Draw
         stack.pushPose();
 
         stack.translate(x1, y1, z1);
-        stack.rotateAround(com.mojang.math.Axis.YP.rotationDegrees(angle.yaw));
-        stack.rotateAround(com.mojang.math.Axis.XP.rotationDegrees(angle.pitch));
+        stack.rotateAround(com.mojang.math.Axis.YP.rotationDegrees(angle.yaw), 0F, 0F, 0F);
+        stack.rotateAround(com.mojang.math.Axis.XP.rotationDegrees(angle.pitch), 0F, 0F, 0F);
 
         fillBox(builder, stack, -thickness / 2, -thickness / 2, 0, thickness / 2, thickness / 2, (float) distance, r, g, b, a);
 
@@ -309,7 +341,8 @@ public class Draw
         axisSize *= scale;
         axisOffset *= scale * thickness;
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         fillBox(builder, stack, 0, -axisOffset, -axisOffset, axisSize, axisOffset, axisOffset, Colors.RED);
         fillBox(builder, stack, -axisOffset, 0, -axisOffset, axisOffset, axisSize, axisOffset, Colors.GREEN);
@@ -319,6 +352,7 @@ public class Draw
         /* The old code did RenderSystem.disableDepthTest() before drawing; depth state now lives in
          * the pipeline, so this draws through the no-depth POSITION_COLOR layer instead. */
         flush(builder, getPositionColorNoDepthLayer());
+        allocator.close();
     }
 
     public static void arc3D(BufferBuilder builder, PoseStack stack, Axis axis, float radius, float thickness, int color)
@@ -364,8 +398,8 @@ public class Draw
 
         stack.pushPose();
 
-        if (axis == Axis.X) stack.rotateAround(com.mojang.math.Axis.ZP.rotation(MathUtils.PI / 2F));
-        if (axis == Axis.Z) stack.rotateAround(com.mojang.math.Axis.XP.rotation(MathUtils.PI / 2F));
+        if (axis == Axis.X) stack.rotateAround(com.mojang.math.Axis.ZP.rotation(MathUtils.PI / 2F), 0F, 0F, 0F);
+        if (axis == Axis.Z) stack.rotateAround(com.mojang.math.Axis.XP.rotation(MathUtils.PI / 2F), 0F, 0F, 0F);
 
         float tubeR = thickness * 0.5F;
         Matrix4f mat = stack.last().pose();

@@ -2,8 +2,11 @@ package mchorse.bbs_mod.forms.renderers;
 
 import com.mojang.blaze3d.platform.CompareOp;
 
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -12,6 +15,7 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.fonts.FontManager;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
+import mchorse.bbs_mod.forms.FormRenderCapture;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.forms.forms.LabelForm;
@@ -26,12 +30,13 @@ import mchorse.bbs_mod.utils.colors.OverlayBlend;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.font.TextRenderable;
 import net.minecraft.client.renderer.RenderPipelines;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.resources.Identifier;
@@ -50,9 +55,10 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
     private static final RenderPipeline SHADOW_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/label_shadow"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BlendFunction.TRANSLUCENT)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
             .withCull(false)
             .build()
     );
@@ -229,31 +235,13 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
         {
             context.stack.pushPose();
             context.stack.translate(0F, 0F, -0.1F);
-            renderer.drawInBatch(
-                content,
-                x + this.form.shadowX.get(),
-                y + this.form.shadowY.get(),
-                shadowColor.getARGBColor(), false,
-                context.stack.last().pose(),
-                consumers,
-                Font.TextLayerType.NORMAL,
-                0,
-                light
-            );
+            renderer.prepareText(content, x + this.form.shadowX.get(), y + this.form.shadowY.get(), shadowColor.getARGBColor(), false, 0).visit(
+                glyphs(context.stack.last().pose(), consumers, light));
             context.stack.popPose();
         }
 
-        renderer.drawInBatch(
-            content,
-            x,
-            y,
-            color.getARGBColor(), false,
-            context.stack.last().pose(),
-            consumers,
-            Font.TextLayerType.NORMAL,
-            0,
-            light
-        );
+        renderer.prepareText(content, x, y, color.getARGBColor(), false, 0).visit(
+            glyphs(context.stack.last().pose(), consumers, light));
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest removed (per-pipeline now). */
 
@@ -309,17 +297,8 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
             {
                 int x2 = x + (this.form.anchorLines.get() ? (int) ((w - renderer.width(line)) * this.form.anchorX.get()) : 0);
 
-                renderer.drawInBatch(
-                    line,
-                    x2 + this.form.shadowX.get(),
-                    y2 + this.form.shadowY.get(),
-                    shadowColor.getARGBColor(), false,
-                    context.stack.last().pose(),
-                    consumers,
-                    Font.TextLayerType.NORMAL,
-                    0,
-                    light
-                );
+                renderer.prepareText(line, x2 + this.form.shadowX.get(), y2 + this.form.shadowY.get(), shadowColor.getARGBColor(), false, 0).visit(
+                    glyphs(context.stack.last().pose(), consumers, light));
 
                 y2 += lineHeight;
             }
@@ -340,17 +319,8 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
         {
             int x2 = x + (this.form.anchorLines.get() ? (int) ((w - renderer.width(line)) * this.form.anchorX.get()) : 0);
 
-            renderer.drawInBatch(
-                line,
-                x2,
-                y2,
-                color, false,
-                context.stack.last().pose(),
-                consumers,
-                Font.TextLayerType.NORMAL,
-                0,
-                light
-            );
+            renderer.prepareText(line, x2, y2, color, false, 0).visit(
+                glyphs(context.stack.last().pose(), consumers, light));
 
             y2 += lineHeight;
         }
@@ -378,7 +348,10 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
         context.stack.translate(0, 0, -0.2F);
 
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        /* 26.2 has no Tesselator: the growable staging buffer it owned is created here (the size
+         * Draw/Gizmo use for their immediate geometry) and released after the draw below. */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         fillQuad(
             builder, context.stack,
@@ -395,9 +368,62 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
 
         if (built != null)
         {
-            getShadowLayer().draw(built);
+            drawLayer(getShadowLayer(), built);
         }
 
+        allocator.close();
+
         context.stack.popPose();
+    }
+
+    /**
+     * 26.2's replacement for {@code RenderLayer.draw(BuiltBuffer)}, including what
+     * {@code RenderLayerMixin}'s hook did on 1.21.11: while a {@link FormRenderCapture} session is
+     * open (deferred item-model rendering) the draw is captured instead of executed — no GL pass is
+     * open at item-record time — and otherwise the layer's hijack runnable fires before the draw.
+     *
+     * <p>The finished vertices then go to a device buffer and the layer's shared sequential index
+     * buffer feeds {@code PreparedRenderType.drawFromBuffer}, which opens the pass on the layer's own
+     * output target (the same translation {@code Draw#flush} and {@code Gizmo#flush} use).</p>
+     */
+    private static void drawLayer(RenderType layer, MeshData built)
+    {
+        if (FormRenderCapture.isActive())
+        {
+            FormRenderCapture.capture(layer, built);
+
+            return;
+        }
+
+        CustomVertexConsumerProvider.drawLayer(layer);
+
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(() -> "bbs label geometry", GpuBuffer.USAGE_VERTEX, built.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(), 0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
+    }
+
+    /**
+     * 26.2 has no {@code Font#drawInBatch}: the text is prepared into a
+     * {@link Font.PreparedText} and every renderable it yields is written into the layer it names
+     * through the same vertex consumer the old batch call used — so the label still records as one
+     * deferred group for {@link FormTranslucentQueue}. {@code Font.TextLayerType.NORMAL} is
+     * {@code Font.DisplayMode.NORMAL}, and {@code false} is the world (non-flat) glyph depth the
+     * old call's Matrix4f path got.
+     */
+    private static Font.GlyphVisitor glyphs(Matrix4f matrix, CustomVertexConsumerProvider consumers, int light)
+    {
+        return new Font.GlyphVisitor()
+        {
+            @Override
+            public void acceptRenderable(TextRenderable renderable)
+            {
+                renderable.render(matrix, consumers.getBuffer(renderable.renderType(Font.DisplayMode.NORMAL)), light, false);
+            }
+        };
     }
 }

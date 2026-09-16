@@ -280,7 +280,8 @@ public class UIMultiLinkEditor extends UICanvasEditor
                 }
                 else
                 {
-                    context.batcher.texturedBox(texture.id, child.color, area.x, area.y, area.w, area.h, 0, 0, texture.width, texture.height, texture.width, texture.height);
+                    /* 26.2: a BBS Texture no longer exposes a raw GL id, so the recorded blit goes through the Texture overload (which adopts the live device view). */
+                    context.batcher.texturedBox(texture, child.color, area.x, area.y, area.w, area.h, 0, 0, texture.width, texture.height, texture.width, texture.height);
                 }
             }
         }

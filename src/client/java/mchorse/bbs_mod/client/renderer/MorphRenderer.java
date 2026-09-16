@@ -20,7 +20,7 @@ import mchorse.bbs_mod.ui.framework.UIScreen;
 import mchorse.bbs_mod.ui.morphing.UIMorphingPanel;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.Camera;
@@ -204,7 +204,7 @@ public class MorphRenderer
         boolean wasActive = FormTranslucentQueue.suspend();
 
         matrices.pushPose();
-        matrices.rotateAround(Axis.YP.rotationDegrees(-previewBodyYaw));
+        matrices.mulPose(Axis.YP.rotationDegrees(-previewBodyYaw));
 
         /* This render replaces LivingEntityRenderer's own transforms, so the fall of a dead body has to
          * be repeated here — the same reason as in renderShadow. */
@@ -214,7 +214,7 @@ public class MorphRenderer
         {
             FormUtilsClient.render(form, new FormRenderingContext()
                 .set(FormRenderType.ENTITY, entity, matrices, light, overlay, tickDelta)
-                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.mainCamera()));
         }
         finally
         {
@@ -260,7 +260,7 @@ public class MorphRenderer
         float bodyYaw = Lerps.lerp(entity.getPrevBodyYaw(), entity.getBodyYaw(), tickDelta);
 
         matrices.pushPose();
-        matrices.rotateAround(Axis.YP.rotationDegrees(-bodyYaw));
+        matrices.mulPose(Axis.YP.rotationDegrees(-bodyYaw));
 
         /* This render replaces LivingEntityRenderer's own transforms, so the fall of a dead body has to
          * be repeated here - without it a morphed player never went down when they died. */
@@ -272,7 +272,7 @@ public class MorphRenderer
         {
             FormUtilsClient.render(form, new FormRenderingContext()
                 .set(FormRenderType.ENTITY, entity, matrices, light, overlay, tickDelta)
-                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.mainCamera()));
         }
         finally
         {
@@ -321,18 +321,18 @@ public class MorphRenderer
      * mirrors {@link BaseFilmController#renderEntity}: build the camera-relative matrix from the
      * entity's world position and multiply it onto the context MatrixStack.
      */
-    public static void renderQueued(WorldRenderContext context)
+    public static void renderQueued(LevelRenderContext context)
     {
         if (QUEUE.isEmpty())
         {
             return;
         }
 
-        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-        double cx = camera.getCameraPos().x;
-        double cy = camera.getCameraPos().y;
-        double cz = camera.getCameraPos().z;
-        PoseStack stack = context.matrices();
+        Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+        double cx = camera.position().x;
+        double cy = camera.position().y;
+        double cz = camera.position().z;
+        PoseStack stack = context.poseStack();
 
         try
         {

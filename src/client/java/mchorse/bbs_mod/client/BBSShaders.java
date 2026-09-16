@@ -1,21 +1,28 @@
 package mchorse.bbs_mod.client;
 
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.platform.CompareOp;
 
+import com.mojang.blaze3d.pipeline.BindGroupLayout;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
+import mchorse.bbs_mod.graphics.gpu.BBSRenderPipelines;
+import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.client.renderer.ShaderDefines;
 import net.minecraft.client.renderer.RenderPipelines;
-import com.mojang.blaze3d.shaders.UniformType;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.resources.Identifier;
+
+import java.util.Optional;
 
 /**
  * Custom shader/render foundation for BBS, migrated from the 1.21.1 ShaderProgram + JSON
@@ -49,6 +56,19 @@ public class BBSShaders
 {
     /* All BBS shaders used "add / srcalpha / 1-srcalpha" in their JSON, i.e. standard alpha blending. */
     private static final BlendFunction BLEND = BlendFunction.TRANSLUCENT;
+
+    /* 26.2 spells a shader's sampler/uniform surface as bind group layouts and reflects the compiled
+     * program against them, so the custom std140 blocks BBS's GLSL declares need a layout each.
+     * BBSRenderPipelines already owns those three (same block names, same shaders), so they are
+     * aliased rather than rebuilt; the multilink sampler pair is the only BBS-only extra. */
+    private static final BindGroupLayout MULTILINK_INFO = BBSRenderPipelines.MULTILINK_INFO;
+    private static final BindGroupLayout SUBTITLES_INFO = BBSRenderPipelines.SUBTITLES_INFO;
+    private static final BindGroupLayout SELECTION_INFO = BBSRenderPipelines.SELECTION_INFO;
+    private static final BindGroupLayout BBSPICKER = BBSRenderPipelines.BBSPICKER;
+    private static final BindGroupLayout MULTILINK_SAMPLERS = BindGroupLayout.builder()
+        .withSampler("Sampler0")
+        .withSampler("Sampler3")
+        .build();
 
     /**
      * A model pipeline is registered per (variant, world) pair. The world axis exists for shaderpacks:
@@ -200,7 +220,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (Target int).
      */
     private static final RenderPipeline PICKER_BILLBOARD = registerPicker(
-        "picker_billboard", DefaultVertexFormat.NEW_ENTITY
+        "picker_billboard", DefaultVertexFormat.ENTITY
     );
 
     /* ---- picker_billboard_no_shading ----
@@ -228,7 +248,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (Target int); per-vertex sub-index added from UV2.x in the shader.
      */
     private static final RenderPipeline PICKER_MODELS = registerPicker(
-        "picker_models", DefaultVertexFormat.NEW_ENTITY
+        "picker_models", DefaultVertexFormat.ENTITY
     );
 
     /* ---- particles ----
@@ -277,7 +297,7 @@ public class BBSShaders
      * sampled. Text keeps vanilla's vertex shader too (its varyings are what our fragment reads). */
     private static final RenderPipeline PIXEL_ART = pixelArtPipeline(RenderPipelines.GUI_TEXTURED, "pixelart");
     private static final RenderPipeline PIXEL_ART_TEXT = pixelArtPipeline(RenderPipelines.GUI_TEXT, "pixelart_text");
-    private static final RenderPipeline PIXEL_ART_TEXT_INTENSITY = pixelArtPipeline(RenderPipelines.GUI_TEXT_INTENSITY, "pixelart_text_intensity");
+    private static final RenderPipeline PIXEL_ART_TEXT_INTENSITY = pixelArtPipeline(RenderPipelines.GUI_TEXT_GRAYSCALE, "pixelart_text_intensity");
 
     /* Lazily-built render layers (one per pipeline). RenderLayer.of caches nothing itself, so we
      * memoize here to keep a single instance the immediate buffer source can key on.
@@ -377,7 +397,7 @@ public class BBSShaders
             return PIXEL_ART_TEXT;
         }
 
-        if (vanilla == RenderPipelines.GUI_TEXT_INTENSITY)
+        if (vanilla == RenderPipelines.GUI_TEXT_GRAYSCALE)
         {
             return PIXEL_ART_TEXT_INTENSITY;
         }
@@ -398,7 +418,7 @@ public class BBSShaders
      * through a vanilla entity layer keyed on the adopted texture, which carries that texture's own
      * sampler.) Keyed by variant because pass/depth-write/cull are pipeline state on 1.21.5+.
      */
-    private record ModelLayerKey(ModelVariant variant, net.minecraft.util.Identifier texture, boolean world)
+    private record ModelLayerKey(ModelVariant variant, net.minecraft.resources.Identifier texture, boolean world)
     {}
 
     private static final java.util.Map<ModelLayerKey, RenderType> texturedModelLayers = new java.util.HashMap<>();
@@ -409,12 +429,11 @@ public class BBSShaders
      * one assigned to the pack's entity program (see {@link PipelineKey}); everywhere else, and always
      * without a pack, the shared copy with BBS's own shader.
      */
-    public static RenderType getModelLayer(ModelVariant variant, net.minecraft.util.Identifier texture)
+    public static RenderType getModelLayer(ModelVariant variant, net.minecraft.resources.Identifier texture)
     {
         return texturedModelLayers.computeIfAbsent(new ModelLayerKey(variant, texture, BBSRendering.isIrisWorldForms()), (key) ->
         {
             RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(modelPipeline(key.variant(), key.world()))
-                .bufferSize(RenderType.BIG_BUFFER_SIZE)
                 .sortOnUpload()
                 .useLightmap()
                 .useOverlay();
@@ -441,7 +460,7 @@ public class BBSShaders
         return getModelLayer(variant, bound == null ? null : mchorse.bbs_mod.graphics.texture.AdoptedTexture.identifier(bound));
     }
 
-    public static RenderType getModelLayer(net.minecraft.util.Identifier texture)
+    public static RenderType getModelLayer(net.minecraft.resources.Identifier texture)
     {
         return getModelLayer(ModelVariant.SINGLE, texture);
     }
@@ -460,8 +479,8 @@ public class BBSShaders
         return getBoundModelLayer(ModelVariant.SINGLE.withCull(true));
     }
 
-    /** Unlit billboard layers keyed by texture, mirroring {@link #getModelLayer(net.minecraft.util.Identifier)}. */
-    private static final java.util.Map<net.minecraft.util.Identifier, RenderType> texturedBillboardLayers = new java.util.HashMap<>();
+    /** Unlit billboard layers keyed by texture, mirroring {@link #getModelLayer(net.minecraft.resources.Identifier)}. */
+    private static final java.util.Map<net.minecraft.resources.Identifier, RenderType> texturedBillboardLayers = new java.util.HashMap<>();
 
     /**
      * The unlit (no-shading) billboard layer bound to the last texture the BBS texture manager bound —
@@ -481,14 +500,13 @@ public class BBSShaders
      * the BBS texture manager's bind — the framebuffer form's picture, which lives in a device texture and
      * reaches the layers only by its adopted id.
      */
-    public static RenderType getBillboardLayer(net.minecraft.util.Identifier id)
+    public static RenderType getBillboardLayer(net.minecraft.resources.Identifier id)
     {
         if (id == null)
         {
             if (billboardLayer == null)
             {
                 billboardLayer = RenderType.create(BBSMod.MOD_ID + "_billboard", RenderSetup.builder(BILLBOARD)
-                    .bufferSize(RenderType.BIG_BUFFER_SIZE)
                     .sortOnUpload()
                     .createRenderSetup());
             }
@@ -499,13 +517,12 @@ public class BBSShaders
         return texturedBillboardLayers.computeIfAbsent(id, (key) -> RenderType.create(
             BBSMod.MOD_ID + "_billboard_" + key.getPath(),
             RenderSetup.builder(BILLBOARD)
-                .bufferSize(RenderType.BIG_BUFFER_SIZE)
                 .sortOnUpload()
                 .withTexture("Sampler0", key)
                 .createRenderSetup()));
     }
 
-    /** The untextured single-pass model layer (Sampler0 left to the driver — see {@link #getModelLayer(ModelVariant, net.minecraft.util.Identifier)}). */
+    /** The untextured single-pass model layer (Sampler0 left to the driver — see {@link #getModelLayer(ModelVariant, net.minecraft.resources.Identifier)}). */
     public static RenderType getModelLayer()
     {
         return getModelLayer(ModelVariant.SINGLE, null);
@@ -549,7 +566,6 @@ public class BBSShaders
                 }
 
                 particlesWorldLayer = RenderType.create(BBSMod.MOD_ID + "_particles_world", RenderSetup.builder(particlesWorld)
-                    .bufferSize(RenderType.BIG_BUFFER_SIZE)
                     .sortOnUpload()
                     .useLightmap()
                     .createRenderSetup());
@@ -561,7 +577,6 @@ public class BBSShaders
         if (particlesLayer == null)
         {
             RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(PARTICLES)
-                .bufferSize(RenderType.BIG_BUFFER_SIZE)
                 .sortOnUpload()
                 .useLightmap();
 
@@ -589,7 +604,6 @@ public class BBSShaders
         if (particlesOpaqueLayer == null)
         {
             RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(PARTICLES_OPAQUE)
-                .bufferSize(RenderType.BIG_BUFFER_SIZE)
                 .sortOnUpload()
                 .useLightmap();
 
@@ -631,18 +645,16 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/model" + variant.suffix() + (world ? "_world" : "")))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.NEW_ENTITY, PrimitiveTopology.QUADS)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
-            .withDepthWrite(variant.depthWrite())
-            .withCull(variant.cull())
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
-            .withUniform("Lighting", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0")
-            .withSampler("Sampler1")
-            .withSampler("Sampler2");
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withBindGroupLayout(BindGroupLayouts.LIGHTING)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER1_SAMPLER2)
+            .withVertexBinding(0, DefaultVertexFormat.ENTITY)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, variant.depthWrite()))
+            .withCull(variant.cull());
 
         if (variant.pass() != FormTranslucentQueue.PASS_SINGLE)
         {
@@ -684,7 +696,7 @@ public class BBSShaders
             return RenderPipelines.ENTITY_TRANSLUCENT;
         }
 
-        return variant.cull() ? RenderPipelines.ENTITY_CUTOUT : RenderPipelines.ENTITY_CUTOUT_NO_CULL;
+        return variant.cull() ? RenderPipelines.ENTITY_CUTOUT_CULL : RenderPipelines.ENTITY_CUTOUT;
     }
 
     /**
@@ -703,13 +715,14 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/billboard"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
-            .withCull(true)
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0");
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withCull(true);
 
         RenderPipeline pipeline = RenderPipelines.register(builder.build());
 
@@ -736,22 +749,22 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/particles" + (world ? "_world" : "") + (blend ? "" : "_opaque")))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.PARTICLE, PrimitiveTopology.QUADS)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
-            .withCull(false)
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("Fog", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0")
-            .withSampler("Sampler2");
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.FOG)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER2)
+            .withVertexBinding(0, DefaultVertexFormat.PARTICLE)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withCull(false);
 
         if (blend)
         {
-            builder.withBlend(BLEND);
+            builder.withColorTargetState(new ColorTargetState(BLEND));
         }
         else
         {
-            builder.withoutBlend();
+            builder.withColorTargetState(new ColorTargetState(Optional.empty(), GpuFormat.RGBA8_UNORM, ColorTargetState.WRITE_ALL));
         }
 
         RenderPipeline pipeline = RenderPipelines.register(builder.build());
@@ -784,15 +797,15 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/multilink"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.QUADS)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
-            .withCull(false)
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("MultilinkInfo", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0")
-            .withSampler("Sampler3");
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(MULTILINK_INFO)
+            .withBindGroupLayout(MULTILINK_SAMPLERS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withCull(false);
 
         return RenderPipelines.register(builder.build());
     }
@@ -821,14 +834,15 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/selection"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.QUADS)
-            .withoutBlend()
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
-            .withCull(false)
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("SelectionInfo", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0");
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(SELECTION_INFO)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .withColorTargetState(new ColorTargetState(Optional.empty(), GpuFormat.RGBA8_UNORM, ColorTargetState.WRITE_ALL))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
+            .withCull(false);
 
         return RenderPipelines.register(builder.build());
     }
@@ -848,25 +862,35 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/" + name))
             .withVertexShader(prototype.getVertexShader())
             .withFragmentShader(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/" + name))
-            .withVertexFormat(prototype.getVertexFormat(), prototype.getVertexFormatMode())
-            .withDepthTestFunction(prototype.getDepthTestFunction())
             .withPolygonMode(prototype.getPolygonMode())
             .withCull(prototype.isCull())
-            .withColorLogic(prototype.getColorLogic())
-            .withColorWrite(prototype.isWriteColor(), prototype.isWriteAlpha())
-            .withDepthWrite(prototype.isWriteDepth())
-            .withDepthBias(prototype.getDepthBiasScaleFactor(), prototype.getDepthBiasConstant());
+            .withPrimitiveTopology(prototype.getPrimitiveTopology())
+            .withDepthStencilState(prototype.getDepthStencilState());
 
-        prototype.getBlendFunction().ifPresentOrElse(builder::withBlend, builder::withoutBlend);
-
-        for (String sampler : prototype.getSamplers())
+        /* The 1.21.11 builder exposed the prototype's blend/sampler/uniform lists as getters; 26.2
+         * keeps them in the colour target states and the bind group layouts, which is what has to be
+         * copied now. The layouts matter most: they are the prototype's declared sampler and uniform
+         * surface, and a shader compiled against a different one would not bind. */
+        for (BindGroupLayout layout : prototype.getBindGroupLayouts())
         {
-            builder.withSampler(sampler);
+            builder.withBindGroupLayout(layout);
         }
 
-        for (RenderPipeline.UniformDescription uniform : prototype.getUniforms())
+        VertexFormat[] bindings = prototype.getVertexFormatBindings();
+
+        for (int i = 0; i < bindings.length; i++)
         {
-            builder.withUniform(uniform.name(), uniform.type());
+            builder.withVertexBinding(i, bindings[i]);
+        }
+
+        ColorTargetState[] targets = prototype.getColorTargetStates();
+
+        for (int i = 0; i < targets.length; i++)
+        {
+            if (targets[i] != null)
+            {
+                builder.withColorTargetState(i, targets[i]);
+            }
         }
 
         ShaderDefines defines = prototype.getShaderDefines();
@@ -895,14 +919,15 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/subtitles"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.QUADS)
-            .withBlend(BLEND)
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
-            .withCull(false)
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform("SubtitlesInfo", UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0");
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(SUBTITLES_INFO)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .withColorTargetState(new ColorTargetState(BLEND))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withCull(false);
 
         return RenderPipelines.register(builder.build());
     }
@@ -922,20 +947,21 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/" + name))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(format, PrimitiveTopology.QUADS)
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BBSPICKER)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withVertexBinding(0, format)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
             /* Blend MUST be off for every picker pipeline. The geometry pickers encode an object index in
              * the exact vertex colour, and a blended pixel is a corrupt id. picker_preview writes the
              * highlight colour into an off-screen target that is later composited by the caller's blit:
              * blending it against the transparent-black clear premultiplied it, so the blit multiplied by
              * alpha a SECOND time and any highlight below full opacity came out dark (it looked right only
              * at alpha 1, where the square is a no-op). */
-            .withoutBlend()
-            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
-            .withCull(false)
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
-            .withUniform(PICKER_UNIFORM, UniformType.UNIFORM_BUFFER)
-            .withSampler("Sampler0");
+            .withColorTargetState(new ColorTargetState(Optional.empty(), GpuFormat.RGBA8_UNORM, ColorTargetState.WRITE_ALL))
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, true))
+            .withCull(false);
 
         return RenderPipelines.register(builder.build());
     }
@@ -947,7 +973,6 @@ public class BBSShaders
     private static RenderType layer(String name, RenderPipeline pipeline, boolean useLightmapOverlay)
     {
         RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(pipeline)
-            .bufferSize(RenderType.BIG_BUFFER_SIZE)
             .sortOnUpload();
 
         if (useLightmapOverlay)

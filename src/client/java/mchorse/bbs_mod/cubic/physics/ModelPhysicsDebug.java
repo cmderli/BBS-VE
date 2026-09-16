@@ -16,7 +16,6 @@ import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.MathUtils;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -94,7 +93,7 @@ public final class ModelPhysicsDebug
 
         if (model.isFacingFlipped())
         {
-            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            stack.mulPose(Axis.YP.rotation(MathUtils.PI));
         }
 
         /* The wind is one field for the whole model: resolve its world direction and base magnitude once,
@@ -180,10 +179,10 @@ public final class ModelPhysicsDebug
 
         if (model.isFacingFlipped())
         {
-            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            stack.mulPose(Axis.YP.rotation(MathUtils.PI));
         }
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = ModelIKDebug.begin(PrimitiveTopology.TRIANGLES);
 
         float unit = DebugOverlay.modelUnit(model);
 
@@ -284,7 +283,7 @@ public final class ModelPhysicsDebug
         /* Lines: hairline GL lines by default, boxes once a thickness is set. */
         if (anyLine && !boxes)
         {
-            BufferBuilder lines = Tesselator.getInstance().begin(PrimitiveTopology.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+            BufferBuilder lines = ModelIKDebug.begin(PrimitiveTopology.DEBUG_LINES);
 
             emitLines(lines, matrix, 0F, dash, pts, target, a, config);
 
@@ -297,7 +296,7 @@ public final class ModelPhysicsDebug
         }
 
         /* Solid geometry: the pinned root, joints, the simulated tip and the attach bone, plus the thick lines. */
-        BufferBuilder dots = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder dots = ModelIKDebug.begin(PrimitiveTopology.TRIANGLES);
 
         if (boxes)
         {
@@ -377,7 +376,7 @@ public final class ModelPhysicsDebug
         Vector3f force = new Vector3f();
         List<Vector3f> tips = new ArrayList<>(pts.size());
 
-        BufferBuilder lines = Tesselator.getInstance().begin(PrimitiveTopology.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder lines = ModelIKDebug.begin(PrimitiveTopology.DEBUG_LINES);
 
         for (int i = 1; i < pts.size(); i++)
         {
@@ -405,7 +404,7 @@ public final class ModelPhysicsDebug
 
         ModelIKDebug.flush(lines, ModelIKDebug.getLinesLayer());
 
-        BufferBuilder dots = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder dots = ModelIKDebug.begin(PrimitiveTopology.TRIANGLES);
 
         for (Vector3f end : tips)
         {

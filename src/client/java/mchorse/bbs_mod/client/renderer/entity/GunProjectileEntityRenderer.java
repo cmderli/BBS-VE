@@ -14,7 +14,7 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
-import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.util.Mth;
 import com.mojang.math.Axis;
@@ -42,8 +42,8 @@ public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEnt
 
         state.entity = entity;
         state.tickDelta = tickDelta;
-        state.bodyYaw = Mth.rotLerp(tickDelta, entity.yRotO, entity.getViewYRot());
-        state.entityPitch = Mth.rotLerp(tickDelta, entity.xRotO, entity.getViewXRot());
+        state.bodyYaw = Mth.rotLerp(tickDelta, entity.yRotO, entity.getYRot());
+        state.entityPitch = Mth.rotLerp(tickDelta, entity.xRotO, entity.getXRot());
         state.fadeScale = Lerps.envelope(entity.tickCount + tickDelta, 0, properties.fadeIn, out - properties.fadeOut, out);
     }
 
@@ -63,8 +63,8 @@ public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEnt
 
         matrices.pushPose();
 
-        if (properties.yaw) matrices.rotateAround(Axis.YP.rotationDegrees(state.bodyYaw));
-        if (properties.pitch) matrices.rotateAround(Axis.XP.rotationDegrees(-state.entityPitch));
+        if (properties.yaw) matrices.mulPose(Axis.YP.rotationDegrees(state.bodyYaw));
+        if (properties.pitch) matrices.mulPose(Axis.XP.rotationDegrees(-state.entityPitch));
         matrices.scale(state.fadeScale, state.fadeScale, state.fadeScale);
         MatrixStackUtils.applyTransform(matrices, properties.projectileTransform);
 
@@ -78,7 +78,7 @@ public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEnt
         {
             FormUtilsClient.render(projectile.getForm(), new FormRenderingContext()
                 .set(FormRenderType.ENTITY, projectile.getFormEntity(), matrices, state.lightCoords, OverlayTexture.NO_OVERLAY, state.tickDelta)
-                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.mainCamera()));
         }
         finally
         {

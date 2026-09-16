@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.utils;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.blaze3d.opengl.GlTexture;
 import mchorse.bbs_mod.graphics.PixelPackState;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.utils.UIUtils;
@@ -46,7 +47,10 @@ public class ScreenshotRecorder
 
     public void takeScreenshot(File output, Texture texture)
     {
-        this.takeScreenshot(output, texture.id, texture.width, texture.height);
+        /* 26.2: a Texture has no GL name any more, so the still-raw-GL read-back below is fed the
+         * OpenGL backend's own name; an unsized snapshot answers 0. Replacing that read-back with
+         * Texture.pixelsFromTexture(Texture) is what removes this cast. */
+        this.takeScreenshot(output, texture.gpuTexture instanceof GlTexture gl ? gl.glId() : 0, texture.width, texture.height);
     }
 
     /**

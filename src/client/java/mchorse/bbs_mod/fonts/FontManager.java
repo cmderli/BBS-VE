@@ -8,6 +8,7 @@ import mchorse.bbs_mod.utils.watchdog.WatchDogEvent;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.font.GlyphProvider;
 import net.minecraft.client.gui.font.FontOption;
+import net.minecraft.client.gui.font.FontOption.Filter;
 import net.minecraft.client.gui.font.providers.FreeTypeUtil;
 import net.minecraft.client.gui.font.glyphs.EffectGlyph;
 import net.minecraft.client.gui.font.FontSet;
@@ -246,7 +247,7 @@ public class FontManager implements IWatchDogListener
              * so the FontEntry still owns everything through the one storage it holds. */
             FontSet storage = new FontSet(new GlyphStitcher(Minecraft.getInstance().getTextureManager(), this.getStorageId(key)));
 
-            storage.reload(Collections.singletonList(new GlyphProvider.Conditional(ttf, FontOption.FilterMap.ALWAYS_PASS)), Collections.emptySet());
+            storage.reload(Collections.singletonList(new GlyphProvider.Conditional(ttf, Filter.ALWAYS_PASS)), Collections.emptySet());
 
             FontRenderer font = new FontRenderer();
 
@@ -255,17 +256,20 @@ public class FontManager implements IWatchDogListener
              *
              * The (Function<Identifier, FontStorage>, validateAdvance) pair the constructor used to
              * take is a GlyphsProvider now, and the flag moved onto getGlyphs — false being the
-             * plain renderer, as before (vanilla's advance-validating one passes true). */
+             * plain renderer, as before (vanilla's advance-validating one passes true).
+             *
+             * 26.2 renamed the two Provider members: {@code getGlyphs} is {@code glyphs} and the
+             * rectangle glyph accessor is {@code effect}. */
             font.setRenderer(new Font(new Font.Provider()
             {
                 @Override
-                public GlyphSource getGlyphs(FontDescription source)
+                public GlyphSource glyphs(FontDescription source)
                 {
                     return storage.source(false);
                 }
 
                 @Override
-                public EffectGlyph getRectangleGlyph()
+                public EffectGlyph effect()
                 {
                     return storage.whiteGlyph();
                 }

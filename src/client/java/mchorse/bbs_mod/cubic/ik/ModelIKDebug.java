@@ -3,9 +3,13 @@ package mchorse.bbs_mod.cubic.ik;
 import com.mojang.blaze3d.platform.CompareOp;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.PrimitiveTopology;
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSSettings;
@@ -26,7 +30,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.resources.Identifier;
@@ -39,6 +43,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -73,9 +78,10 @@ public final class ModelIKDebug
     private static final RenderPipeline POSITION_COLOR_TRIS_NO_DEPTH = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_tris"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withBlend(BlendFunction.TRANSLUCENT)
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
             .withCull(false)
             .build()
     );
@@ -83,9 +89,10 @@ public final class ModelIKDebug
     private static final RenderPipeline POSITION_COLOR_LINES_NO_DEPTH = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_lines"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.DEBUG_LINES)
-            .withBlend(BlendFunction.TRANSLUCENT)
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.DEBUG_LINES)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
             .withCull(false)
             .build()
     );
@@ -96,9 +103,10 @@ public final class ModelIKDebug
     private static final RenderPipeline POSITION_COLOR_STENCIL = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_stencil"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
-            .withoutBlend()
-            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+            .withColorTargetState(new ColorTargetState(Optional.empty(), GpuFormat.RGBA8_UNORM, ColorTargetState.WRITE_ALL))
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
             .withCull(false)
             .build()
     );
@@ -170,9 +178,44 @@ public final class ModelIKDebug
         if (built != null)
         {
             /* TODO(1.21.11 render): verify at runtime. RenderLayer.draw uploads + draws with the
-             * layer pipeline; previously this was BufferRenderer.drawWithGlobalProgram. */
-            layer.draw(built);
+             * layer pipeline; previously this was BufferRenderer.drawWithGlobalProgram. 26.2 has no
+             * RenderType.draw(MeshData), so the finished vertices become a device buffer and the
+             * layer's prepared state opens the pass (see mchorse.bbs_mod.graphics.Draw#flush). */
+            MeshData.DrawState state = built.drawState();
+            GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+                () -> "bbs ik debug geometry",
+                GpuBuffer.USAGE_VERTEX,
+                built.vertexBuffer()
+            );
+
+            RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+            layer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(),
+                0, 0, state.indexCount());
+
+            vertices.close();
+            built.close();
         }
+    }
+
+    /** The staging buffer {@link #begin} hands to every batch; 1.21.11's Tesselator equivalent. */
+    private static ByteBufferBuilder allocator;
+
+    /** Begin a POSITION_COLOR batch — the one geometry format both debug overlays build into. */
+    public static BufferBuilder begin(PrimitiveTopology topology)
+    {
+        /* 1.21.11 built every batch on the Tesselator's one growable buffer; 26.2 has no Tesselator,
+         * so the same single buffer is owned here and rewound per batch. */
+        if (allocator == null)
+        {
+            allocator = new ByteBufferBuilder(1536);
+        }
+        else
+        {
+            allocator.clear();
+        }
+
+        return new BufferBuilder(allocator, topology, DefaultVertexFormat.POSITION_COLOR);
     }
 
     public static void render(PoseStack stack, IModel model, ModelForm form, String selectedTip)
@@ -200,7 +243,7 @@ public final class ModelIKDebug
 
         if (model.isFacingFlipped())
         {
-            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            stack.mulPose(Axis.YP.rotation(MathUtils.PI));
         }
 
         float unit = DebugOverlay.modelUnit(model);
@@ -274,10 +317,10 @@ public final class ModelIKDebug
 
         if (model.isFacingFlipped())
         {
-            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+            stack.mulPose(Axis.YP.rotation(MathUtils.PI));
         }
 
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = begin(PrimitiveTopology.TRIANGLES);
 
         float unit = DebugOverlay.modelUnit(model);
 
@@ -384,7 +427,7 @@ public final class ModelIKDebug
         /* Lines: hairline GL lines by default, boxes once a thickness is set. */
         if (anyLine && !boxes)
         {
-            BufferBuilder lines = Tesselator.getInstance().begin(PrimitiveTopology.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+            BufferBuilder lines = begin(PrimitiveTopology.DEBUG_LINES);
 
             emitLines(lines, matrix, 0F, dash, pts, target, pole, a, config);
 
@@ -397,7 +440,7 @@ public final class ModelIKDebug
         }
 
         /* Solid geometry: joint/accent markers, plus the thick lines. */
-        BufferBuilder dots = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder dots = begin(PrimitiveTopology.TRIANGLES);
 
         if (boxes)
         {

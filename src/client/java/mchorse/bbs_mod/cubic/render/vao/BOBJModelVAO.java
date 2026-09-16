@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.cubic.render.vao;
 
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -18,9 +19,10 @@ import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -312,7 +314,10 @@ public class BOBJModelVAO
     /** The same draw with a colour overlay on it (null = none); see {@code FormOverlay}. */
     public void render(PoseStack stack, float r, float g, float b, float a, StencilMap stencilMap, int light, int overlay, boolean cull, Color tint)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
+        /* 1.21.11 built this on the Tesselator's growable buffer; 26.2 has no Tesselator, so the
+         * batch owns a ByteBufferBuilder for as long as the finished MeshData needs it. */
+        ByteBufferBuilder allocator = new ByteBufferBuilder(1536);
+        BufferBuilder builder = new BufferBuilder(allocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.ENTITY);
 
         Matrix4f position = stack.last().pose();
         Matrix3f normalMatrix = stack.last().normal();
@@ -350,10 +355,10 @@ public class BOBJModelVAO
                     v = this.tmpLight[i * 2 + 1];
                 }
 
-                builder.vertex(vertex.x, vertex.y, vertex.z)
+                builder.addVertex(vertex.x, vertex.y, vertex.z)
                     .setColor(r, g, b, a)
                     .setUv(texData[i * 2], texData[i * 2 + 1])
-                    .setUv1(overlay)
+                    .setOverlay(overlay)
                     .setUv2(u, v)
                     .setNormal(normal.x, normal.y, normal.z);
             }
@@ -378,7 +383,9 @@ public class BOBJModelVAO
                  * textureResolver bind). Draws through the BBS model layer, not vanilla entityCutoutNoCull: CUTOUT
                  * has no blending, so the form's colour alpha read as "lighter" instead of transparent and cliffed
                  * into invisibility at the 0.1 discard — see the matching branch in ModelInstance.render. */
-                FormOverlay.withOverlay(BBSShaders.getBoundModelLayer(BBSShaders.ModelVariant.SINGLE.withCull(cull)), tint != null).draw(built);
+                RenderType previewLayer = FormOverlay.withOverlay(BBSShaders.getBoundModelLayer(BBSShaders.ModelVariant.SINGLE.withCull(cull)), tint != null);
+
+                this.flush(previewLayer, built);
             }
             else
             {
@@ -390,5 +397,33 @@ public class BOBJModelVAO
                     ModelVAORenderer.captureModelView(stack).getTranslation(new Vector3f()), tint != null);
             }
         }
+
+        allocator.close();
+    }
+
+    /**
+     * Finish a buffer and submit it through the given layer (no-op on an empty buffer).
+     *
+     * <p>26.2 has no {@code RenderType.draw(MeshData)}: a finished {@link MeshData} carries only
+     * vertex bytes, and the draw needs a vertex GpuBuffer, the layer's shared sequential index
+     * buffer and a {@code PreparedRenderType} (see {@code mchorse.bbs_mod.graphics.Draw#flush}).
+     * The same shape as before: build, finish, submit.</p>
+     */
+    private void flush(RenderType previewLayer, MeshData built)
+    {
+        MeshData.DrawState state = built.drawState();
+        GpuBuffer vertices = RenderSystem.getDevice().createBuffer(
+            () -> "bbs bobj geometry",
+            GpuBuffer.USAGE_VERTEX,
+            built.vertexBuffer()
+        );
+
+        RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.primitiveTopology());
+
+        previewLayer.prepare().drawFromBuffer(vertices, indices.getBuffer(state.indexCount()), indices.type(),
+            0, 0, state.indexCount());
+
+        vertices.close();
+        built.close();
     }
 }

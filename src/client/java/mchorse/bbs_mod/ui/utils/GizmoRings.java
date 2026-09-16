@@ -192,7 +192,7 @@ public class GizmoRings
             vertex.set(geometry[i], geometry[i + 1], geometry[i + 2], 1F);
             matrix.transform(vertex);
 
-            builder.vertex(vertex.x, vertex.y, vertex.z).setColor(r, g, b, a);
+            builder.addVertex(vertex.x, vertex.y, vertex.z).setColor(r, g, b, a);
         }
     }
 
@@ -278,7 +278,7 @@ public class GizmoRings
         if (toCamera.lengthSquared() > 1.0E-8F)
         {
             toCamera.normalize();
-            stack.rotateAround(new Quaternionf().rotationTo(0F, 1F, 0F, toCamera.x, toCamera.y, toCamera.z));
+            stack.rotateAround(new Quaternionf().rotationTo(0F, 1F, 0F, toCamera.x, toCamera.y, toCamera.z), 0F, 0F, 0F);
         }
 
         stack.scale(VIEW_RING_SCALE, VIEW_RING_SCALE, VIEW_RING_SCALE);

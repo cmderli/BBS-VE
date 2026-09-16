@@ -30,7 +30,7 @@ import mchorse.bbs_mod.ui.morphing.UIMorphingPanel;
 import mchorse.bbs_mod.utils.DataPath;
 import mchorse.bbs_mod.utils.repos.RepositoryOperation;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.FriendlyByteBufs;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.permissions.PermissionSet;
@@ -151,7 +151,7 @@ public class ClientNetwork
 
             client.execute(() ->
             {
-                Entity entity = client.level.getEntityById(id);
+                Entity entity = client.level.getEntity(id);
                 Morph morph = Morph.getMorph(entity);
 
                 if (morph != null)
@@ -251,7 +251,7 @@ public class ClientNetwork
 
         client.execute(() ->
         {
-            Entity entity = client.level.getEntityById(id);
+            Entity entity = client.level.getEntity(id);
             Morph morph = Morph.getMorph(entity);
 
             if (morph != null && morph.getForm() != null)
@@ -325,7 +325,7 @@ public class ClientNetwork
 
             client.execute(() ->
             {
-                Entity entity = client.level.getEntityById(entityId);
+                Entity entity = client.level.getEntity(entityId);
 
                 if (entity instanceof IEntityFormProvider provider)
                 {
@@ -374,7 +374,7 @@ public class ClientNetwork
 
         client.execute(() ->
         {
-            Entity entity = client.level.getEntityById(entityId);
+            Entity entity = client.level.getEntity(entityId);
 
             if (entity instanceof GunProjectileEntity projectile)
             {
@@ -499,7 +499,7 @@ public class ClientNetwork
 
     public static void sendActionRecording(String filmId, int replayId, int tick, int countdown, boolean state)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
         buf.writeInt(replayId);
@@ -512,7 +512,7 @@ public class ClientNetwork
 
     public static void sendToggleFilm(String filmId, boolean withCamera)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
         buf.writeBoolean(withCamera);
@@ -522,7 +522,7 @@ public class ClientNetwork
 
     public static void sendActionState(String filmId, ActionState state, int tick)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
         buf.writeByte(state.ordinal());
@@ -551,7 +551,7 @@ public class ClientNetwork
     /** Save the region and empty it out of the world, for the film cut. */
     public static void sendCutStructure(String name, BlockPos from, BlockPos to)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(name);
         buf.writeBlockPos(from);
@@ -562,7 +562,7 @@ public class ClientNetwork
 
     public static void sendSaveStructure(String name, BlockPos from, BlockPos to)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(name);
         buf.writeBlockPos(from);
@@ -573,12 +573,12 @@ public class ClientNetwork
 
     public static void sendTeleport(Player entity, double x, double y, double z)
     {
-        sendTeleport(x, y, z, entity.getHeadYaw(), entity.getHeadYaw(), entity.getViewXRot());
+        sendTeleport(x, y, z, entity.getYHeadRot(), entity.getYHeadRot(), entity.getXRot());
     }
 
     public static void sendTeleport(double x, double y, double z, float yaw, float bodyYaw, float pitch)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeDouble(x);
         buf.writeDouble(y);
@@ -592,7 +592,7 @@ public class ClientNetwork
 
     public static void sendFormTrigger(String triggerId, int type)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(triggerId);
         buf.writeInt(type);
@@ -612,7 +612,7 @@ public class ClientNetwork
 
     public static void sendZoom(boolean zoom)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeBoolean(zoom);
 
@@ -621,7 +621,7 @@ public class ClientNetwork
 
     public static void sendPauseFilm(String filmId)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
 
@@ -634,7 +634,7 @@ public class ClientNetwork
      */
     public static void sendApplyFilmPlayerSettingsToPlayer(Film film, int tick)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
         Replay replay = film.getFirstPersonReplay();
 
         buf.writeFloat(film.hp.get());

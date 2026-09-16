@@ -9,16 +9,20 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import mchorse.bbs_mod.forms.renderers.FormRenderer;
 import mchorse.bbs_mod.graphics.ModelPreviewRenderer;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
-import net.minecraft.client.gui.render.state.GuiRenderState;
-import net.minecraft.client.gui.render.state.BlitRenderState;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
+import net.minecraft.client.renderer.state.gui.BlitRenderState;
 import com.mojang.blaze3d.platform.Lighting;
-import net.minecraft.client.renderer.CachedOrthoProjectionMatrixBuffer;
-import net.minecraft.client.renderer.MultiBufferSource$BufferSource;
+import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.gui.render.TextureSetup;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Vector3f;
@@ -48,7 +52,10 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
     /* TODO(strip): throttled diagnostic so a failing renderUIPreview is visible in the log instead of silent. */
     private static int errorLog;
 
-    private final CachedOrthoProjectionMatrixBuffer projection = new CachedOrthoProjectionMatrixBuffer("PIP - bbs form", -1000.0F, 1000.0F, true);
+    /* 26.2 split the cached ortho buffer into a mutable Projection (the z range + invert-Y) and a
+     * ProjectionMatrixBuffer (the GPU buffer). Both are re-set per target size, as the cached one was. */
+    private final Projection projection = new Projection();
+    private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("PIP - bbs form");
 
     /* Per-form (and per-size) persistent off-screen targets. Keyed by renderer identity + dimensions so the
      * same form shown at two sizes (e.g. toolbar 40x40 and grid 60x80) doesn't thrash one texture. The deferred
@@ -62,9 +69,9 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
     private GpuBuffer lightsBuffer;
     private GpuBufferSlice lights;
 
-    public BbsFormGuiElementRenderer(BufferSource vertexConsumers)
+    public BbsFormGuiElementRenderer()
     {
-        super(vertexConsumers);
+        super();
     }
 
     @Override
@@ -73,11 +80,17 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
         return BbsFormGuiElementRenderState.class;
     }
 
+    /**
+     * 26.2's {@code PictureInPictureRenderer.prepare} gained the {@link FeatureRenderDispatcher} and
+     * renamed {@code render(T, PoseStack)} to {@link #renderToTexture}; the body below is that method's,
+     * with the base's single texture replaced by the per-form pool (see the class note — the base would
+     * make every cell's deferred quad sample the last-rendered model).
+     */
     @Override
-    public void prepare(BbsFormGuiElementRenderState state, GuiRenderState guiState, int windowScaleFactor)
+    public void prepare(BbsFormGuiElementRenderState state, GuiRenderState guiState, FeatureRenderDispatcher dispatcher, int windowScaleFactor)
     {
-        int w = (state.x2() - state.x1()) * windowScaleFactor;
-        int h = (state.y2() - state.y1()) * windowScaleFactor;
+        int w = (state.x1() - state.x0()) * windowScaleFactor;
+        int h = (state.y1() - state.y0()) * windowScaleFactor;
 
         if (w <= 0 || h <= 0)
         {
@@ -88,38 +101,42 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
 
         RenderSystem.outputColorTextureOverride = target.colorView;
         RenderSystem.outputDepthTextureOverride = target.depthView;
-        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(target.color, 0, target.depth, 1.0);
-        RenderSystem.setProjectionMatrix(this.projection.getBuffer(w, h), ProjectionType.ORTHOGRAPHIC);
+        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(target.color, GuiRenderer.CLEAR_COLOR, target.depth, 1.0);
+
+        this.projection.setupOrtho(-1000.0F, 1000.0F, w, h, true);
+        RenderSystem.setProjectionMatrix(this.projectionMatrixBuffer.getBuffer(this.projection), ProjectionType.ORTHOGRAPHIC);
 
         PoseStack matrices = new PoseStack();
 
-        matrices.translate(w / 2.0F, this.getYOffset(h, windowScaleFactor), 0.0F);
+        matrices.translate(w / 2.0F, this.getTranslateY(h, windowScaleFactor), 0.0F);
 
         float f = windowScaleFactor * state.scale();
 
         matrices.scale(f, f, -f);
 
-        this.render(state, matrices);
-        this.bufferSource.endBatch();
+        SubmitNodeStorage storage = new SubmitNodeStorage();
+
+        this.renderToTexture(state, matrices, storage);
+        dispatcher.renderAllFeatures(storage);
 
         RenderSystem.outputColorTextureOverride = null;
         RenderSystem.outputDepthTextureOverride = null;
 
         /* Composite THIS form's texture into the cell (V-flipped 0,1,1,0 + premultiplied alpha, exactly like
-         * the base's renderElement). The pose carries the list's scroll translate. addSimpleElementToCurrentLayer
+         * the base's blitTexture). The pose carries the list's scroll translate. addBlitToCurrentLayer
          * adds directly to the current layer. */
-        guiState.submitBlitToCurrentLayer(new BlitRenderState(
+        guiState.addBlitToCurrentLayer(new BlitRenderState(
             RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
-            TextureSetup.doubleTexture(target.colorView, RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)),
+            TextureSetup.singleTexture(target.colorView, RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)),
             state.pose(),
-            state.x1(), state.y1(), state.x2(), state.y2(),
+            state.x0(), state.y0(), state.x1(), state.y1(),
             0.0F, 1.0F, 1.0F, 0.0F,
             -1,
             state.scissorArea()));
     }
 
     @Override
-    protected void prepare(BbsFormGuiElementRenderState state, PoseStack matrices)
+    protected void renderToTexture(BbsFormGuiElementRenderState state, PoseStack matrices, SubmitNodeCollector collector)
     {
         /* 1:1 with the original: bind the same two diffuse-light directions setupLevelDiffuseLighting used,
          * NOT the vanilla ENTITY_IN_UI (inventory) preset which lights from below. Snapshot + restore: the
@@ -136,7 +153,7 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
         try
         {
             state.renderer().renderUIPreview(matrices, state.angle(), state.transition(),
-                state.x1(), state.y1(), state.x2(), state.y2());
+                state.x0(), state.y0(), state.x1(), state.y1());
         }
         catch (Exception e)
         {
@@ -202,9 +219,9 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
 
         target = new Target();
         /* usage 12 = RENDER_ATTACHMENT | TEXTURE_BINDING (render target + sampled); depth 8 = RENDER_ATTACHMENT. */
-        target.color = device.createTexture(() -> "BBS form thumbnail", GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING, TextureFormat.RGBA8, w, h, 1, 1);
+        target.color = device.createTexture(() -> "BBS form thumbnail", GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING, GpuFormat.RGBA8_UNORM, w, h, 1, 1);
         target.colorView = device.createTextureView(target.color);
-        target.depth = device.createTexture(() -> "BBS form thumbnail depth", GpuTexture.USAGE_RENDER_ATTACHMENT, TextureFormat.DEPTH32, w, h, 1, 1);
+        target.depth = device.createTexture(() -> "BBS form thumbnail depth", GpuTexture.USAGE_RENDER_ATTACHMENT, GpuFormat.D32_FLOAT, w, h, 1, 1);
         target.depthView = device.createTextureView(target.depth);
 
         this.targets.put(id, target);
@@ -240,7 +257,7 @@ public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormG
         }
 
         this.targets.clear();
-        this.projection.close();
+        this.projectionMatrixBuffer.close();
 
         if (this.lightsBuffer != null)
         {
