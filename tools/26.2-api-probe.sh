@@ -102,6 +102,7 @@ SOURCES=(
     "$ROOT/src/main/java/mchorse/bbs_mod/utils/interps/Lerps.java"
     "$ROOT/src/client/java/mchorse/bbs_mod/graphics/gpu/BBSGpu.java"
     "$ROOT/src/client/java/mchorse/bbs_mod/graphics/gpu/BBSRenderPipelines.java"
+    "$ROOT/src/client/java/mchorse/bbs_mod/graphics/gpu/BBSGeometryQueue.java"
     "$ROOT/src/client/java/mchorse/bbs_mod/graphics/texture/TextureFilter.java"
     "$ROOT/src/client/java/mchorse/bbs_mod/graphics/texture/TextureFormat.java"
     "$ROOT/src/client/java/mchorse/bbs_mod/graphics/texture/Texture.java"
