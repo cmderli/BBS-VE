@@ -159,6 +159,97 @@ public class Texture
     }
 
     /**
+     * Read part of a texture back into CPU memory.
+     *
+     * <p>The region matters: BBS's cursor picking reads exactly one texel
+     * ({@code glReadPixels(x, y, 1, 1, …)}) and its eyedropper a few, and copying a whole 1080p
+     * colour attachment to answer that would be absurd. 26.2 supports the region directly
+     * ({@code copyTextureToBuffer}'s {@code x/y/width/height}), so this is the same call as the
+     * full-texture read with a smaller box.</p>
+     *
+     * <p>Coordinates are in texels with the origin at the top-left, which is 26.2's convention —
+     * note that the 1.21.11 picking code counted Y from the bottom the way {@code glReadPixels}
+     * did, so the Y it passes has to be flipped at the call site.</p>
+     */
+    public Pixels readRegion(int x, int y, int width, int height)
+    {
+        if (!this.isValid() || width <= 0 || height <= 0)
+        {
+            return null;
+        }
+
+        GpuTexture gpuTexture = this.gpuTexture;
+        int textureWidth = gpuTexture.getWidth(0);
+        int textureHeight = gpuTexture.getHeight(0);
+        int blockSize = gpuTexture.getFormat().blockSize();
+
+        x = Math.max(0, Math.min(x, textureWidth - 1));
+        y = Math.max(0, Math.min(y, textureHeight - 1));
+        width = Math.min(width, textureWidth - x);
+        height = Math.min(height, textureHeight - y);
+
+        GpuBuffer buffer = BBSGpu.device().createBuffer(
+            () -> "bbs region readback",
+            GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+            (long) width * height * blockSize
+        );
+
+        CountDownLatch done = new CountDownLatch(1);
+
+        BBSGpu.encoder().copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0, x, y, width, height);
+
+        try
+        {
+            if (!done.await(5, TimeUnit.SECONDS))
+            {
+                buffer.close();
+
+                return null;
+            }
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            buffer.close();
+
+            return null;
+        }
+
+        ByteBuffer out = MemoryUtil.memAlloc(width * height * blockSize);
+
+        try (GpuBufferSlice.MappedView mapped = buffer.map(true, false))
+        {
+            out.put(mapped.data().position(0).limit(width * height * blockSize));
+        }
+        catch (Exception e)
+        {
+            MemoryUtil.memFree(out);
+            buffer.close();
+
+            return null;
+        }
+
+        out.position(0);
+        buffer.close();
+
+        return new Pixels(out, width, height, blockSize);
+    }
+
+    /**
+     * One texel as normalized floats, the way the 1.21.11 picking path read it
+     * ({@code glReadPixels(…, GL_RGBA, GL_FLOAT, …)}). Returns {@code null} when the read fails.
+     *
+     * <p>The returned {@link mchorse.bbs_mod.utils.colors.Color} is the shared instance inside the
+     * returned {@link Pixels}, so copy it before the next read.</p>
+     */
+    public mchorse.bbs_mod.utils.colors.Color readPixel(int x, int y)
+    {
+        Pixels pixels = this.readRegion(x, y, 1, 1);
+
+        return pixels == null ? null : pixels.getColor(0);
+    }
+
+    /**
      * An empty texture with no GPU allocation yet.
      *
      * <p>1.21.11 created the GL name here, which is why every BBS {@code new Texture()} was valid
