@@ -170,18 +170,18 @@ public final class mchorse.bbs_mod.api.BBSApi {
 }
 
 public final class mchorse.bbs_mod.api.client.compat.ClientVanillaAccess {
-    public static net.minecraft.client.gl.Framebuffer getFramebuffer(net.minecraft.client.MinecraftClient);
-    public static void setFramebuffer(net.minecraft.client.MinecraftClient, net.minecraft.client.gl.Framebuffer);
+    public static com.mojang.blaze3d.pipeline.RenderTarget getFramebuffer(net.minecraft.client.Minecraft);
+    public static void setFramebuffer(net.minecraft.client.Minecraft, com.mojang.blaze3d.pipeline.RenderTarget);
 }
 
 public final class mchorse.bbs_mod.api.compat.VanillaAccess {
-    public static int getItemUseTimeLeft(net.minecraft.entity.LivingEntity);
-    public static int getRiptideTicks(net.minecraft.entity.LivingEntity);
-    public static net.minecraft.item.ItemStack getActiveItemStack(net.minecraft.entity.LivingEntity);
-    public static void setActiveItemStack(net.minecraft.entity.LivingEntity, net.minecraft.item.ItemStack);
-    public static void setItemUseTimeLeft(net.minecraft.entity.LivingEntity, int);
-    public static void setLivingFlag(net.minecraft.entity.LivingEntity, int, boolean);
-    public static void setRiptideTicks(net.minecraft.entity.LivingEntity, int);
+    public static int getItemUseTimeLeft(net.minecraft.world.entity.LivingEntity);
+    public static int getRiptideTicks(net.minecraft.world.entity.LivingEntity);
+    public static net.minecraft.world.item.ItemStack getActiveItemStack(net.minecraft.world.entity.LivingEntity);
+    public static void setActiveItemStack(net.minecraft.world.entity.LivingEntity, net.minecraft.world.item.ItemStack);
+    public static void setItemUseTimeLeft(net.minecraft.world.entity.LivingEntity, int);
+    public static void setLivingFlag(net.minecraft.world.entity.LivingEntity, int, boolean);
+    public static void setRiptideTicks(net.minecraft.world.entity.LivingEntity, int);
 }
 
 public interface mchorse.bbs_mod.api.BBSAddonMod {
@@ -198,7 +198,7 @@ public interface mchorse.bbs_mod.api.client.events.FilmEvents$Created {
 }
 
 public interface mchorse.bbs_mod.api.client.events.FilmEvents$Render {
-    public abstract void onFilmRender(mchorse.bbs_mod.film.BaseFilmController, net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext);
+    public abstract void onFilmRender(mchorse.bbs_mod.film.BaseFilmController, net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext);
 }
 
 public interface mchorse.bbs_mod.api.client.events.FilmEvents$Shutdown {
