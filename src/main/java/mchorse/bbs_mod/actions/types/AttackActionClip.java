@@ -40,7 +40,7 @@ public class AttackActionClip extends ActionClip
         HitResult blockHit = player.pick(distance, 1F, false);
         Vec3 origin = player.getEyePosition(1F);
         Vec3 rotation = player.getViewVector(1F);
-        Vec3 direction = origin.atLowerCornerWithOffset(rotation.x * distance, rotation.y * distance, rotation.z * distance);
+        Vec3 direction = origin.add(rotation.x * distance, rotation.y * distance, rotation.z * distance);
 
         double newDistance = blockHit != null ? blockHit.getLocation().distanceToSqr(origin) : distance * distance;
         AABB box = player.getBoundingBox().expandTowards(rotation.scale(distance)).inflate(1, 1, 1);
@@ -52,7 +52,7 @@ public class AttackActionClip extends ActionClip
 
             if (entity != null)
             {
-                net.minecraft.server.world.ServerLevel world = player.level();
+                net.minecraft.server.level.ServerLevel world = player.level();
 
                 entity.hurtServer(world, world.damageSources().mobAttack(player), damage);
             }

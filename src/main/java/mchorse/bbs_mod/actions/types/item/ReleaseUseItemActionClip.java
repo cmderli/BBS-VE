@@ -58,7 +58,7 @@ public class ReleaseUseItemActionClip extends ItemActionClip
     {
         InteractionHand hand = this.hand.get() ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
         InteractionHand other = this.hand.get() ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
-        ItemStack stack = this.itemStack.get().copyFrom();
+        ItemStack stack = this.itemStack.get().copy();
         ItemStack projectile = this.projectile.get();
 
         this.applyPositionRotation(player, replay, tick);
@@ -77,7 +77,7 @@ public class ReleaseUseItemActionClip extends ItemActionClip
 
         if (!projectile.isEmpty())
         {
-            player.setItemInHand(other, projectile.copyFrom());
+            player.setItemInHand(other, projectile.copy());
         }
 
         player.startUsingItem(hand);
@@ -122,7 +122,7 @@ public class ReleaseUseItemActionClip extends ItemActionClip
             actor.setLivingEntityFlag(4, true);
         }
 
-        player.level().playSeededSound(null, player.getX(), player.getY(), player.getZ(), sound, SoundSource.PLAYERS, 1F, 1F);
+        player.level().playSound(null, player.getX(), player.getY(), player.getZ(), sound, SoundSource.PLAYERS, 1F, 1F);
     }
 
     @Override

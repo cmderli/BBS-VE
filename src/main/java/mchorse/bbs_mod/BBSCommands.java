@@ -144,9 +144,9 @@ public class BBSCommands
 
                         if (blockEntity instanceof ModelBlockEntity)
                         {
-                            for (ServerPlayer player : ctx.getSource().getLevel().getPlayers())
+                            for (ServerPlayer player : ctx.getSource().getLevel().players())
                             {
-                                if (player.getBlockPos().distSqr(pos) <= 64F)
+                                if (player.blockPosition().distSqr(pos) <= 64F)
                                 {
                                     ServerNetwork.sendModelBlockState(player, pos, animationState);
                                 }
@@ -353,11 +353,9 @@ public class BBSCommands
 
                         accessor.bbs$setLevelInfo(new LevelSettings(levelInfo.levelName(),
                             levelInfo.gameType(),
-                            levelInfo.hardcore(),
-                            levelInfo.difficulty(),
+                            levelInfo.difficultySettings(),
                             enabled,
-                            levelInfo.gameRules(),
-                            levelInfo.getDataConfiguration()
+                            levelInfo.dataConfiguration()
                         ));
 
                         for (ServerPlayer serverPlayerEntity : server.getPlayerList().getPlayers())
@@ -386,7 +384,7 @@ public class BBSCommands
                             float radius = FloatArgumentType.getFloat(ctx, "radius");
                             boolean fire = BoolArgumentType.getBool(ctx, "fire");
 
-                            source.getLevel().explode(null, pos.x, pos.y, pos.z, radius, fire, Level.ExplosionSourceType.BLOCK);
+                            source.getLevel().explode(null, pos.x, pos.y, pos.z, radius, fire, Level.ExplosionInteraction.BLOCK);
 
                             return 1;
                         })
@@ -506,7 +504,7 @@ public class BBSCommands
 
             if (!stack.isEmpty())
             {
-                livingEntity.setItemSlot(EquipmentSlot.HEAD, stack.copyFrom());
+                livingEntity.setItemSlot(EquipmentSlot.HEAD, stack.copy());
             }
         }
 

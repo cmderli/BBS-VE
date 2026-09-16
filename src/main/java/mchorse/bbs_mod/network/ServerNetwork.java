@@ -29,7 +29,7 @@ import mchorse.bbs_mod.utils.PermissionUtils;
 import mchorse.bbs_mod.utils.StructureSaver;
 import mchorse.bbs_mod.utils.clips.Clips;
 import mchorse.bbs_mod.utils.repos.RepositoryOperation;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.FriendlyByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
@@ -118,12 +118,12 @@ public class ServerNetwork
 
     private static void registerC2S(Identifier identifier)
     {
-        PayloadTypeRegistry.playC2S().register(idFor(identifier), BufPayload.codecFor(idFor(identifier)));
+        PayloadTypeRegistry.serverboundPlay().register(idFor(identifier), BufPayload.codecFor(idFor(identifier)));
     }
 
     private static void registerS2C(Identifier identifier)
     {
-        PayloadTypeRegistry.playS2C().register(idFor(identifier), BufPayload.codecFor(idFor(identifier)));
+        PayloadTypeRegistry.clientboundPlay().register(idFor(identifier), BufPayload.codecFor(idFor(identifier)));
     }
 
     public static void setup()
@@ -195,7 +195,7 @@ public class ServerNetwork
 
         public FriendlyByteBuf asPacketByteBuf()
         {
-            FriendlyByteBuf out = PacketByteBufs.create();
+            FriendlyByteBuf out = FriendlyByteBufs.create();
             out.writeBytes(this.data);
             return out;
         }
@@ -260,7 +260,7 @@ public class ServerNetwork
                 StructureSaver.clear(world, from, to);
             }
 
-            FriendlyByteBuf reply = PacketByteBufs.create();
+            FriendlyByteBuf reply = FriendlyByteBufs.create();
 
             reply.writeBoolean(saved);
             reply.writeUtf(name);
@@ -283,7 +283,7 @@ public class ServerNetwork
         server.execute(() ->
         {
             boolean saved = StructureSaver.save(player.level(), name, from, to);
-            FriendlyByteBuf reply = PacketByteBufs.create();
+            FriendlyByteBuf reply = FriendlyByteBufs.create();
 
             reply.writeBoolean(saved);
             reply.writeUtf(name);
@@ -338,14 +338,14 @@ public class ServerNetwork
 
                 server.execute(() ->
                 {
-                    ItemStack stack = player.getItemBySlot(EquipmentSlot.MAINHAND).copyFrom();
+                    ItemStack stack = player.getItemBySlot(EquipmentSlot.MAINHAND).copy();
 
                     if (stack.getItem() == BBSMod.MODEL_BLOCK_ITEM)
                     {
                         TypedEntityData<BlockEntityType<?>> beComponent = stack.get(DataComponents.BLOCK_ENTITY_DATA);
                         CompoundTag beNbt = beComponent != null ? beComponent.copyTagWithoutId() : new CompoundTag();
 
-                        beNbt.store("Properties", DataStorageUtils.toNbt(data));
+                        beNbt.put("Properties", DataStorageUtils.toNbt(data));
                         stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(BBSMod.MODEL_BLOCK_ENTITY, beNbt));
                     }
                     else if (stack.getItem() == BBSMod.GUN_ITEM)
@@ -353,7 +353,7 @@ public class ServerNetwork
                         CustomData customComponent = stack.get(DataComponents.CUSTOM_DATA);
                         CompoundTag customNbt = customComponent != null ? customComponent.copyTag() : new CompoundTag();
 
-                        customNbt.store("GunData", DataStorageUtils.toNbt(data));
+                        customNbt.put("GunData", DataStorageUtils.toNbt(data));
                         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(customNbt));
                     }
 
@@ -656,11 +656,11 @@ public class ServerNetwork
 
         server.execute(() ->
         {
-            player.requestTeleport(x, y, z);
+            player.teleportTo(x, y, z);
 
             player.setYRot(yaw);
-            player.setHeadYaw(yaw);
-            player.setBodyYaw(bodyYaw);
+            player.setYHeadRot(yaw);
+            player.setYBodyRot(bodyYaw);
             player.setXRot(pitch);
         });
     }
@@ -669,7 +669,7 @@ public class ServerNetwork
     {
         String string = buf.readUtf();
         int type = buf.readInt();
-        FriendlyByteBuf newBuf = PacketByteBufs.create();
+        FriendlyByteBuf newBuf = FriendlyByteBufs.create();
 
         newBuf.writeInt(player.getId());
         newBuf.writeUtf(string);
@@ -695,7 +695,7 @@ public class ServerNetwork
 
             server.execute(() ->
             {
-                ServerPlayer otherPlayer = server.getPlayerList().getPlayerByName(playerUuid);
+                ServerPlayer otherPlayer = server.getPlayerList().getPlayer(playerUuid);
 
                 if (otherPlayer != null)
                 {
@@ -801,7 +801,7 @@ public class ServerNetwork
 
     public static void sendClickedModelBlock(ServerPlayer player, BlockPos pos)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeBlockPos(pos);
 
@@ -820,7 +820,7 @@ public class ServerNetwork
 
                 BaseType data = film.toData();
 
-                crusher.send(world.getPlayers().stream().map((p) -> (Player) p).toList(), CLIENT_PLAY_FILM_PACKET, data, (packetByteBuf) ->
+                crusher.send(world.players().stream().map((p) -> (Player) p).toList(), CLIENT_PLAY_FILM_PACKET, data, (packetByteBuf) ->
                 {
                     packetByteBuf.writeUtf(filmId);
                     packetByteBuf.writeBoolean(withCamera);
@@ -858,7 +858,7 @@ public class ServerNetwork
 
     public static void sendStopFilm(ServerPlayer player, String filmId)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
 
@@ -871,7 +871,7 @@ public class ServerNetwork
      */
     public static void requestFilmResync(ServerPlayer player, String filmId)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
 
@@ -909,7 +909,7 @@ public class ServerNetwork
 
     private static FriendlyByteBuf createHandshakeBuf(MinecraftServer server)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
         String id = "";
 
         /* No need to do that in singleplayer */
@@ -925,7 +925,7 @@ public class ServerNetwork
 
     public static void sendCheatsPermission(ServerPlayer player, boolean cheats)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeBoolean(cheats);
 
@@ -948,7 +948,7 @@ public class ServerNetwork
 
     public static void sendActors(ServerPlayer player, String filmId, Map<String, LivingEntity> actors)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
         buf.writeBoolean(false);
@@ -970,7 +970,7 @@ public class ServerNetwork
      */
     public static void sendActor(ServerPlayer player, String filmId, String replayId, int entityId)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
         buf.writeBoolean(true);
@@ -983,7 +983,7 @@ public class ServerNetwork
 
     public static void sendGunProperties(ServerPlayer player, GunProjectileEntity projectile)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
         GunProperties properties = projectile.getProperties();
 
         buf.writeInt(projectile.getEntityId());
@@ -994,7 +994,7 @@ public class ServerNetwork
 
     public static void sendPauseFilm(ServerPlayer player, String filmId)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeUtf(filmId);
 
@@ -1005,7 +1005,7 @@ public class ServerNetwork
     {
         player.getInventory().setSelectedSlot(slot);
 
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeInt(slot);
 
@@ -1014,7 +1014,7 @@ public class ServerNetwork
 
     public static void sendModelBlockState(ServerPlayer player, BlockPos pos, String trigger)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeBlockPos(pos);
         buf.writeUtf(trigger);
@@ -1024,7 +1024,7 @@ public class ServerNetwork
 
     public static void sendReloadModelBlocks(ServerPlayer player, int tickRandom)
     {
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = FriendlyByteBufs.create();
 
         buf.writeInt(tickRandom);
 

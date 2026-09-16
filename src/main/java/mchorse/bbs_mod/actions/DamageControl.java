@@ -196,11 +196,11 @@ public class DamageControl
     {
         try
         {
-            this.world.setBlockAndUpdate(block.pos, block.lastState, 2);
+            this.world.setBlock(block.pos, block.lastState, 2);
 
             if (block.blockEntity != null)
             {
-                BlockEntity blockEntity = BlockEntity.loadStatic(block.pos, block.lastState, block.blockEntity, this.world.getRegistryManager());
+                BlockEntity blockEntity = BlockEntity.loadStatic(block.pos, block.lastState, block.blockEntity, this.world.registryAccess());
 
                 /* Null when the block entity's type is gone - a mod removed since the take was
                  * captured. The block itself is already back, which is the most that can be

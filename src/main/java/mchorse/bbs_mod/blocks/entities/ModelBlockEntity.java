@@ -151,7 +151,7 @@ public class ModelBlockEntity extends BlockEntity
 
         CompoundTag nbt = new CompoundTag();
 
-        view.read("Properties", CompoundTag.CODEC).ifPresent((compound) -> nbt.store("Properties", compound));
+        view.read("Properties", CompoundTag.CODEC).ifPresent((compound) -> nbt.put("Properties", compound));
 
         this.readProperties(nbt);
     }

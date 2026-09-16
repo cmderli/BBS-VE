@@ -25,7 +25,7 @@ public class ServerPlayerEntityMixin
             {
                 ItemDropActionClip actionClip = new ItemDropActionClip();
                 Vec3 velocity = entity.getDeltaMovement();
-                Vec3 pos = entity.getEntityPos();
+                Vec3 pos = entity.position();
 
                 actionClip.velocityX.set((float) velocity.x);
                 actionClip.velocityY.set((float) velocity.y);
@@ -33,7 +33,7 @@ public class ServerPlayerEntityMixin
                 actionClip.posX.set(pos.x);
                 actionClip.posY.set(pos.y);
                 actionClip.posZ.set(pos.z);
-                actionClip.itemStack.set(entity.getItem().copyFrom());
+                actionClip.itemStack.set(entity.getItem().copy());
 
                 return actionClip;
             });

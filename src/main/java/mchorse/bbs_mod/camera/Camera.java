@@ -105,7 +105,7 @@ public class Camera
         Vec3 eyePos = cameraEntity.getEyePosition();
 
         this.position.set(eyePos.x, eyePos.y, eyePos.z);
-        this.rotation.set(MathUtils.toRad(cameraEntity.getViewXRot()), MathUtils.toRad(cameraEntity.getYHeadRot() + 180F), 0);
+        this.rotation.set(MathUtils.toRad(cameraEntity.getXRot()), MathUtils.toRad(cameraEntity.getYHeadRot() + 180F), 0);
         this.fov = fov;
     }
 }

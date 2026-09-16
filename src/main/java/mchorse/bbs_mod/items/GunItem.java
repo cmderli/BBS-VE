@@ -32,7 +32,7 @@ public class GunItem extends Item
         /* Launch the player */
         if (properties.launch)
         {
-            Vec3 rotationVector = owner.calculateViewVector().scale(properties.launchPower);
+            Vec3 rotationVector = owner.getLookAngle().scale(properties.launchPower);
 
             if (properties.launchAdditive)
             {
@@ -57,7 +57,7 @@ public class GunItem extends Item
             {
                 GunProjectileEntity projectile = new GunProjectileEntity(BBSMod.GUN_PROJECTILE_ENTITY, world);
                 float yaw = owner.getYHeadRot() + (float) (properties.scatterY * (Math.random() - 0.5D));
-                float pitch = owner.getViewXRot() + (float) (properties.scatterX * (Math.random() - 0.5D));
+                float pitch = owner.getXRot() + (float) (properties.scatterX * (Math.random() - 0.5D));
 
                 projectile.setProperties(properties);
                 projectile.setForm(FormUtils.copy(properties.projectileForm));

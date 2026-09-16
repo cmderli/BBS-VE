@@ -69,7 +69,7 @@ public class ItemStackKeyframeFactory implements IKeyframeFactory<ItemStack>
     @Override
     public ItemStack copy(ItemStack value)
     {
-        return value.copyFrom();
+        return value.copy();
     }
 
     @Override

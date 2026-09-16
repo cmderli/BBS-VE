@@ -19,7 +19,7 @@ public class ServerWorldMixin
     public void onSetBlockBreakingInfo(int entityId, BlockPos pos, int progress, CallbackInfo info)
     {
         ServerLevel serverWorld = (ServerLevel) (Object) this;
-        Entity entity = serverWorld.getEntityById(entityId);
+        Entity entity = serverWorld.getEntity(entityId);
 
         if (entity instanceof ServerPlayer player)
         {

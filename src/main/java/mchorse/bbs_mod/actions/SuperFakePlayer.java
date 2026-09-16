@@ -101,7 +101,7 @@ public class SuperFakePlayer extends ServerPlayer
     }
 
     @Override
-    public PermissionSet getPermissions()
+    public PermissionSet permissions()
     {
         return PermissionSet.ALL_PERMISSIONS;
     }
@@ -116,19 +116,19 @@ public class SuperFakePlayer extends ServerPlayer
             {}
 
             @Override
-            public boolean shouldReceiveFeedback()
+            public boolean acceptsSuccess()
             {
                 return false;
             }
 
             @Override
-            public boolean shouldTrackOutput()
+            public boolean acceptsFailure()
             {
                 return false;
             }
 
             @Override
-            public boolean shouldBroadcastConsoleToOps()
+            public boolean shouldInformAdmins()
             {
                 return false;
             }
@@ -144,7 +144,7 @@ public class SuperFakePlayer extends ServerPlayer
     {}
 
     @Override
-    public void increaseStat(Stat<?> stat, int amount)
+    public void awardStat(Stat<?> stat, int amount)
     {}
 
     @Override
@@ -159,13 +159,13 @@ public class SuperFakePlayer extends ServerPlayer
 
     @Nullable
     @Override
-    public PlayerTeam getScoreboardTeam()
+    public PlayerTeam getTeam()
     {
         return null;
     }
 
     @Override
-    public void sleep(BlockPos pos)
+    public void startSleeping(BlockPos pos)
     {}
 
     @Override
@@ -175,7 +175,7 @@ public class SuperFakePlayer extends ServerPlayer
     }
 
     @Override
-    public void openEditSignScreen(SignBlockEntity sign, boolean front)
+    public void openTextEdit(SignBlockEntity sign, boolean front)
     {}
 
     /**
@@ -185,7 +185,7 @@ public class SuperFakePlayer extends ServerPlayer
      * {@link ContainerLid} instead.
      */
     @Override
-    public OptionalInt openHandledScreen(@Nullable MenuProvider factory)
+    public OptionalInt openMenu(@Nullable MenuProvider factory)
     {
         return OptionalInt.empty();
     }

@@ -98,7 +98,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.gamerule.v1.GameRuleBuilder;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
+import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
@@ -171,23 +171,23 @@ public class BBSMod implements ModInitializer
     public static final EntityType<ActorEntity> ACTOR_ENTITY = Registry.register(
         BuiltInRegistries.ENTITY_TYPE,
         Identifier.fromNamespaceAndPath(MOD_ID, "actor"),
-        EntityType.Builder.createNothing(ActorEntity::new, MobCategory.CREATURE)
-            .dimensions(0.6F, 1.8F)
-            .maxTrackingRange(16)
-            .trackingTickInterval(1)
+        EntityType.Builder.of(ActorEntity::new, MobCategory.CREATURE)
+            .sized(0.6F, 1.8F)
+            .clientTrackingRange(16)
+            .updateInterval(1)
             .build(ResourceKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(MOD_ID, "actor"))));
 
     public static final EntityType<GunProjectileEntity> GUN_PROJECTILE_ENTITY = Registry.register(
         BuiltInRegistries.ENTITY_TYPE,
         Identifier.fromNamespaceAndPath(MOD_ID, "gun_projectile"),
-        EntityType.Builder.createNothing(GunProjectileEntity::new, MobCategory.CREATURE)
-            .dimensions(0.25F, 0.25F)
-            .maxTrackingRange(24)
-            .trackingTickInterval(1)
+        EntityType.Builder.of(GunProjectileEntity::new, MobCategory.CREATURE)
+            .sized(0.25F, 0.25F)
+            .clientTrackingRange(24)
+            .updateInterval(1)
             .build(ResourceKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(MOD_ID, "gun_projectile"))));
 
-    public static final Block MODEL_BLOCK = new ModelBlock(BlockBehaviour.Settings.of()
-        .id(blockKey("model"))
+    public static final Block MODEL_BLOCK = new ModelBlock(BlockBehaviour.Properties.of()
+        .setId(blockKey("model"))
         .noTerrainParticles()
         .noLootTable()
         .noCollision()
@@ -197,7 +197,7 @@ public class BBSMod implements ModInitializer
         /* The hitbox comes from the block entity, so the state's shape cache
          * must stay off — with it on, the per-block shape would never be asked. */
         .dynamicShape()
-        .lightEmission((state) -> state.getValueOrElse(ModelBlock.LIGHT_LEVEL)));
+        .lightLevel((state) -> state.getValue(ModelBlock.LIGHT_LEVEL)));
     public static final Block CHROMA_RED_BLOCK = createChromaBlock("chroma_red");
     public static final Block CHROMA_GREEN_BLOCK = createChromaBlock("chroma_green");
     public static final Block CHROMA_BLUE_BLOCK = createChromaBlock("chroma_blue");
@@ -207,19 +207,19 @@ public class BBSMod implements ModInitializer
     public static final Block CHROMA_BLACK_BLOCK = createChromaBlock("chroma_black");
     public static final Block CHROMA_WHITE_BLOCK = createChromaBlock("chroma_white");
 
-    public static final BlockItem MODEL_BLOCK_ITEM = new BlockItem(MODEL_BLOCK, new Item.Properties().id(itemKey("model")).useBlockDescriptionPrefix());
-    public static final GunItem GUN_ITEM = new GunItem(new Item.Properties().id(itemKey("gun")).stacksTo(1));
+    public static final BlockItem MODEL_BLOCK_ITEM = new BlockItem(MODEL_BLOCK, new Item.Properties().setId(itemKey("model")).useBlockDescriptionPrefix());
+    public static final GunItem GUN_ITEM = new GunItem(new Item.Properties().setId(itemKey("gun")).stacksTo(1));
     /* Plain vanilla item on purpose: the region selection it drives lives entirely on the client,
      * so there is nothing for a custom Item subclass to hold (see StructureSelection). */
-    public static final Item STRUCTURE_WAND_ITEM = new Item(new Item.Properties().id(itemKey("structure_wand")).stacksTo(1));
-    public static final BlockItem CHROMA_RED_BLOCK_ITEM = new BlockItem(CHROMA_RED_BLOCK, new Item.Properties().id(itemKey("chroma_red")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_GREEN_BLOCK_ITEM = new BlockItem(CHROMA_GREEN_BLOCK, new Item.Properties().id(itemKey("chroma_green")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_BLUE_BLOCK_ITEM = new BlockItem(CHROMA_BLUE_BLOCK, new Item.Properties().id(itemKey("chroma_blue")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_CYAN_BLOCK_ITEM = new BlockItem(CHROMA_CYAN_BLOCK, new Item.Properties().id(itemKey("chroma_cyan")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_MAGENTA_BLOCK_ITEM = new BlockItem(CHROMA_MAGENTA_BLOCK, new Item.Properties().id(itemKey("chroma_magenta")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_YELLOW_BLOCK_ITEM = new BlockItem(CHROMA_YELLOW_BLOCK, new Item.Properties().id(itemKey("chroma_yellow")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_BLACK_BLOCK_ITEM = new BlockItem(CHROMA_BLACK_BLOCK, new Item.Properties().id(itemKey("chroma_black")).useBlockDescriptionPrefix());
-    public static final BlockItem CHROMA_WHITE_BLOCK_ITEM = new BlockItem(CHROMA_WHITE_BLOCK, new Item.Properties().id(itemKey("chroma_white")).useBlockDescriptionPrefix());
+    public static final Item STRUCTURE_WAND_ITEM = new Item(new Item.Properties().setId(itemKey("structure_wand")).stacksTo(1));
+    public static final BlockItem CHROMA_RED_BLOCK_ITEM = new BlockItem(CHROMA_RED_BLOCK, new Item.Properties().setId(itemKey("chroma_red")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_GREEN_BLOCK_ITEM = new BlockItem(CHROMA_GREEN_BLOCK, new Item.Properties().setId(itemKey("chroma_green")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_BLUE_BLOCK_ITEM = new BlockItem(CHROMA_BLUE_BLOCK, new Item.Properties().setId(itemKey("chroma_blue")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_CYAN_BLOCK_ITEM = new BlockItem(CHROMA_CYAN_BLOCK, new Item.Properties().setId(itemKey("chroma_cyan")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_MAGENTA_BLOCK_ITEM = new BlockItem(CHROMA_MAGENTA_BLOCK, new Item.Properties().setId(itemKey("chroma_magenta")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_YELLOW_BLOCK_ITEM = new BlockItem(CHROMA_YELLOW_BLOCK, new Item.Properties().setId(itemKey("chroma_yellow")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_BLACK_BLOCK_ITEM = new BlockItem(CHROMA_BLACK_BLOCK, new Item.Properties().setId(itemKey("chroma_black")).useBlockDescriptionPrefix());
+    public static final BlockItem CHROMA_WHITE_BLOCK_ITEM = new BlockItem(CHROMA_WHITE_BLOCK, new Item.Properties().setId(itemKey("chroma_white")).useBlockDescriptionPrefix());
 
     public static final GameRule<Boolean> BBS_EDITING_RULE = GameRuleBuilder.forBoolean(true)
         .category(GameRuleCategory.MISC)
@@ -231,22 +231,22 @@ public class BBSMod implements ModInitializer
         FabricBlockEntityTypeBuilder.create(ModelBlockEntity::new, MODEL_BLOCK).build()
     );
 
-    public static final CreativeModeTab ITEM_GROUP = FabricItemGroup.builder()
+    public static final CreativeModeTab ITEM_GROUP = FabricCreativeModeTab.builder()
         .icon(() -> createModelBlockStack(Link.assets("textures/icon.png")))
-        .displayName(Component.translatable("itemGroup.bbs.main"))
-        .entries((context, entries) ->
+        .title(Component.translatable("itemGroup.bbs.main"))
+        .displayItems((context, entries) ->
         {
-            entries.add(createModelBlockStack(Link.assets("textures/model_block.png")));
-            entries.add(CHROMA_RED_BLOCK_ITEM);
-            entries.add(CHROMA_GREEN_BLOCK_ITEM);
-            entries.add(CHROMA_BLUE_BLOCK_ITEM);
-            entries.add(CHROMA_CYAN_BLOCK_ITEM);
-            entries.add(CHROMA_MAGENTA_BLOCK_ITEM);
-            entries.add(CHROMA_YELLOW_BLOCK_ITEM);
-            entries.add(CHROMA_BLACK_BLOCK_ITEM);
-            entries.add(CHROMA_WHITE_BLOCK_ITEM);
-            entries.add(new ItemStack(GUN_ITEM));
-            entries.add(new ItemStack(STRUCTURE_WAND_ITEM));
+            entries.accept(createModelBlockStack(Link.assets("textures/model_block.png")));
+            entries.accept(CHROMA_RED_BLOCK_ITEM);
+            entries.accept(CHROMA_GREEN_BLOCK_ITEM);
+            entries.accept(CHROMA_BLUE_BLOCK_ITEM);
+            entries.accept(CHROMA_CYAN_BLOCK_ITEM);
+            entries.accept(CHROMA_MAGENTA_BLOCK_ITEM);
+            entries.accept(CHROMA_YELLOW_BLOCK_ITEM);
+            entries.accept(CHROMA_BLACK_BLOCK_ITEM);
+            entries.accept(CHROMA_WHITE_BLOCK_ITEM);
+            entries.accept(new ItemStack(GUN_ITEM));
+            entries.accept(new ItemStack(STRUCTURE_WAND_ITEM));
         })
         .build();
 
@@ -256,7 +256,7 @@ public class BBSMod implements ModInitializer
     {
         Identifier id = Identifier.fromNamespaceAndPath(MOD_ID, path);
 
-        return Registry.register(BuiltInRegistries.SOUND_EVENT, id, SoundEvent.create(id));
+        return Registry.register(BuiltInRegistries.SOUND_EVENT, id, SoundEvent.createVariableRangeEvent(id));
     }
 
     private static File worldFolder;
@@ -276,8 +276,8 @@ public class BBSMod implements ModInitializer
 
     private static Block createChromaBlock(String path)
     {
-        return new Block(BlockBehaviour.Settings.of()
-            .id(blockKey(path))
+        return new Block(BlockBehaviour.Properties.of()
+            .setId(blockKey(path))
             .noTerrainParticles()
             .noLootTable()
             .requiresCorrectToolForDrops()
@@ -596,7 +596,7 @@ public class BBSMod implements ModInitializer
 
         ServerLifecycleEvents.SERVER_STARTED.register((event) ->
         {
-            worldFolder = event.getSavePath(LevelResource.ROOT).toFile();
+            worldFolder = event.getWorldPath(LevelResource.ROOT).toFile();
             server = event;
         });
         ServerPlayConnectionEvents.JOIN.register((a, b, c) -> ServerNetwork.sendHandshake(c, b));

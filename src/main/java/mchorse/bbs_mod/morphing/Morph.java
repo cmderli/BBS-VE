@@ -29,7 +29,7 @@ public class Morph
 
     public static Form getMobForm(Player player)
     {
-        HitResult hitResult = RayTracing.rayTraceEntity(player, player.getEntityWorld(), player.getEyePosition(), player.calculateViewVector(), 64);
+        HitResult hitResult = RayTracing.rayTraceEntity(player, player.level(), player.getEyePosition(), player.getLookAngle(), 64);
 
         if (hitResult.getType() == HitResult.Type.ENTITY)
         {
@@ -57,7 +57,7 @@ public class Morph
         }
 
         MobForm form = new MobForm();
-        TagValueOutput view = TagValueOutput.createWithContext(ProblemReporter.DISCARDING);
+        TagValueOutput view = TagValueOutput.createWithoutContext(ProblemReporter.DISCARDING);
 
         target.save(view);
 
@@ -128,7 +128,7 @@ public class Morph
 
         if (this.form != null)
         {
-            compound.store("Form", DataStorageUtils.toNbt(FormUtils.toData(this.form)));
+            compound.put("Form", DataStorageUtils.toNbt(FormUtils.toData(this.form)));
         }
 
         return compound;

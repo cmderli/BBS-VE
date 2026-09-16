@@ -95,10 +95,10 @@ public abstract class ActionClip extends Clip
 
         player.setPos(keyframes.x.interpolate(tick), keyframes.y.interpolate(tick), keyframes.z.interpolate(tick));
         player.setYRot(keyframes.yaw.interpolate(tick).floatValue());
-        player.setHeadYaw(keyframes.headYaw.interpolate(tick).floatValue());
-        player.setBodyYaw(keyframes.bodyYaw.interpolate(tick).floatValue());
+        player.setYHeadRot(keyframes.headYaw.interpolate(tick).floatValue());
+        player.setYBodyRot(keyframes.bodyYaw.interpolate(tick).floatValue());
         player.setXRot(keyframes.pitch.interpolate(tick).floatValue());
-        player.setItemInHand(InteractionHand.MAIN_HAND, keyframes.getMainHandStack(tick).copyFrom());
-        player.setItemInHand(InteractionHand.OFF_HAND, keyframes.offHand.interpolate(tick, ItemStack.EMPTY).copyFrom());
+        player.setItemInHand(InteractionHand.MAIN_HAND, keyframes.getMainHandStack(tick).copy());
+        player.setItemInHand(InteractionHand.OFF_HAND, keyframes.offHand.interpolate(tick, ItemStack.EMPTY).copy());
     }
 }

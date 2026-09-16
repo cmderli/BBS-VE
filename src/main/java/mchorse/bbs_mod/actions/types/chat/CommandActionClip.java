@@ -24,7 +24,7 @@ public class CommandActionClip extends ActionClip
         this.applyPositionRotation(player, replay, tick);
 
         String command = this.command.get();
-        net.minecraft.server.world.ServerLevel world = player.level();
+        net.minecraft.server.level.ServerLevel world = player.level();
         CommandSourceStack source = actor == null
             ? player.createCommandSourceStack()
             : actor.createCommandSourceStackForNameResolution(world);

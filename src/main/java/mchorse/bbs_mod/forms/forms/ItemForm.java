@@ -28,7 +28,7 @@ public class ItemForm extends Form
     @Override
     protected String getDefaultDisplayName()
     {
-        return BuiltInRegistries.ITEM.getId(this.stack.get().getItem()).toString();
+        return BuiltInRegistries.ITEM.getKey(this.stack.get().getItem()).toString();
     }
 
     @Override

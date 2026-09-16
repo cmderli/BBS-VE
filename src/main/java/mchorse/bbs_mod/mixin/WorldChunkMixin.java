@@ -49,7 +49,7 @@ public class WorldChunkMixin
 
             if (blockEntity != null)
             {
-                replaced.set(blockEntity.saveWithFullMetadata(world.getRegistryManager()));
+                replaced.set(blockEntity.saveWithFullMetadata(world.registryAccess()));
             }
         }
     }

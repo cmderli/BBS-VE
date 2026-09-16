@@ -452,14 +452,14 @@ public class ReplayKeyframes extends ValueGroup
         {
             for (int i = 0; i < HOTBAR_SIZE; i++)
             {
-                this.hotbar.get(i).insert(tick, entity.getHotbarStack(i).copyFrom());
+                this.hotbar.get(i).insert(tick, entity.getHotbarStack(i).copy());
             }
 
-            this.offHand.insert(tick, entity.getEquipmentStack(EquipmentSlot.OFFHAND).copyFrom());
-            this.armorHead.insert(tick, entity.getEquipmentStack(EquipmentSlot.HEAD).copyFrom());
-            this.armorChest.insert(tick, entity.getEquipmentStack(EquipmentSlot.CHEST).copyFrom());
-            this.armorLegs.insert(tick, entity.getEquipmentStack(EquipmentSlot.LEGS).copyFrom());
-            this.armorFeet.insert(tick, entity.getEquipmentStack(EquipmentSlot.FEET).copyFrom());
+            this.offHand.insert(tick, entity.getEquipmentStack(EquipmentSlot.OFFHAND).copy());
+            this.armorHead.insert(tick, entity.getEquipmentStack(EquipmentSlot.HEAD).copy());
+            this.armorChest.insert(tick, entity.getEquipmentStack(EquipmentSlot.CHEST).copy());
+            this.armorLegs.insert(tick, entity.getEquipmentStack(EquipmentSlot.LEGS).copy());
+            this.armorFeet.insert(tick, entity.getEquipmentStack(EquipmentSlot.FEET).copy());
             this.selectedSlot.insert(tick, entity.getSelectedSlot());
         }
     }

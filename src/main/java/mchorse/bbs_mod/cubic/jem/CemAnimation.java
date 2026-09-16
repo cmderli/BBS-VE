@@ -504,7 +504,7 @@ public class CemAnimation
             this.parser.setValue("player_pos_y", position.y);
             this.parser.setValue("player_pos_z", position.z);
             this.parser.setValue("player_rot_x", Math.toRadians(player.getViewXRot(transition)));
-            this.parser.setValue("player_rot_y", Math.toRadians(player.getYaw(transition)));
+            this.parser.setValue("player_rot_y", Math.toRadians(player.getViewYRot(transition)));
         }
         else
         {

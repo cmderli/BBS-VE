@@ -58,44 +58,44 @@ public class VanillaSwimPose
                 float sweep = STROKE * curve(phase) / curve(SWEEP_END);
 
                 leftArm.pitch(lerpAngle(leftWeight, leftArm.pitch(), 0F));
-                rightArm.pitch(Mth.lerpInt(rightWeight, rightArm.pitch(), 0F));
+                rightArm.pitch(Mth.lerp(rightWeight, rightArm.pitch(), 0F));
                 leftArm.yaw(lerpAngle(leftWeight, leftArm.yaw(), PI));
-                rightArm.yaw(Mth.lerpInt(rightWeight, rightArm.yaw(), PI));
+                rightArm.yaw(Mth.lerp(rightWeight, rightArm.yaw(), PI));
                 leftArm.roll(lerpAngle(leftWeight, leftArm.roll(), PI + sweep));
-                rightArm.roll(Mth.lerpInt(rightWeight, rightArm.roll(), PI - sweep));
+                rightArm.roll(Mth.lerp(rightWeight, rightArm.roll(), PI - sweep));
             }
             else if (phase < REACH_END)
             {
                 float reach = (phase - SWEEP_END) / 8F;
 
                 leftArm.pitch(lerpAngle(leftWeight, leftArm.pitch(), QUARTER_TURN * reach));
-                rightArm.pitch(Mth.lerpInt(rightWeight, rightArm.pitch(), QUARTER_TURN * reach));
+                rightArm.pitch(Mth.lerp(rightWeight, rightArm.pitch(), QUARTER_TURN * reach));
                 leftArm.yaw(lerpAngle(leftWeight, leftArm.yaw(), PI));
-                rightArm.yaw(Mth.lerpInt(rightWeight, rightArm.yaw(), PI));
+                rightArm.yaw(Mth.lerp(rightWeight, rightArm.yaw(), PI));
                 leftArm.roll(lerpAngle(leftWeight, leftArm.roll(), LEFT_REACH - STROKE * reach));
-                rightArm.roll(Mth.lerpInt(rightWeight, rightArm.roll(), RIGHT_REACH + STROKE * reach));
+                rightArm.roll(Mth.lerp(rightWeight, rightArm.roll(), RIGHT_REACH + STROKE * reach));
             }
             else
             {
                 float close = (phase - REACH_END) / 4F;
 
                 leftArm.pitch(lerpAngle(leftWeight, leftArm.pitch(), QUARTER_TURN - QUARTER_TURN * close));
-                rightArm.pitch(Mth.lerpInt(rightWeight, rightArm.pitch(), QUARTER_TURN - QUARTER_TURN * close));
+                rightArm.pitch(Mth.lerp(rightWeight, rightArm.pitch(), QUARTER_TURN - QUARTER_TURN * close));
                 leftArm.yaw(lerpAngle(leftWeight, leftArm.yaw(), PI));
-                rightArm.yaw(Mth.lerpInt(rightWeight, rightArm.yaw(), PI));
+                rightArm.yaw(Mth.lerp(rightWeight, rightArm.yaw(), PI));
                 leftArm.roll(lerpAngle(leftWeight, leftArm.roll(), PI));
-                rightArm.roll(Mth.lerpInt(rightWeight, rightArm.roll(), PI));
+                rightArm.roll(Mth.lerp(rightWeight, rightArm.roll(), PI));
             }
         }
 
         if (leftLeg != null)
         {
-            leftLeg.pitch(Mth.lerpInt(leaningPitch, leftLeg.pitch(), KICK_DEPTH * Mth.cos(limbPhase * KICK_RATE + PI)));
+            leftLeg.pitch(Mth.lerp(leaningPitch, leftLeg.pitch(), KICK_DEPTH * Mth.cos(limbPhase * KICK_RATE + PI)));
         }
 
         if (rightLeg != null)
         {
-            rightLeg.pitch(Mth.lerpInt(leaningPitch, rightLeg.pitch(), KICK_DEPTH * Mth.cos(limbPhase * KICK_RATE)));
+            rightLeg.pitch(Mth.lerp(leaningPitch, rightLeg.pitch(), KICK_DEPTH * Mth.cos(limbPhase * KICK_RATE)));
         }
     }
 

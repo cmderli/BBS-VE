@@ -64,7 +64,7 @@ public class StructureSaver
 
             /* Stamped the way the vanilla manager stamps its own, so a file written here is the
              * same file a structure block would have written and reads back everywhere. */
-            NbtUtils.addDataVersion(nbt);
+            NbtUtils.addCurrentDataVersion(nbt);
 
             file.getParentFile().mkdirs();
             NbtIo.writeCompressed(nbt, file.toPath());
@@ -132,7 +132,7 @@ public class StructureSaver
             {
                 for (int z = minZ; z <= maxZ; z++)
                 {
-                    pos.setWithOffset(x, y, z);
+                    pos.set(x, y, z);
 
                     if (world.getBlockState(pos).isAir())
                     {
@@ -146,7 +146,7 @@ public class StructureSaver
                         inventory.clearContent();
                     }
 
-                    world.setBlockAndUpdate(pos, air, flags);
+                    world.setBlock(pos, air, flags);
                     cleared += 1;
                 }
             }

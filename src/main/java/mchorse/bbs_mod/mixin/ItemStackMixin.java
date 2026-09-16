@@ -27,7 +27,7 @@ public class ItemStackMixin
             {
                 UseItemActionClip clip = new UseItemActionClip();
 
-                clip.itemStack.set(user.getItemInHand(hand).copyFrom());
+                clip.itemStack.set(user.getItemInHand(hand).copy());
                 clip.hand.set(hand == InteractionHand.MAIN_HAND);
 
                 return clip;
@@ -45,7 +45,7 @@ public class ItemStackMixin
                 UseBlockItemActionClip clip = new UseBlockItemActionClip();
 
                 clip.hit.setHitResult(context);
-                clip.itemStack.set(context.getItemInHand().copyFrom());
+                clip.itemStack.set(context.getItemInHand().copy());
                 clip.hand.set(context.getHand() == InteractionHand.MAIN_HAND);
 
                 return clip;

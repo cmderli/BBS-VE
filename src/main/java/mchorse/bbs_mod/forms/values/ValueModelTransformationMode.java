@@ -15,7 +15,7 @@ public class ValueModelTransformationMode extends BaseValueBasic<ItemDisplayCont
     @Override
     public BaseType toData()
     {
-        return new StringType((this.value == null ? ItemDisplayContext.NONE : this.value).asString());
+        return new StringType((this.value == null ? ItemDisplayContext.NONE : this.value).getSerializedName());
     }
 
     @Override
@@ -27,7 +27,7 @@ public class ValueModelTransformationMode extends BaseValueBasic<ItemDisplayCont
 
         for (ItemDisplayContext value : ItemDisplayContext.values())
         {
-            if (value.asString().equals(string))
+            if (value.getSerializedName().equals(string))
             {
                 this.set(value);
 

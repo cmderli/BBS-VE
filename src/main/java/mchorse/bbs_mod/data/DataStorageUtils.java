@@ -207,7 +207,7 @@ public class DataStorageUtils
 
                 if (converted != null)
                 {
-                    compound.store(key, converted);
+                    compound.put(key, converted);
                 }
             }
 
@@ -281,7 +281,7 @@ public class DataStorageUtils
 
             for (String key : nbtCompound.keySet())
             {
-                BaseType converted = fromNbt(nbtCompound.read(key));
+                BaseType converted = fromNbt(nbtCompound.get(key));
 
                 if (converted != null)
                 {
@@ -297,12 +297,12 @@ public class DataStorageUtils
 
     public static void writeToNbtCompound(CompoundTag compound, String key, BaseType data)
     {
-        compound.store(key, DataStorageUtils.toNbt(data));
+        compound.put(key, DataStorageUtils.toNbt(data));
     }
 
     public static BaseType readFromNbtCompound(CompoundTag compound, String key)
     {
-        BaseType baseType = DataStorageUtils.fromNbt(compound.read(key));
+        BaseType baseType = DataStorageUtils.fromNbt(compound.get(key));
 
         if (baseType != null)
         {

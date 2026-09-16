@@ -35,11 +35,11 @@ public class RayTracing
 
     public static BlockHitResult rayTrace(Level world, Vec3 pos, Vec3 direction, double d)
     {
-        return world.traverseBlocks(new ClipContext(
+        return world.clip(new ClipContext(
             pos,
-            pos.atLowerCornerWithOffset(direction.normalize().scale(d)),
-            ClipContext.ShapeType.COLLIDER,
-            ClipContext.FluidHandling.NONE,
+            pos.add(direction.normalize().scale(d)),
+            ClipContext.Block.COLLIDER,
+            ClipContext.Fluid.NONE,
             CollisionContext.empty()
         ));
     }
@@ -68,7 +68,7 @@ public class RayTracing
 
         double dist1 = blockHit != null ? blockHit.getLocation().distanceToSqr(pos) : d * d;
         Vec3 dir = direction.normalize();
-        Vec3 posDir = pos.atLowerCornerWithOffset(dir.x * d, dir.y * d, dir.z * d);
+        Vec3 posDir = pos.add(dir.x * d, dir.y * d, dir.z * d);
         AABB box = new AABB(pos.x - 0.5D, pos.y - 0.5D, pos.z - 0.5D, pos.x + 0.5D, pos.y + 0.5D, pos.z + 0.5D)
             .expandTowards(dir.scale(d))
             .inflate(1D, 1D, 1D);

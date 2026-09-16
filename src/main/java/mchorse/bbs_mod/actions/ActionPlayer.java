@@ -120,20 +120,20 @@ public class ActionPlayer
 
         for (int i = 0; i < ReplayKeyframes.HOTBAR_SIZE; i++)
         {
-            this.cachedHotbar.add(inventory.getStack(i).copyFrom());
+            this.cachedHotbar.add(inventory.getItem(i).copy());
 
             /* Cells the replay says nothing about are left to the world during playback (see
              * ReplayKeyframes#applyEquipment), but they're still emptied once - otherwise the
              * player's own things would wander into frame. */
             if (!keyframes.drivesHotbarSlot(i))
             {
-                inventory.setStack(i, ItemStack.EMPTY);
+                inventory.setItem(i, ItemStack.EMPTY);
             }
         }
 
         for (EquipmentSlot slot : BORROWED_SLOTS)
         {
-            this.cachedEquipment.put(slot, this.serverPlayer.getItemBySlot(slot).copyFrom());
+            this.cachedEquipment.put(slot, this.serverPlayer.getItemBySlot(slot).copy());
 
             if (keyframes.getEquipmentChannel(slot).isEmpty())
             {
@@ -151,7 +151,7 @@ public class ActionPlayer
 
         for (int i = 0; i < this.cachedHotbar.size(); i++)
         {
-            inventory.setStack(i, this.cachedHotbar.get(i));
+            inventory.setItem(i, this.cachedHotbar.get(i));
         }
 
         for (Map.Entry<EquipmentSlot, ItemStack> entry : this.cachedEquipment.entrySet())
@@ -221,7 +221,7 @@ public class ActionPlayer
 
         for (LivingEntity entity : previous.values())
         {
-            if (!entity.isPlayer())
+            if (!entity.isAlwaysTicking())
             {
                 if (entity instanceof ActorEntity actor)
                 {
@@ -244,14 +244,14 @@ public class ActionPlayer
         actor.setForm(FormUtils.copy(replay.form.get()));
 
         this.apply(actor, replay, this.tick, false);
-        this.world.spawnEntity(actor);
+        this.world.addFreshEntity(actor);
 
         return actor;
     }
 
     private void broadcastActors()
     {
-        for (ServerPlayer player : this.world.getPlayers())
+        for (ServerPlayer player : this.world.players())
         {
             ServerNetwork.sendActors(player, this.film.getId(), this.actors);
         }
@@ -278,7 +278,7 @@ public class ActionPlayer
         {
             LivingEntity actor = entry.getValue();
 
-            if (!actor.isPlayer() && actor.isRemoved())
+            if (!actor.isAlwaysTicking() && actor.isRemoved())
             {
                 if (lost == null)
                 {
@@ -326,7 +326,7 @@ public class ActionPlayer
      */
     public boolean isPlayedBy(ServerPlayer player)
     {
-        return this.serverPlayer != null && player != null && this.serverPlayer.getUuid().equals(player.getUuid());
+        return this.serverPlayer != null && player != null && this.serverPlayer.getUUID().equals(player.getUUID());
     }
 
     /** The same person, but the entity they are now - a respawn replaces the object entirely. */
@@ -337,7 +337,7 @@ public class ActionPlayer
             return;
         }
 
-        ServerPlayer live = this.world.getServer().getPlayerList().getPlayerByName(this.serverPlayer.getUuid());
+        ServerPlayer live = this.world.getServer().getPlayerList().getPlayer(this.serverPlayer.getUUID());
 
         if (live != null)
         {
@@ -360,7 +360,7 @@ public class ActionPlayer
         float yawBody = replay.keyframes.bodyYaw.interpolate(tick).floatValue();
         float pitch = replay.keyframes.pitch.interpolate(tick).floatValue();
 
-        Vec3 pos = actor.getEntityPos();
+        Vec3 pos = actor.position();
         boolean grounded = replay.keyframes.grounded.interpolate(tick) > 0;
 
         if (ticking)
@@ -374,9 +374,9 @@ public class ActionPlayer
 
         actor.setPos(x, y, z);
         actor.setYRot(yawHead);
-        actor.setHeadYaw(yawHead);
+        actor.setYHeadRot(yawHead);
         actor.setXRot(pitch);
-        actor.setBodyYaw(yawBody);
+        actor.setYBodyRot(yawBody);
         boolean sneaking = EntityState.isOn(replay.keyframes.state(EntityState.SNEAKING).interpolate(tick));
         boolean swimming = EntityState.isOn(replay.keyframes.state(EntityState.SWIMMING).interpolate(tick));
         boolean gliding = EntityState.isOn(replay.keyframes.state(EntityState.GLIDING).interpolate(tick));
@@ -622,7 +622,7 @@ public class ActionPlayer
 
         for (LivingEntity value : this.actors.values())
         {
-            if (!value.isPlayer())
+            if (!value.isAlwaysTicking())
             {
                 /* Before the body goes: what it swept up during the take is the world's, not the
                  * film's, and this is the last moment there is anywhere to put it back. */

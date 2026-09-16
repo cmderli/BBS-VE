@@ -32,9 +32,9 @@ public class DamageActionClip extends ActionClip
 
         if (actor != null)
         {
-            net.minecraft.server.world.ServerLevel world = player.level();
+            net.minecraft.server.level.ServerLevel world = player.level();
 
-            actor.damage(world, world.damageSources().mobAttack(player), damage);
+            actor.hurtServer(world, world.damageSources().mobAttack(player), damage);
         }
     }
 

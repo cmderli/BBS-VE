@@ -87,7 +87,7 @@ public class FilmLegacy
 
             if (!stack.isEmpty())
             {
-                keyframes.hotbar.get(i).insert(0, stack.copyFrom());
+                keyframes.hotbar.get(i).insert(0, stack.copy());
             }
         }
 
@@ -108,7 +108,7 @@ public class FilmLegacy
 
             if (!ItemStack.matches(hotbar[slot], stack))
             {
-                keyframes.hotbar.get(slot).insert(tick, stack.copyFrom());
+                keyframes.hotbar.get(slot).insert(tick, stack.copy());
 
                 hotbar[slot] = stack;
             }
@@ -142,7 +142,7 @@ public class FilmLegacy
 
             if (!stack.isEmpty())
             {
-                channel.insert(0, stack.copyFrom());
+                channel.insert(0, stack.copy());
             }
         }
     }

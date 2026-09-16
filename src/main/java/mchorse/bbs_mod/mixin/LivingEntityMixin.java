@@ -73,8 +73,8 @@ public class LivingEntityMixin
 
             boolean mainHand = player.getUsedItemHand() == InteractionHand.MAIN_HAND;
             int charge = active.getUseDuration(player) - player.getUseItemRemainingTicks();
-            ItemStack stack = active.copyFrom();
-            ItemStack recordedProjectile = player.getProjectileType(active).copyFrom();
+            ItemStack stack = active.copy();
+            ItemStack recordedProjectile = player.getProjectile(active).copy();
 
             /* Creative players shoot without ammo and vanilla substitutes a
              * plain arrow, but the fake player has no creative mode - so the

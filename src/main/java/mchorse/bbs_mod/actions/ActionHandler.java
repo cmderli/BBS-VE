@@ -21,7 +21,7 @@ public class ActionHandler
     {
         ServerMessageEvents.CHAT_MESSAGE.register((PlayerChatMessage message, ServerPlayer sender, ChatType.Bound params) ->
         {
-            String literalString = message.getContent().tryCollapseToString();
+            String literalString = message.decoratedContent().tryCollapseToString();
 
             if (literalString != null)
             {

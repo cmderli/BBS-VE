@@ -111,12 +111,12 @@ public class ContainerLid
 
     private static void playSound(Level world, double x, double y, double z, SoundEvent sound)
     {
-        world.playSeededSound(null, x, y, z, sound, SoundSource.BLOCKS, 0.5F, world.getRandom().nextFloat() * 0.1F + 0.9F);
+        world.playSound(null, x, y, z, sound, SoundSource.BLOCKS, 0.5F, world.getRandom().nextFloat() * 0.1F + 0.9F);
     }
 
     /** A chest block entity doesn't have to sit in a vanilla chest block. */
     private static ChestType chestType(BlockState state)
     {
-        return state.hasProperty(ChestBlock.TYPE) ? state.getValueOrElse(ChestBlock.TYPE) : ChestType.SINGLE;
+        return state.hasProperty(ChestBlock.TYPE) ? state.getValue(ChestBlock.TYPE) : ChestType.SINGLE;
     }
 }

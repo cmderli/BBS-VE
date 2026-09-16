@@ -24,7 +24,7 @@ public class BlockForm extends Form
     @Override
     protected String getDefaultDisplayName()
     {
-        return BuiltInRegistries.BLOCK.getId(this.blockState.get().getBlock()).toString();
+        return BuiltInRegistries.BLOCK.getKey(this.blockState.get().getBlock()).toString();
     }
 
     @Override

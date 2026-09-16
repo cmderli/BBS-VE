@@ -34,7 +34,7 @@ public class UseBlockItemActionClip extends ItemActionClip
     public void applyAction(LivingEntity actor, SuperFakePlayer player, Film film, Replay replay, int tick)
     {
         InteractionHand hand = this.hand.get() ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
-        ItemStack copy = this.itemStack.get().copyFrom();
+        ItemStack copy = this.itemStack.get().copy();
 
         GunItem.actor = actor;
 

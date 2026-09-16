@@ -49,7 +49,7 @@ public class MCEntity implements IEntity
     @Override
     public Level getWorld()
     {
-        return this.mcEntity.getEntityWorld();
+        return this.mcEntity.level();
     }
 
     @Override
@@ -93,7 +93,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living && !ItemStack.matches(living.getItemBySlot(slot), stack))
         {
-            living.setItemSlot(slot, stack == null ? ItemStack.EMPTY : stack.copyFrom());
+            living.setItemSlot(slot, stack == null ? ItemStack.EMPTY : stack.copy());
         }
     }
 
@@ -102,7 +102,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof Player player)
         {
-            return player.getInventory().getStack(slot);
+            return player.getInventory().getItem(slot);
         }
 
         /* Mobs and actors have no hotbar, and their selected slot is 0 - so their main hand
@@ -120,9 +120,9 @@ public class MCEntity implements IEntity
 
         if (this.mcEntity instanceof Player player)
         {
-            if (!ItemStack.matches(player.getInventory().getStack(slot), stack))
+            if (!ItemStack.matches(player.getInventory().getItem(slot), stack))
             {
-                player.getInventory().setStack(slot, stack.copyFrom());
+                player.getInventory().setItem(slot, stack.copy());
             }
         }
         else if (slot == 0)
@@ -422,7 +422,7 @@ public class MCEntity implements IEntity
     @Override
     public boolean isSwinging()
     {
-        return this.mcEntity instanceof LivingEntity living && living.handSwinging;
+        return this.mcEntity instanceof LivingEntity living && living.swinging;
     }
 
     @Override
@@ -434,13 +434,13 @@ public class MCEntity implements IEntity
     @Override
     public float getForwardSpeed()
     {
-        return this.mcEntity instanceof LivingEntity living ? living.forwardSpeed : 0F;
+        return this.mcEntity instanceof LivingEntity living ? living.zza : 0F;
     }
 
     @Override
     public float getSidewaysSpeed()
     {
-        return this.mcEntity instanceof LivingEntity living ? living.sidewaysSpeed : 0F;
+        return this.mcEntity instanceof LivingEntity living ? living.xxa : 0F;
     }
 
     @Override
@@ -524,7 +524,7 @@ public class MCEntity implements IEntity
     @Override
     public float getYaw()
     {
-        return this.mcEntity.getViewYRot();
+        return this.mcEntity.getYRot();
     }
 
     @Override
@@ -550,10 +550,10 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            return living.getHeadYaw();
+            return living.getYHeadRot();
         }
 
-        return this.mcEntity.getViewYRot();
+        return this.mcEntity.getYRot();
     }
 
     @Override
@@ -561,7 +561,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            return living.lastHeadYaw;
+            return living.yHeadRotO;
         }
 
         return this.mcEntity.yRotO;
@@ -578,14 +578,14 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            living.lastHeadYaw = prevHeadYaw;
+            living.yHeadRotO = prevHeadYaw;
         }
     }
 
     @Override
     public float getPitch()
     {
-        return this.mcEntity.getViewXRot();
+        return this.mcEntity.getXRot();
     }
 
     @Override
@@ -611,7 +611,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            return living.bodyYaw;
+            return living.yBodyRot;
         }
 
         return this.getHeadYaw();
@@ -622,7 +622,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            return living.lastBodyYaw;
+            return living.yBodyRotO;
         }
 
         return this.getPrevHeadYaw();
@@ -645,7 +645,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            living.lastBodyYaw = prevBodyYaw;
+            living.yBodyRotO = prevBodyYaw;
         }
     }
 
@@ -696,7 +696,7 @@ public class MCEntity implements IEntity
     {
         if (this.mcEntity instanceof LivingEntity living)
         {
-            return living.limbAnimator;
+            return living.walkAnimation;
         }
 
         return null;

@@ -65,9 +65,9 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
         super(settings);
 
         this.registerDefaultState(defaultBlockState()
-            .setValueInternal(BlockStateProperties.WATERLOGGED, false)
-            .setValueInternal(LIGHT_LEVEL, 0)
-            .setValueInternal(SOUND, ModelBlockSound.STONE));
+            .setValue(BlockStateProperties.WATERLOGGED, false)
+            .setValue(LIGHT_LEVEL, 0)
+            .setValue(SOUND, ModelBlockSound.STONE));
     }
 
     @Override
@@ -93,12 +93,12 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
 
         ModelBody body = model.getProperties().getBody();
         BlockState updated = state
-            .setValueInternal(LIGHT_LEVEL, body.getLightLevel())
-            .setValueInternal(SOUND, body.getSound());
+            .setValue(LIGHT_LEVEL, body.getLightLevel())
+            .setValue(SOUND, body.getSound());
 
         if (updated != state)
         {
-            world.setBlockAndUpdate(pos, updated, Block.UPDATE_ALL);
+            world.setBlock(pos, updated, Block.UPDATE_ALL);
         }
     }
 
@@ -111,7 +111,7 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     /* Shape (the block's hitbox is authored per block in its body settings) */
 
     @Override
-    public VoxelShape getOutlineShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
+    public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
         VoxelShape shape = model == null ? Shapes.block() : model.getShape();
@@ -141,7 +141,7 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     }
 
     @Override
-    public VoxelShape getCameraCollisionShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
+    public VoxelShape getVisualShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
 
@@ -154,9 +154,9 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     }
 
     @Override
-    public SoundType getSoundGroup(BlockState state)
+    public SoundType getSoundType(BlockState state)
     {
-        return state.getValueOrElse(SOUND).group;
+        return state.getValue(SOUND).group;
     }
 
     /**
@@ -166,7 +166,7 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
      * (the server steps its own break progress), fed by the synced entity.
      */
     @Override
-    public float calcBlockBreakingDelta(BlockState state, Player player, BlockGetter world, BlockPos pos)
+    public float getDestroyProgress(BlockState state, Player player, BlockGetter world, BlockPos pos)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
         float hardness = model == null ? 0F : model.getProperties().getBody().getHardness();
@@ -200,11 +200,11 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     public BlockState getStateForPlacement(BlockPlaceContext ctx)
     {
         return this.defaultBlockState()
-            .setValueInternal(BlockStateProperties.WATERLOGGED, ctx.getLevel().getFluidState(ctx.getBlockPos()).is(Fluids.WATER));
+            .setValue(BlockStateProperties.WATERLOGGED, ctx.getLevel().getFluidState(ctx.getClickedPos()).is(Fluids.WATER));
     }
 
     @Override
-    public ItemStack getPickStack(LevelReader world, BlockPos pos, BlockState state, boolean includeData)
+    public ItemStack getCloneItemStack(LevelReader world, BlockPos pos, BlockState state, boolean includeData)
     {
         BlockEntity entity = world.getBlockEntity(pos);
 
@@ -221,13 +221,13 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     }
 
     @Override
-    public RenderShape getRenderType(BlockState state)
+    public RenderShape getRenderShape(BlockState state)
     {
         return RenderShape.INVISIBLE;
     }
 
     @Override
-    public boolean isTransparent(BlockState state)
+    public boolean propagatesSkylightDown(BlockState state)
     {
         return true;
     }
@@ -252,7 +252,7 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     }
 
     @Override
-    public InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit)
+    public InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit)
     {
         if (player instanceof ServerPlayer serverPlayer)
         {
@@ -267,7 +267,7 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
     @Override
     public FluidState getFluidState(BlockState state)
     {
-        return state.getValueOrElse(BlockStateProperties.WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
+        return state.getValue(BlockStateProperties.WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
     }
 
     @Override
@@ -279,7 +279,7 @@ public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedB
             {
                 ItemStack stack = new ItemStack(this);
 
-                stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(BBSMod.MODEL_BLOCK_ENTITY, model.saveWithoutMetadata(world.getRegistryManager())));
+                stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(BBSMod.MODEL_BLOCK_ENTITY, model.saveWithoutMetadata(world.registryAccess())));
 
                 Containers.dropContents(world, pos, NonNullList.withSize(1, stack));
             }

@@ -225,7 +225,7 @@ public class ProceduralAnimator implements IAnimator
                     {
                         float newPitch = target.isTouchingWater() ? -90F - pitch : -90F;
 
-                        group.current.rotate.x = Mth.lerpInt(leaningPitch, 0F, newPitch);
+                        group.current.rotate.x = Mth.lerp(leaningPitch, 0F, newPitch);
 
                         if (target.getEntityPose() == Pose.SWIMMING)
                         {
@@ -432,7 +432,7 @@ public class ProceduralAnimator implements IAnimator
                     {
                         float newPitch = target.isTouchingWater() ? -90F - pitch : -90F;
 
-                        bone.transform.rotate.x = MathUtils.toRad(Mth.lerpInt(leaningPitch, 0F, newPitch));
+                        bone.transform.rotate.x = MathUtils.toRad(Mth.lerp(leaningPitch, 0F, newPitch));
 
                         if (target.getEntityPose() == Pose.SWIMMING)
                         {

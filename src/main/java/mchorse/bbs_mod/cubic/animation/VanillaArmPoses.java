@@ -196,7 +196,7 @@ public class VanillaArmPoses
         float used = Mth.clamp(use == null ? 0F : use.elapsed(), 0F, pullTime);
         float progress = used / pullTime;
 
-        other.yaw(Mth.lerpInt(progress, 0.4F, 0.85F) * (rightSide ? 1F : -1F));
-        other.pitch(Mth.lerpInt(progress, other.pitch(), -1.5707964F));
+        other.yaw(Mth.lerp(progress, 0.4F, 0.85F) * (rightSide ? 1F : -1F));
+        other.pitch(Mth.lerp(progress, other.pitch(), -1.5707964F));
     }
 }

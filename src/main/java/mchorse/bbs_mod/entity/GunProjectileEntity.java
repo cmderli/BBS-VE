@@ -63,7 +63,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
 
     private void impact()
     {
-        if (this.getEntityWorld().isClientSide())
+        if (this.level().isClientSide())
         {
             return;
         }
@@ -85,14 +85,14 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
 
     private void executeCommand(String command)
     {
-        if (!command.isEmpty() && this.getEntityWorld() instanceof ServerLevel serverWorld)
+        if (!command.isEmpty() && this.level() instanceof ServerLevel serverWorld)
         {
             serverWorld.getServer().getCommands().performPrefixedCommand(this.createCommandSourceStackForNameResolution(serverWorld).withSuppressedOutput(), command);
         }
     }
 
     @Override
-    protected void initDataTracker(net.minecraft.entity.data.SynchedEntityData.Builder builder)
+    protected void defineSynchedData(net.minecraft.network.syncher.SynchedEntityData.Builder builder)
     {}
 
     public GunProperties getProperties()
@@ -135,7 +135,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
     }
 
     @Override
-    public boolean shouldRender(double distance)
+    public boolean shouldRenderAtSqrDistance(double distance)
     {
         return true;
     }
@@ -152,7 +152,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
             this.form.update(this.getFormEntity());
         }
 
-        if (!this.getEntityWorld().isClientSide())
+        if (!this.level().isClientSide())
         {
             this.lifeLeft += 1;
 
@@ -177,12 +177,12 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
             this.setYRot(MathUtils.toDeg((float) Mth.atan2(v.x, v.z)));
             this.setXRot(MathUtils.toDeg((float) Mth.atan2(v.y, v.horizontalDistance())));
 
-            this.yRotO = this.getViewYRot();
-            this.xRotO = this.getViewXRot();
+            this.yRotO = this.getYRot();
+            this.xRotO = this.getXRot();
         }
 
-        BlockPos blockPos = this.getBlockPos();
-        BlockState blockState = this.getEntityWorld().getBlockState(blockPos);
+        BlockPos blockPos = this.blockPosition();
+        BlockState blockState = this.level().getBlockState(blockPos);
         Vec3 pos;
 
         if (this.isInWaterOrRain() || blockState.is(Blocks.POWDER_SNOW))
@@ -199,18 +199,18 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
         }
         else
         {
-            Vec3 oldPos = this.getEntityPos();
+            Vec3 oldPos = this.position();
 
-            pos = oldPos.atLowerCornerWithOffset(v);
+            pos = oldPos.add(v);
 
-            HitResult hitResult = ProjectileUtil.getHitResult(this, this::canHit, ClipContext.ShapeType.COLLIDER);
+            HitResult hitResult = ProjectileUtil.getHitResultOnMoveVector(this, this::canHitEntity, ClipContext.Block.COLLIDER);
 
             if (hitResult.getType() != HitResult.Type.MISS)
             {
                 pos = hitResult.getLocation();
             }
 
-            EntityHitResult entityHitResult = ProjectileUtil.getEntityHitResult(this.getEntityWorld(), this, oldPos, pos, this.getBoundingBox().expandTowards(this.getDeltaMovement()).inflate(1.0), this::canHit);
+            EntityHitResult entityHitResult = ProjectileUtil.getEntityHitResult(this.level(), this, oldPos, pos, this.getBoundingBox().expandTowards(this.getDeltaMovement()).inflate(1.0), this::canHitEntity);
 
             if (entityHitResult != null)
             {
@@ -237,8 +237,8 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
 
             this.setYRot(MathUtils.toDeg((float) Mth.atan2(v.x, v.z)));
             this.setXRot(MathUtils.toDeg((float) Mth.atan2(v.y, d)));
-            this.setXRot(lerpRotation(this.xRotO, this.getViewXRot()));
-            this.setYRot(lerpRotation(this.yRotO, this.getViewYRot()));
+            this.setXRot(lerpRotation(this.xRotO, this.getXRot()));
+            this.setYRot(lerpRotation(this.yRotO, this.getYRot()));
 
             float friction = this.properties.friction;
             float gravity = this.properties.gravity;
@@ -249,7 +249,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
                 {
                     float hitbox = 0.25F;
 
-                    this.getEntityWorld().addParticle(ParticleTypes.BUBBLE, x - v.x * hitbox, y - v.y * hitbox, z - v.z * hitbox, v.x, v.y, v.z);
+                    this.level().addParticle(ParticleTypes.BUBBLE, x - v.x * hitbox, y - v.y * hitbox, z - v.z * hitbox, v.x, v.y, v.z);
                 }
 
                 friction = 0.6F;
@@ -274,7 +274,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
 
     private boolean shouldFall()
     {
-        return this.stuck && this.getEntityWorld().noCollision((new AABB(this.getEntityPos(), this.getEntityPos())).inflate(0.06));
+        return this.stuck && this.level().noCollision((new AABB(this.position(), this.position())).inflate(0.06));
     }
 
     private void fall()
@@ -283,7 +283,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
 
         this.stuck = false;
 
-        this.setDeltaMovement(v.scale(this.random.nextFloat() * 0.2F, this.random.nextFloat() * 0.2F, this.random.nextFloat() * 0.2F));
+        this.setDeltaMovement(v.multiply(this.random.nextFloat() * 0.2F, this.random.nextFloat() * 0.2F, this.random.nextFloat() * 0.2F));
     }
 
     public void move(MoverType movementType, Vec3 movement)
@@ -301,7 +301,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
     {
         super.onHitEntity(entityHitResult);
 
-        if (this.getEntityWorld().isClientSide() || this.properties.damage <= 0F)
+        if (this.level().isClientSide() || this.properties.damage <= 0F)
         {
             return;
         }
@@ -314,14 +314,14 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
         DamageSource source = this.damageSources().magic();
 
         int fireTicks = entity.getRemainingFireTicks();
-        boolean deflectsArrows = entity.getType().is(EntityTypeTags.DEFLECTS_PROJECTILES);
+        boolean deflectsArrows = entity.is(EntityTypeTags.DEFLECTS_PROJECTILES);
 
         if (this.isOnFire() && !deflectsArrows)
         {
             entity.igniteForSeconds(5);
         }
 
-        if (entity.hurtServer((ServerLevel) this.getEntityWorld(), source, (float) damage))
+        if (entity.hurtServer((ServerLevel) this.level(), source, (float) damage))
         {
             if (entity instanceof LivingEntity livingEntity)
             {
@@ -347,7 +347,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
         {
             entity.setRemainingFireTicks(fireTicks);
             this.setDeltaMovement(this.getDeltaMovement().scale(-0.1D));
-            this.setYRot(this.getViewYRot() + 180F);
+            this.setYRot(this.getYRot() + 180F);
 
             this.yRotO += 180F;
         }
@@ -358,7 +358,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
         float random = this.random.nextFloat() * 360F;
 
         this.setDeltaMovement(this.getDeltaMovement().yRot(MathUtils.toRad(random)).scale(0.5D));
-        this.setYRot(this.getViewYRot() + random);
+        this.setYRot(this.getYRot() + random);
 
         this.yRotO += random;
     }
@@ -378,13 +378,13 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
 
             float damp = this.properties.bounceDamping;
 
-            if (blockHitResult.getDirection().getAxis() == Direction.Axis.X) velocity = velocity.scale(-damp, damp, damp);
-            if (blockHitResult.getDirection().getAxis() == Direction.Axis.Y) velocity = velocity.scale(damp, -damp, damp);
-            if (blockHitResult.getDirection().getAxis() == Direction.Axis.Z) velocity = velocity.scale(damp, damp, -damp);
+            if (blockHitResult.getDirection().getAxis() == Direction.Axis.X) velocity = velocity.multiply(-damp, damp, damp);
+            if (blockHitResult.getDirection().getAxis() == Direction.Axis.Y) velocity = velocity.multiply(damp, -damp, damp);
+            if (blockHitResult.getDirection().getAxis() == Direction.Axis.Z) velocity = velocity.multiply(damp, damp, -damp);
         }
         else
         {
-            this.stuckBlockState = this.getEntityWorld().getBlockState(blockHitResult.getBlockPos());
+            this.stuckBlockState = this.level().getBlockState(blockHitResult.getBlockPos());
             this.stuck = true;
 
             if (this.properties.vanish)
@@ -414,9 +414,9 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
     }
 
     @Override
-    protected Entity.MovementEmission getMoveEffect()
+    protected Entity.MovementEmission getMovementEmission()
     {
-        return MoveEffect.NONE;
+        return Entity.MovementEmission.NONE;
     }
 
     @Override
@@ -426,7 +426,7 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
     }
 
     @Override
-    public void onStartedTrackingBy(ServerPlayer player)
+    public void startSeenByPlayer(ServerPlayer player)
     {
         super.startSeenByPlayer(player);
         ServerNetwork.sendEntityForm(player, this);
@@ -434,16 +434,16 @@ public class GunProjectileEntity extends Projectile implements IEntityFormProvid
     }
 
     @Override
-    public void readCustomData(ValueInput view)
+    public void readAdditionalSaveData(ValueInput view)
     {
-        super.readCustomData(view);
+        super.readAdditionalSaveData(view);
         this.despawn = view.getBooleanOr("despawn", false);
     }
 
     @Override
-    public void writeCustomData(ValueOutput view)
+    public void addAdditionalSaveData(ValueOutput view)
     {
-        super.writeCustomData(view);
+        super.addAdditionalSaveData(view);
         view.putBoolean("despawn", true);
     }
 }

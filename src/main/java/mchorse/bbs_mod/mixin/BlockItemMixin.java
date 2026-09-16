@@ -23,7 +23,7 @@ public class BlockItemMixin
             BBSMod.getActions().addAction(player, () ->
             {
                 PlaceBlockActionClip clip = new PlaceBlockActionClip();
-                BlockPos pos = context.getBlockPos();
+                BlockPos pos = context.getClickedPos();
 
                 clip.x.set(pos.getX());
                 clip.y.set(pos.getY());
