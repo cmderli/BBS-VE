@@ -1,9 +1,9 @@
 package mchorse.bbs_mod.mixin;
 
 import mchorse.bbs_mod.morphing.MorphHitbox;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.PlayerLikeEntity;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Avatar;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * used on most. On 1.21.1 the same gap existed one class lower and was covered by the same hook in
  * {@code PlayerEntityMixin}.</p>
  */
-@Mixin(PlayerLikeEntity.class)
+@Mixin(Avatar.class)
 public class PlayerLikeEntityMixin
 {
     @Inject(method = "getBaseDimensions", at = @At("RETURN"), cancellable = true)

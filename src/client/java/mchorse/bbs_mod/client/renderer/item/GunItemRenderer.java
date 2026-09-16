@@ -4,8 +4,8 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.entities.StubEntity;
 import mchorse.bbs_mod.items.GunProperties;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -68,7 +68,7 @@ public class GunItemRenderer
         public Item(GunProperties properties)
         {
             this.properties = properties;
-            this.formEntity = new StubEntity(MinecraftClient.getInstance().world);
+            this.formEntity = new StubEntity(Minecraft.getInstance().level);
         }
     }
 }

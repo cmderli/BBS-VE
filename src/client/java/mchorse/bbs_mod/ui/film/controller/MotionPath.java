@@ -19,14 +19,14 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.Camera;
+import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.world.World;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -127,18 +127,18 @@ public class MotionPath
 
         /* 1.21.11: the relocated Fabric WorldRenderContext no longer exposes the camera, so it comes
          * from the game renderer — the same one the context was built around. */
-        Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
-        MatrixStack stack = context.matrices();
+        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        PoseStack stack = context.matrices();
 
         double cx = camera.getCameraPos().x;
         double cy = camera.getCameraPos().y;
         double cz = camera.getCameraPos().z;
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         float halfWidth = config.width.get() * 0.5F;
 
         /* Depth/blend/cull and the program all live in the Draw pipeline the flush below submits to. */
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         /* The interpolated curve: a camera-facing ribbon with a dot on every
          * tick (so the spacing shows speed), the exact endpoints kept. */
@@ -244,7 +244,7 @@ public class MotionPath
         return out;
     }
 
-    private static void dot(BufferBuilder builder, MatrixStack stack, Vector3d point, float radius, float[] color)
+    private static void dot(BufferBuilder builder, PoseStack stack, Vector3d point, float radius, float[] color)
     {
         float half = radius * BBSSettings.getScreenSizeScale((float) point.length());
 
@@ -289,13 +289,13 @@ public class MotionPath
         float bx1 = (float) (b.x + sx), by1 = (float) (b.y + sy), bz1 = (float) (b.z + sz);
         float bx2 = (float) (b.x - sx), by2 = (float) (b.y - sy), bz2 = (float) (b.z - sz);
 
-        builder.vertex(matrix, ax1, ay1, az1).color(colorA[0], colorA[1], colorA[2], 1F);
-        builder.vertex(matrix, ax2, ay2, az2).color(colorA[0], colorA[1], colorA[2], 1F);
-        builder.vertex(matrix, bx2, by2, bz2).color(colorB[0], colorB[1], colorB[2], 1F);
+        builder.addVertex(matrix, ax1, ay1, az1).setColor(colorA[0], colorA[1], colorA[2], 1F);
+        builder.addVertex(matrix, ax2, ay2, az2).setColor(colorA[0], colorA[1], colorA[2], 1F);
+        builder.addVertex(matrix, bx2, by2, bz2).setColor(colorB[0], colorB[1], colorB[2], 1F);
 
-        builder.vertex(matrix, ax1, ay1, az1).color(colorA[0], colorA[1], colorA[2], 1F);
-        builder.vertex(matrix, bx2, by2, bz2).color(colorB[0], colorB[1], colorB[2], 1F);
-        builder.vertex(matrix, bx1, by1, bz1).color(colorB[0], colorB[1], colorB[2], 1F);
+        builder.addVertex(matrix, ax1, ay1, az1).setColor(colorA[0], colorA[1], colorA[2], 1F);
+        builder.addVertex(matrix, bx2, by2, bz2).setColor(colorB[0], colorB[1], colorB[2], 1F);
+        builder.addVertex(matrix, bx1, by1, bz1).setColor(colorB[0], colorB[1], colorB[2], 1F);
     }
 
     private static void unpack(int color, float[] out)
@@ -348,7 +348,7 @@ public class MotionPath
      *  entity tick by tick and reading a matrix off it, and differ only in which matrix. */
     private static Trajectory sampledTrajectory(UIFilmController controller, Replay replay, FilmTarget target)
     {
-        World world = MinecraftClient.getInstance().world;
+        Level world = Minecraft.getInstance().level;
         Form form = replay.form.get();
 
         if (!ensureScratch(world, form))
@@ -381,7 +381,7 @@ public class MotionPath
      * tick from the entity's movement, which made the sampled bone path jitter. The path is meant
      * to show the authored motion (keyframes + IK), so the procedural overlay is dropped.
      */
-    private static boolean ensureScratch(World world, Form form)
+    private static boolean ensureScratch(Level world, Form form)
     {
         if (world == null || form == null)
         {

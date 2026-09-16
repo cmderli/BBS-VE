@@ -27,12 +27,12 @@ import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Intersectiond;
 import org.joml.Matrix3d;
 import org.joml.Matrix3f;
@@ -298,7 +298,7 @@ public abstract class UIModelRenderer extends UIElement
             return;
         }
 
-        float dt = MinecraftClient.getInstance().getRenderTickCounter().getDynamicDeltaTicks();
+        float dt = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaTicks();
         float factor = MathUtils.clamp(1F - (float) Math.pow(Math.min(smoothness, 0.99F), dt), 0F, 1F);
 
         this.camera.rotation.x = Lerps.lerp(this.camera.rotation.x, this.targetRotation.x, factor);
@@ -477,9 +477,9 @@ public abstract class UIModelRenderer extends UIElement
      * per-vertex position matrix, ModelViewMat ~identity) and the old 1.21.1 BBS recipe. Subclasses must
      * use this for the {@code FormRenderingContext} stack instead of a fresh identity {@code MatrixStack}.
      */
-    protected MatrixStack createCameraStack()
+    protected PoseStack createCameraStack()
     {
-        MatrixStack stack = new MatrixStack();
+        PoseStack stack = new PoseStack();
 
         MatrixStackUtils.multiply(stack, this.camera.view);
         stack.translate(-this.camera.position.x, -this.camera.position.y, -this.camera.position.z);
@@ -508,7 +508,7 @@ public abstract class UIModelRenderer extends UIElement
 
         try (MemoryStack stack = MemoryStack.stackPush())
         {
-            ByteBuffer data = Std140Builder.onStack(stack, DiffuseLighting.UBO_SIZE)
+            ByteBuffer data = Std140Builder.onStack(stack, Lighting.UBO_SIZE)
                 .putVec3(this.lightDirA)
                 .putVec3(this.lightDirB)
                 .get();
@@ -518,7 +518,7 @@ public abstract class UIModelRenderer extends UIElement
                 /* usage 136 = UNIFORM | COPY_DST, mirroring DiffuseLighting's own Lighting UBO and the
                  * in-tree BbsFormGuiElementRenderer.lights() buffer. */
                 this.lightsBuffer = RenderSystem.getDevice().createBuffer(() -> "BBS editor preview lights UBO", 136, data);
-                this.lights = this.lightsBuffer.slice(0, DiffuseLighting.UBO_SIZE);
+                this.lights = this.lightsBuffer.slice(0, Lighting.UBO_SIZE);
             }
             else
             {
@@ -598,7 +598,7 @@ public abstract class UIModelRenderer extends UIElement
         /* TODO(1.21.11 render): GL11.glClear(GL_DEPTH_BUFFER_BIT) + RenderSystem.viewport(...) disabled.
          * Depth clear and viewport scoping must go through the new framebuffer/RenderPass model; the
          * per-element scissor/viewport rect (vx/vy/vw/vh below) is still computed for when that lands. */
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         /* Measure against the REAL window, not the film/video framebuffer. This preview renders in the
          * world phase (BBSRendering.renderingWorld == true); if the film system also has customSize set
@@ -614,11 +614,11 @@ public abstract class UIModelRenderer extends UIElement
 
         try
         {
-            float rx = (float) Math.round(mc.getWindow().getWidth() / (double) context.menu.width);
-            float ry = (float) Math.round(mc.getWindow().getHeight() / (double) context.menu.height);
+            float rx = (float) Math.round(mc.getWindow().getScreenWidth() / (double) context.menu.width);
+            float ry = (float) Math.round(mc.getWindow().getScreenHeight() / (double) context.menu.height);
 
             int vx = (int) (this.area.x * rx);
-            int vy = (int) (mc.getWindow().getHeight() - (this.area.y + this.area.h) * ry);
+            int vy = (int) (mc.getWindow().getScreenHeight() - (this.area.y + this.area.h) * ry);
 
             vw = (int) (this.area.w * rx);
             vh = (int) (this.area.h * ry);
@@ -655,21 +655,21 @@ public abstract class UIModelRenderer extends UIElement
      */
     protected void renderGrid(UIContext context)
     {
-        Matrix4f matrix4f = this.createCameraStack().peek().getPositionMatrix();
+        Matrix4f matrix4f = this.createCameraStack().last().pose();
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
 
         for (int x = 0; x <= 10; x ++)
         {
             if (x == 0)
             {
-                builder.vertex(matrix4f, x - 5, 0, -5).color(0F, 0F, 1F, 1F);
-                builder.vertex(matrix4f, x - 5, 0, 5).color(0F, 0F, 1F, 1F);
+                builder.addVertex(matrix4f, x - 5, 0, -5).setColor(0F, 0F, 1F, 1F);
+                builder.addVertex(matrix4f, x - 5, 0, 5).setColor(0F, 0F, 1F, 1F);
             }
             else
             {
-                builder.vertex(matrix4f, x - 5, 0, -5).color(0.25F, 0.25F, 0.25F, 1F);
-                builder.vertex(matrix4f, x - 5, 0, 5).color(0.25F, 0.25F, 0.25F, 1F);
+                builder.addVertex(matrix4f, x - 5, 0, -5).setColor(0.25F, 0.25F, 0.25F, 1F);
+                builder.addVertex(matrix4f, x - 5, 0, 5).setColor(0.25F, 0.25F, 0.25F, 1F);
             }
         }
 
@@ -677,13 +677,13 @@ public abstract class UIModelRenderer extends UIElement
         {
             if (x == 0)
             {
-                builder.vertex(matrix4f, -5, 0, x - 5).color(1F, 0F, 0F, 1F);
-                builder.vertex(matrix4f, 5, 0, x - 5).color(1F, 0F, 0F, 1F);
+                builder.addVertex(matrix4f, -5, 0, x - 5).setColor(1F, 0F, 0F, 1F);
+                builder.addVertex(matrix4f, 5, 0, x - 5).setColor(1F, 0F, 0F, 1F);
             }
             else
             {
-                builder.vertex(matrix4f, -5, 0, x - 5).color(0.25F, 0.25F, 0.25F, 1F);
-                builder.vertex(matrix4f, 5, 0, x - 5).color(0.25F, 0.25F, 0.25F, 1F);
+                builder.addVertex(matrix4f, -5, 0, x - 5).setColor(0.25F, 0.25F, 0.25F, 1F);
+                builder.addVertex(matrix4f, 5, 0, x - 5).setColor(0.25F, 0.25F, 0.25F, 1F);
             }
         }
 

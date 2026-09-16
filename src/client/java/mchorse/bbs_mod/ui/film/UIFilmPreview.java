@@ -45,7 +45,7 @@ import mchorse.bbs_mod.utils.clips.Clips;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.joml.Matrix3x2fc;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
@@ -596,15 +596,15 @@ public class UIFilmPreview extends UIElement
          * RenderSystem.renderCrosshair (removed): three axis lines under the camera's pitch/yaw.
          * Rebuilt as recorded GUI quads (GuiQuadMesh, the orbit nav-sphere's own mechanism): the
          * endpoints are the rotated axes projected orthographically, drawn far-to-near. */
-        net.minecraft.client.render.Camera mcCamera = MinecraftClient.getInstance().gameRenderer.getCamera();
+        net.minecraft.client.render.Camera mcCamera = Minecraft.getInstance().gameRenderer.getMainCamera();
 
         float cx = this.area.x + 16;
         float cy = this.area.ey() - 12;
 
         /* The 1.21.1 modelview: rotX(-pitch) * rotY(yaw) * scale(-1,-1,-1), GUI y-down. */
         Matrix4f m = new Matrix4f()
-            .rotateX(MathUtils.toRad(-mcCamera.getPitch()))
-            .rotateY(MathUtils.toRad(mcCamera.getYaw()))
+            .rotateX(MathUtils.toRad(-mcCamera.xRot()))
+            .rotateY(MathUtils.toRad(mcCamera.yRot()))
             .scale(-1F, -1F, -1F);
 
         float[][] axes = {{10F, 0F, 0F}, {0F, 10F, 0F}, {0F, 0F, 10F}};
@@ -620,7 +620,7 @@ public class UIFilmPreview extends UIElement
         /* Far-to-near, so the axis pointing at the viewer reads on top. */
         java.util.Arrays.sort(order, (a, b) -> Float.compare(ends[a].z, ends[b].z));
 
-        Matrix3x2fc matrix = context.batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = context.batcher.getContext().pose();
         GuiQuadMesh builder = new GuiQuadMesh();
 
         for (int i : order)
@@ -639,10 +639,10 @@ public class UIFilmPreview extends UIElement
             float py = ex / length * 0.5F;
             int color = colors[i];
 
-            builder.vertex(matrix, cx - px, cy - py).color(color);
-            builder.vertex(matrix, cx + px, cy + py).color(color);
-            builder.vertex(matrix, cx + ex + px, cy + ey + py).color(color);
-            builder.vertex(matrix, cx + ex - px, cy + ey - py).color(color);
+            builder.addVertex(matrix, cx - px, cy - py).setColor(color);
+            builder.addVertex(matrix, cx + px, cy + py).setColor(color);
+            builder.addVertex(matrix, cx + ex + px, cy + ey + py).setColor(color);
+            builder.addVertex(matrix, cx + ex - px, cy + ey - py).setColor(color);
         }
 
         if (!builder.isEmpty())

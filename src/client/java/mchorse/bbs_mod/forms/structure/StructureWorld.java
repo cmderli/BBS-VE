@@ -1,46 +1,46 @@
 package mchorse.bbs_mod.forms.structure;
 
 import com.mojang.logging.LogUtils;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.item.FuelRegistry;
-import net.minecraft.world.attribute.WorldEnvironmentAttributeAccess;
-import net.minecraft.item.map.MapState;
-import net.minecraft.recipe.BrewingRecipeRegistry;
-import net.minecraft.recipe.RecipeManager;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.resource.featuretoggle.FeatureSet;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.border.WorldBorder;
-import net.minecraft.entity.boss.dragon.EnderDragonPart;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.particle.BlockParticleEffect;
-import net.minecraft.particle.ParticleEffect;
-import net.minecraft.util.collection.WeightedPool;
-import net.minecraft.world.LightType;
-import net.minecraft.world.MutableWorldProperties;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldProperties;
-import net.minecraft.world.explosion.ExplosionBehavior;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.chunk.ChunkManager;
-import net.minecraft.world.entity.EntityLookup;
-import net.minecraft.world.event.GameEvent;
-import net.minecraft.world.tick.QueryableTickScheduler;
-import net.minecraft.world.tick.TickManager;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.block.entity.FuelValues;
+import net.minecraft.world.attribute.EnvironmentAttributeSystem;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
+import net.minecraft.world.item.alchemy.PotionBrewing;
+import net.minecraft.world.item.crafting.RecipeAccess;
+import net.minecraft.core.Holder;
+import net.minecraft.world.flag.FeatureFlagSet;
+import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.border.WorldBorder;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragonPart;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.core.particles.ExplosionParticleInfo;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.util.random.WeightedList;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.storage.WritableLevelData;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.LevelData;
+import net.minecraft.world.level.ExplosionDamageCalculator;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.chunk.ChunkSource;
+import net.minecraft.world.level.entity.LevelEntityGetter;
+import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.ticks.LevelTickAccess;
+import net.minecraft.world.TickRateManager;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -63,24 +63,24 @@ import java.util.Map;
  * those registries — {@link #create} returns {@code null} otherwise and the caller falls back to
  * {@code mc.world}.</p>
  */
-public class StructureWorld extends World
+public class StructureWorld extends Level
 {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /** The fallback below is a silent downgrade in quality, so it is worth saying once — but only once. */
     private static boolean reportedFailure;
 
-    private final ClientWorld delegate;
+    private final ClientLevel delegate;
     private final StructureRenderData data;
     private final Map<BlockPos, BlockEntity> blockEntities;
 
-    private StructureWorld(ClientWorld delegate, StructureRenderData data, Map<BlockPos, BlockEntity> blockEntities)
+    private StructureWorld(ClientLevel delegate, StructureRenderData data, Map<BlockPos, BlockEntity> blockEntities)
     {
         super(
-            (MutableWorldProperties) delegate.getLevelProperties(),
-            delegate.getRegistryKey(),
+            (WritableLevelData) delegate.getLevelData(),
+            delegate.dimension(),
             delegate.getRegistryManager(),
-            delegate.getDimensionEntry(),
+            delegate.dimensionTypeRegistration(),
             /* 1.21.11: the profiler supplier left the World constructor — profiling goes through
              * the global Profilers now, so there is nothing to hand down. */
             true,  /* client side */
@@ -96,9 +96,9 @@ public class StructureWorld extends World
 
     /** Build a structure-backed world, or {@code null} if there is no client world to borrow from. */
     @Nullable
-    public static World create(StructureRenderData data, Map<BlockPos, BlockEntity> blockEntities)
+    public static Level create(StructureRenderData data, Map<BlockPos, BlockEntity> blockEntities)
     {
-        ClientWorld world = MinecraftClient.getInstance().world;
+        ClientLevel world = Minecraft.getInstance().level;
 
         if (world == null)
         {
@@ -149,31 +149,31 @@ public class StructureWorld extends World
     /* --- Borrowed from the real client world -------------------------------------------------- */
 
     @Override
-    public ChunkManager getChunkManager()
+    public ChunkSource getChunkManager()
     {
-        return this.delegate.getChunkManager();
+        return this.delegate.getChunkSource();
     }
 
     @Override
-    public QueryableTickScheduler<net.minecraft.block.Block> getBlockTickScheduler()
+    public LevelTickAccess<net.minecraft.block.Block> getBlockTickScheduler()
     {
         return this.delegate.getBlockTickScheduler();
     }
 
     @Override
-    public QueryableTickScheduler<net.minecraft.fluid.Fluid> getFluidTickScheduler()
+    public LevelTickAccess<net.minecraft.fluid.Fluid> getFluidTickScheduler()
     {
         return this.delegate.getFluidTickScheduler();
     }
 
     @Override
-    public TickManager getTickManager()
+    public TickRateManager tickRateManager()
     {
         return this.delegate.getTickManager();
     }
 
     @Override
-    public RecipeManager getRecipeManager()
+    public RecipeAccess recipeAccess()
     {
         return this.delegate.getRecipeManager();
     }
@@ -185,7 +185,7 @@ public class StructureWorld extends World
     }
 
     @Override
-    public FeatureSet getEnabledFeatures()
+    public FeatureFlagSet getEnabledFeatures()
     {
         return this.delegate.getEnabledFeatures();
     }
@@ -197,19 +197,19 @@ public class StructureWorld extends World
     }
 
     @Override
-    public int getLightLevel(LightType type, BlockPos pos)
+    public int getLightLevel(LightLayer type, BlockPos pos)
     {
         return this.data.getLighting().getLightLevel(type, pos);
     }
 
     @Override
-    public RegistryEntry<Biome> getGeneratorStoredBiome(int biomeX, int biomeY, int biomeZ)
+    public Holder<Biome> getGeneratorStoredBiome(int biomeX, int biomeY, int biomeZ)
     {
         return this.delegate.getGeneratorStoredBiome(biomeX, biomeY, biomeZ);
     }
 
     @Override
-    public List<? extends PlayerEntity> getPlayers()
+    public List<? extends Player> getPlayers()
     {
         return List.of();
     }
@@ -217,21 +217,21 @@ public class StructureWorld extends World
     /* --- Inert: a render-only world never mutates state or resolves entities/maps -------------- */
 
     @Override
-    protected EntityLookup<Entity> getEntityLookup()
+    protected LevelEntityGetter<Entity> getEntities()
     {
         return null;
     }
 
     @Nullable
     @Override
-    public Entity getEntityById(int id)
+    public Entity getEntity(int id)
     {
         return null;
     }
 
     @Nullable
     @Override
-    public MapState getMapState(MapIdComponent id)
+    public MapItemSavedData getMapData(MapId id)
     {
         return null;
     }
@@ -246,7 +246,7 @@ public class StructureWorld extends World
     }
 
     @Override
-    public BrewingRecipeRegistry getBrewingRecipeRegistry()
+    public PotionBrewing potionBrewing()
     {
         return this.delegate.getBrewingRecipeRegistry();
     }
@@ -254,15 +254,15 @@ public class StructureWorld extends World
     /* Both new abstracts in 1.21.11; the real world's answers serve the preview as well as anything. */
 
     @Override
-    public FuelRegistry getFuelRegistry()
+    public FuelValues fuelValues()
     {
         return this.delegate.getFuelRegistry();
     }
 
     @Override
-    public WorldEnvironmentAttributeAccess getEnvironmentAttributes()
+    public EnvironmentAttributeSystem environmentAttributes()
     {
-        return this.delegate.getEnvironmentAttributes();
+        return this.delegate.environmentAttributes();
     }
 
     /* Four more abstracts World grew in 1.21.11. A world that only backs a structure preview has
@@ -292,62 +292,62 @@ public class StructureWorld extends World
 
     /** No entities live in a structure view, so nothing of theirs can be collided with. */
     @Override
-    public List<VoxelShape> getEntityCollisions(@Nullable Entity entity, Box box)
+    public List<VoxelShape> getEntityCollisions(@Nullable Entity entity, AABB box)
     {
         return List.of();
     }
 
     @Override
-    public Collection<EnderDragonPart> getEnderDragonParts()
+    public Collection<EnderDragonPart> dragonParts()
     {
-        return this.delegate.getEnderDragonParts();
+        return this.delegate.dragonParts();
     }
 
     @Override
-    public WorldProperties.SpawnPoint getSpawnPoint()
+    public LevelData.RespawnData getRespawnData()
     {
         return this.delegate.getSpawnPoint();
     }
 
     @Override
-    public void setSpawnPoint(WorldProperties.SpawnPoint spawnPoint)
+    public void setRespawnData(LevelData.RespawnData spawnPoint)
     {
     }
 
     @Override
-    public void createExplosion(@Nullable Entity entity, @Nullable DamageSource damageSource, @Nullable ExplosionBehavior behavior, double x, double y, double z, float power, boolean createFire, World.ExplosionSourceType explosionSourceType, ParticleEffect smallParticle, ParticleEffect largeParticle, WeightedPool<BlockParticleEffect> blockParticles, RegistryEntry<SoundEvent> sound)
+    public void explode(@Nullable Entity entity, @Nullable DamageSource damageSource, @Nullable ExplosionDamageCalculator behavior, double x, double y, double z, float power, boolean createFire, Level.ExplosionInteraction explosionSourceType, ParticleOptions smallParticle, ParticleOptions largeParticle, WeightedList<ExplosionParticleInfo> blockParticles, Holder<SoundEvent> sound)
     {
     }
 
     @Override
-    public void updateListeners(BlockPos pos, BlockState oldState, BlockState newState, int flags)
+    public void sendBlockUpdated(BlockPos pos, BlockState oldState, BlockState newState, int flags)
     {
     }
 
     @Override
-    public void setBlockBreakingInfo(int entityId, BlockPos pos, int progress)
+    public void destroyBlockProgress(int entityId, BlockPos pos, int progress)
     {
     }
 
     /* Both take a plain Entity as the excluded listener since 1.21.11, not a PlayerEntity. */
 
     @Override
-    public void playSound(@Nullable Entity except, double x, double y, double z, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch, long seed)
+    public void playSeededSound(@Nullable Entity except, double x, double y, double z, Holder<SoundEvent> sound, SoundSource category, float volume, float pitch, long seed)
     {
     }
 
     @Override
-    public void playSoundFromEntity(@Nullable Entity except, Entity entity, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch, long seed)
+    public void playSeededSound(@Nullable Entity except, Entity entity, Holder<SoundEvent> sound, SoundSource category, float volume, float pitch, long seed)
     {
     }
 
     @Override
-    public void emitGameEvent(RegistryEntry<GameEvent> event, Vec3d emitterPos, GameEvent.Emitter emitter)
+    public void emitGameEvent(Holder<GameEvent> event, Vec3 emitterPos, GameEvent.Context emitter)
     {
     }
 
     @Override
-    public String asString()
+    public String gatherChunkSourceStats()
     {
         return "StructureWorld";
     }

@@ -15,10 +15,10 @@ import mchorse.bbs_mod.ui.utils.UI;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import org.joml.Vector3f;
 
 import java.io.File;
@@ -103,12 +103,12 @@ public class UIStructureFormPanel extends UIFormPanel<StructureForm>
     private void openBiomePicker()
     {
         List<String> ids = new ArrayList<>();
-        ClientWorld world = MinecraftClient.getInstance().world;
+        ClientLevel world = Minecraft.getInstance().level;
 
         if (world != null)
         {
             /* 1.21.11: DynamicRegistryManager.get() is gone — getOrThrow is the direct replacement. */
-            for (Identifier id : world.getRegistryManager().getOrThrow(RegistryKeys.BIOME).getIds())
+            for (Identifier id : world.getRegistryManager().lookupOrThrow(Registries.BIOME).keySet())
             {
                 ids.add(id.toString());
             }

@@ -16,9 +16,9 @@ import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 
 
@@ -39,7 +39,7 @@ public class ExtrudedFormRenderer extends FormRenderer<ExtrudedForm>
     }
 
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         /* The base renderer pre-translated the stack to the cell (centre, 0.85*height down) + scale(f,f,-f);
          * apply the rest of the original getUIMatrix framing here, then the original extruded post-ops + draw
@@ -48,7 +48,7 @@ public class ExtrudedFormRenderer extends FormRenderer<ExtrudedForm>
 
         this.applyTransforms(uiMatrix, transition);
 
-        stack.push();
+        stack.pushPose();
 
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.translate(0F, 1F, 0F);
@@ -56,18 +56,18 @@ public class ExtrudedFormRenderer extends FormRenderer<ExtrudedForm>
         stack.scale(this.form.uiScale.get(), this.form.uiScale.get(), this.form.uiScale.get());
 
         /* Shading fix */
-        stack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-        stack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+        stack.last().normal().getScale(Vectors.EMPTY_3F);
+        stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         /* Was: RenderSystem.depthFunc(GL_LEQUAL) ... depthFunc(GL_ALWAYS). Depth test is now
          * per-pipeline (the model pipeline declares LEQUAL_DEPTH_TEST). */
         this.renderModel(null,
             stack,
-            OverlayTexture.DEFAULT_UV, LightmapTextureManager.MAX_LIGHT_COORDINATE, Colors.WHITE,
+            OverlayTexture.NO_OVERLAY, LightTexture.FULL_BRIGHT, Colors.WHITE,
             transition
         );
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override
@@ -97,7 +97,7 @@ public class ExtrudedFormRenderer extends FormRenderer<ExtrudedForm>
         this.renderModel(picker, context.stack, context.overlay, context.light, context.color, context.getTransition());
     }
 
-    private void renderModel(RenderPipeline picker, MatrixStack matrices, int overlay, int light, int overlayColor, float transition)
+    private void renderModel(RenderPipeline picker, PoseStack matrices, int overlay, int light, int overlayColor, float transition)
     {
         Link texture = this.form.texture.get();
         ModelVAO data = BBSModClient.getTextures().getExtruder().get(texture);

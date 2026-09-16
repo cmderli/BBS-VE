@@ -4,7 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderPipeline;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.framework.UIScreen;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 /**
  * Switchboard for the pixel art seam smoothing.
@@ -87,7 +87,7 @@ public class PixelArt
      */
     public static RenderPipeline getTextPipeline(RenderPipeline vanilla)
     {
-        if (!isEnabled() || !(MinecraftClient.getInstance().currentScreen instanceof UIScreen))
+        if (!isEnabled() || !(Minecraft.getInstance().screen instanceof UIScreen))
         {
             return null;
         }

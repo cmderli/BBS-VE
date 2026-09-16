@@ -11,7 +11,7 @@ import mchorse.bbs_mod.ui.model_blocks.UIModelBlockPanel;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.camera.OrbitViewportController;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
 import org.joml.Vector3f;
 
 /**
@@ -103,7 +103,7 @@ public class OrbitModelBlockCameraController extends OrbitViewportController
             return null;
         }
 
-        BlockPos pos = block.getPos();
+        BlockPos pos = block.getBlockPos();
         ModelProperties properties = block.getProperties();
         Transform transform = properties.getTransform();
         Form form = properties.getForm();

@@ -19,16 +19,16 @@ import mchorse.bbs_mod.settings.values.ui.ValueDebugElement;
 import mchorse.bbs_mod.settings.values.ui.ValueIKDebug;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.renderer.RenderPipelines;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.resources.Identifier;
+import com.mojang.math.Axis;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -69,9 +69,9 @@ public final class ModelIKDebug
      * register two POSITION_COLOR no-depth pipelines: one for the joint/goal triangles and one for the
      * chain lines. Mirrors mchorse.bbs_mod.graphics.Draw. */
     private static final RenderPipeline POSITION_COLOR_TRIS_NO_DEPTH = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_tris"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_tris"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withBlend(BlendFunction.TRANSLUCENT)
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
@@ -79,9 +79,9 @@ public final class ModelIKDebug
     );
 
     private static final RenderPipeline POSITION_COLOR_LINES_NO_DEPTH = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_lines"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.DEBUG_LINES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_lines"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.DEBUG_LINES)
             .withBlend(BlendFunction.TRANSLUCENT)
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
@@ -92,40 +92,40 @@ public final class ModelIKDebug
      * (a blended pixel would corrupt the id read back from the framebuffer). Depth-test stays
      * disabled to match the visual overlay. */
     private static final RenderPipeline POSITION_COLOR_STENCIL = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_stencil"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/ik_debug_position_color_stencil"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withoutBlend()
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
             .build()
     );
 
-    private static RenderLayer trisLayer;
-    private static RenderLayer linesLayer;
-    private static RenderLayer stencilLayer;
+    private static RenderType trisLayer;
+    private static RenderType linesLayer;
+    private static RenderType stencilLayer;
 
     private ModelIKDebug()
     {
     }
 
-    public static RenderLayer getTrisLayer()
+    public static RenderType getTrisLayer()
     {
         if (trisLayer == null)
         {
-            trisLayer = RenderLayer.of(BBSMod.MOD_ID + "_ik_debug_tris",
-                RenderSetup.builder(POSITION_COLOR_TRIS_NO_DEPTH).translucent().build());
+            trisLayer = RenderType.create(BBSMod.MOD_ID + "_ik_debug_tris",
+                RenderSetup.builder(POSITION_COLOR_TRIS_NO_DEPTH).sortOnUpload().createRenderSetup());
         }
 
         return trisLayer;
     }
 
-    public static RenderLayer getLinesLayer()
+    public static RenderType getLinesLayer()
     {
         if (linesLayer == null)
         {
-            linesLayer = RenderLayer.of(BBSMod.MOD_ID + "_ik_debug_lines",
-                RenderSetup.builder(POSITION_COLOR_LINES_NO_DEPTH).translucent().build());
+            linesLayer = RenderType.create(BBSMod.MOD_ID + "_ik_debug_lines",
+                RenderSetup.builder(POSITION_COLOR_LINES_NO_DEPTH).sortOnUpload().createRenderSetup());
         }
 
         return linesLayer;
@@ -141,7 +141,7 @@ public final class ModelIKDebug
      */
     public static void flushPick(BufferBuilder builder)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -149,21 +149,21 @@ public final class ModelIKDebug
         }
     }
 
-    public static RenderLayer getStencilLayer()
+    public static RenderType getStencilLayer()
     {
         if (stencilLayer == null)
         {
-            stencilLayer = RenderLayer.of(BBSMod.MOD_ID + "_ik_debug_stencil",
-                RenderSetup.builder(POSITION_COLOR_STENCIL).build());
+            stencilLayer = RenderType.create(BBSMod.MOD_ID + "_ik_debug_stencil",
+                RenderSetup.builder(POSITION_COLOR_STENCIL).createRenderSetup());
         }
 
         return stencilLayer;
     }
 
     /** Finish a buffer and submit it through the given layer (no-op on an empty buffer). */
-    public static void flush(BufferBuilder builder, RenderLayer layer)
+    public static void flush(BufferBuilder builder, RenderType layer)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -173,7 +173,7 @@ public final class ModelIKDebug
         }
     }
 
-    public static void render(MatrixStack stack, IModel model, ModelForm form, String selectedTip)
+    public static void render(PoseStack stack, IModel model, ModelForm form, String selectedTip)
     {
         ValueIKDebug config = BBSSettings.ikDebug;
 
@@ -194,11 +194,11 @@ public final class ModelIKDebug
         /* Depth-test/cull/blend state now lives in the layer pipelines (no-depth, no-cull,
          * translucent), so the old RenderSystem toggles are gone — including the xray option,
          * which the pipelines already satisfy by never depth-testing. */
-        stack.push();
+        stack.pushPose();
 
         if (model.isFacingFlipped())
         {
-            stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
         }
 
         float unit = DebugOverlay.modelUnit(model);
@@ -215,7 +215,7 @@ public final class ModelIKDebug
             drawChain(stack, frames, chain, selectedTip, config, unit);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     private static Map<String, PivotFrame> collectFrames(IModel model, ModelIKCache.Compiled compiled)
@@ -247,7 +247,7 @@ public final class ModelIKDebug
      * {@code stencilMap.objectIndex} as its colour and {@code addPicking} then
      * claims that same id. The matrix matches the visual overlay's.
      */
-    public static void renderStencil(MatrixStack stack, IModel model, ModelForm modelForm, StencilMap stencilMap, Form form)
+    public static void renderStencil(PoseStack stack, IModel model, ModelForm modelForm, StencilMap stencilMap, Form form)
     {
         ValueIKDebug config = BBSSettings.ikDebug;
         boolean targets = config.target.visible.get();
@@ -268,14 +268,14 @@ public final class ModelIKDebug
         Map<String, PivotFrame> frames = collectFrames(model, compiled);
 
         /* Depth-test disabled (and blend off) is encoded in the stencil layer's pipeline. */
-        stack.push();
+        stack.pushPose();
 
         if (model.isFacingFlipped())
         {
-            stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
         }
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         float unit = DebugOverlay.modelUnit(model);
 
@@ -311,7 +311,7 @@ public final class ModelIKDebug
 
         flushPick(builder);
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -319,7 +319,7 @@ public final class ModelIKDebug
      * it for {@code bone}. Shared with {@link mchorse.bbs_mod.cubic.physics.ModelPhysicsDebug}, whose pick pass
      * already flushes through {@link #flushPick}.
      */
-    public static void pickMarker(BufferBuilder builder, MatrixStack stack, StencilMap stencilMap, Form form, ValueDebugElement element, Vector3f p, float unit, String bone)
+    public static void pickMarker(BufferBuilder builder, PoseStack stack, StencilMap stencilMap, Form form, ValueDebugElement element, Vector3f p, float unit, String bone)
     {
         int id = stencilMap.objectIndex;
         float[] col = {(id & 0xFF) / 255F, (id >> 8 & 0xFF) / 255F, (id >> 16 & 0xFF) / 255F};
@@ -329,7 +329,7 @@ public final class ModelIKDebug
         stencilMap.addPicking(form, bone);
     }
 
-    private static void drawChain(MatrixStack stack, Map<String, PivotFrame> frames, ModelIKCache.CompiledChain chain, String selectedTip, ValueIKDebug config, float unit)
+    private static void drawChain(PoseStack stack, Map<String, PivotFrame> frames, ModelIKCache.CompiledChain chain, String selectedTip, ValueIKDebug config, float unit)
     {
         List<String> ids = chain.chainRootToEffector();
         int n = ids.size();
@@ -376,13 +376,13 @@ public final class ModelIKDebug
         boolean boxes = anyLine && thickness > 0F;
         boolean anyDot = joints || tipDot || targetDot || poleDot;
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         float dash = unit * 0.12F;
 
         /* Lines: hairline GL lines by default, boxes once a thickness is set. */
         if (anyLine && !boxes)
         {
-            BufferBuilder lines = Tessellator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+            BufferBuilder lines = Tesselator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
 
             emitLines(lines, matrix, 0F, dash, pts, target, pole, a, config);
 
@@ -395,7 +395,7 @@ public final class ModelIKDebug
         }
 
         /* Solid geometry: joint/accent markers, plus the thick lines. */
-        BufferBuilder dots = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder dots = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         if (boxes)
         {

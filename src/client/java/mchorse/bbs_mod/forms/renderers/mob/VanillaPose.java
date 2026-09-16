@@ -1,11 +1,11 @@
 package mchorse.bbs_mod.forms.renderers.mob;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.render.entity.state.EntityRenderState;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Vanilla's own posing of a living entity's model, without a render: the render state the living
@@ -31,7 +31,7 @@ public class VanillaPose
             return null;
         }
 
-        return MinecraftClient.getInstance().getEntityRenderDispatcher().getRenderer(entity) instanceof LivingEntityRenderer renderer ? renderer : null;
+        return Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity) instanceof LivingEntityRenderer renderer ? renderer : null;
     }
 
     /**
@@ -47,14 +47,14 @@ public class VanillaPose
      */
     public static LivingEntityRenderState animate(LivingEntityRenderer renderer, LivingEntity living, float transition)
     {
-        EntityRenderState renderState = MinecraftClient.getInstance().getEntityRenderDispatcher().getAndUpdateRenderState(living, transition);
+        EntityRenderState renderState = Minecraft.getInstance().getEntityRenderDispatcher().extractEntity(living, transition);
 
         if (!(renderState instanceof LivingEntityRenderState state))
         {
             return null;
         }
 
-        renderer.getModel().setAngles(state);
+        renderer.getModel().setupAnim(state);
 
         return state;
     }

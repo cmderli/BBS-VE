@@ -10,10 +10,10 @@ import mchorse.bbs_mod.ui.framework.elements.buttons.UIToggle;
 import mchorse.bbs_mod.ui.framework.elements.input.UITrackpad;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -109,8 +109,8 @@ public class UIBlockHitResult
             {
                 if (this.result == null) return;
 
-                MinecraftClient mc = MinecraftClient.getInstance();
-                HitResult result = mc == null ? null : mc.crosshairTarget;
+                Minecraft mc = Minecraft.getInstance();
+                HitResult result = mc == null ? null : mc.hitResult;
 
                 if (result instanceof BlockHitResult bhr && result.getType() == HitResult.Type.BLOCK)
                 {

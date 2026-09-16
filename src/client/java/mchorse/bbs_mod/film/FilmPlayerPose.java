@@ -3,13 +3,13 @@ package mchorse.bbs_mod.film;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.forms.entities.EntityState;
-import net.minecraft.entity.EntityPose;
+import net.minecraft.world.entity.Pose;
 
 import java.util.List;
 import java.util.Map;
 
 /** The recorded pose of a player currently driven by a world film, including a paused film. */
-public record FilmPlayerPose(boolean sneaking, EntityPose pose)
+public record FilmPlayerPose(boolean sneaking, Pose pose)
 {
     /**
      * Resolve ownership afresh so stopping, seeking or replacing a film cannot leave an override

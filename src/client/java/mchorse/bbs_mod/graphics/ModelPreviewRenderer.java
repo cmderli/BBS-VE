@@ -1,15 +1,15 @@
 package mchorse.bbs_mod.graphics;
 
 import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.ProjectionType;
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.RawProjectionMatrix;
-import net.minecraft.client.texture.GlTexture;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.Lighting;
+import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 
@@ -60,7 +60,7 @@ public class ModelPreviewRenderer
     /** Adopted {@link net.minecraft.util.Identifier} of the current model texture (set by {@code ModelFormRenderer}). */
     public static net.minecraft.util.Identifier TEXTURE = null;
 
-    private final RawProjectionMatrix projection = new RawProjectionMatrix("bbs_model_preview");
+    private final PerspectiveProjectionMatrixBuffer projection = new PerspectiveProjectionMatrixBuffer("bbs_model_preview");
 
     /** The diffuse-light slice bound before {@link #begin} took over; {@link #end} restores it. */
     private com.mojang.blaze3d.buffers.GpuBufferSlice previousLights;
@@ -107,7 +107,7 @@ public class ModelPreviewRenderer
             .clearColorAndDepthTextures(this.color, 0x00000000, this.depth, 1.0D);
 
         RenderSystem.backupProjectionMatrix();
-        RenderSystem.setProjectionMatrix(this.projection.set(projectionMatrix), ProjectionType.PERSPECTIVE);
+        RenderSystem.setProjectionMatrix(this.projection.getBuffer(projectionMatrix), ProjectionType.PERSPECTIVE);
 
         PROJECTION = new Matrix4f(projectionMatrix);
 
@@ -128,7 +128,7 @@ public class ModelPreviewRenderer
          * good" value: the enclosing phase owns the choice, we only borrow the binding. */
         this.previousLights = RenderSystem.getShaderLights();
 
-        MinecraftClient.getInstance().gameRenderer.getDiffuseLighting().setShaderLights(DiffuseLighting.Type.ENTITY_IN_UI);
+        Minecraft.getInstance().gameRenderer.getLighting().setupFor(Lighting.Type.ENTITY_IN_UI);
 
         RenderSystem.outputColorTextureOverride = this.colorView;
         RenderSystem.outputDepthTextureOverride = this.depthView;
@@ -156,7 +156,7 @@ public class ModelPreviewRenderer
     /** Raw GL id of the off-screen colour texture, for blitting via {@code Batcher2D.texturedBox(int,...)}. */
     public int getColorGlId()
     {
-        return ((GlTexture) this.color).getGlId();
+        return ((GlTexture) this.color).glId();
     }
 
     public int getWidth()

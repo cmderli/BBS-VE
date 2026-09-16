@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.graphics;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.GlTexture;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
@@ -68,10 +68,10 @@ public class ScreenPixelProbe
         requestX = -1;
         requestY = -1;
 
-        net.minecraft.client.gl.Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
+        net.minecraft.client.gl.RenderTarget framebuffer = Minecraft.getInstance().getMainRenderTarget();
 
-        if (framebuffer == null || framebuffer.getColorAttachment() == null
-            || x < 0 || y < 0 || x >= framebuffer.textureWidth || y >= framebuffer.textureHeight)
+        if (framebuffer == null || framebuffer.getColorTexture() == null
+            || x < 0 || y < 0 || x >= framebuffer.width || y >= framebuffer.height)
         {
             return;
         }
@@ -85,7 +85,7 @@ public class ScreenPixelProbe
 
         GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, fbo);
         GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D,
-            ((GlTexture) framebuffer.getColorAttachment()).getGlId(), 0);
+            ((GlTexture) framebuffer.getColorTexture()).glId(), 0);
         GL30.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
 
         try (MemoryStack stack = MemoryStack.stackPush(); PixelPackState pack = PixelPackState.push())

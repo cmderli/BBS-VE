@@ -18,24 +18,24 @@ import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.OverlayBlend;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.block.BlockEntityProvider;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BlockRenderLayers;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.block.entity.BlockEntityRenderManager;
-import net.minecraft.client.render.block.entity.BlockEntityRenderer;
-import net.minecraft.client.render.block.entity.state.BlockEntityRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -66,7 +66,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
     }
 
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
 
@@ -75,13 +75,13 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
          * (renderBlockAsEntity + consumers.draw, the same path render3D uses, confirmed working in-world). */
         Matrix4f uiMatrix = getUIPreviewMatrix(angle, y1, y2);
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.scale(this.form.uiScale.get(), this.form.uiScale.get(), this.form.uiScale.get());
         stack.translate(-0.5F, 0F, -0.5F);
 
-        stack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-        stack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+        stack.last().normal().getScale(Vectors.EMPTY_3F);
+        stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         Color set = Color.white();
         FormColorBlend.blend(set, this.form.color.get());
@@ -97,13 +97,13 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
         consumers.setSubstitute(BBSRendering.getColorConsumer(set));
         consumers.setUI(true);
         consumers.setLayerMapper(overlayActive ? FormOverlay::withOverlay : null);
-        this.renderBlock(stack, consumers, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, OverlayTexture.DEFAULT_UV, false);
+        this.renderBlock(stack, consumers, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY, false);
         consumers.setLayerMapper(null);
         consumers.draw();
         consumers.setUI(false);
         consumers.setSubstitute(null);
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override
@@ -112,10 +112,10 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
         int light = context.light;
 
-        context.stack.push();
+        context.stack.pushPose();
         if (context.world != null)
         {
-            context.world.push();
+            context.world.pushPose();
         }
         context.stack.translate(-0.5F, 0F, -0.5F);
         if (context.world != null)
@@ -140,7 +140,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
 
             FormRenderCapture.begin();
 
-            Map<RenderLayer, List<FormRenderCapture.Captured>> captured;
+            Map<RenderType, List<FormRenderCapture.Captured>> captured;
 
             try
             {
@@ -154,11 +154,11 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
 
             PickingReplay.draw(captured);
 
-            context.stack.pop();
+            context.stack.popPose();
 
             if (context.world != null)
             {
-                context.world.pop();
+                context.world.popPose();
             }
 
             return;
@@ -172,7 +172,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
          * picking branch above never publishes, so the stencil keeps every pixel. */
         if (!context.isPicking())
         {
-            Vector3f origin = context.stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+            Vector3f origin = context.stack.last().pose().getTranslation(new Vector3f());
 
             FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
         }
@@ -185,10 +185,10 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
         consumers.setSubstitute(null);
         FormTranslucentQueue.setSortOrigin(null);
 
-        context.stack.pop();
+        context.stack.popPose();
         if (context.world != null)
         {
-            context.world.pop();
+            context.world.popPose();
         }
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed in 1.21.5; depth testing is
@@ -207,26 +207,26 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
      * adds on top of the model; and marker blocks like the barrier, which only ever exist as
      * an item icon. Each of those gets its own path below.</p>
      */
-    private void renderBlock(MatrixStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay, boolean picking)
+    private void renderBlock(PoseStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay, boolean picking)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         BlockState state = this.form.blockState.get();
-        BlockRenderType type = state.getRenderType();
+        RenderShape type = state.getRenderShape();
         FluidState fluidState = state.getFluidState();
 
         /* Not only water and lava: this is also where a waterlogged block gets its water,
          * on top of its own model below. */
         if (!fluidState.isEmpty())
         {
-            RenderLayer layer = BlockRenderLayers.getEntityBlockLayer(fluidState.getBlockState());
-            FluidVertexConsumer consumer = new FluidVertexConsumer(consumers.getBuffer(layer), matrices.peek(), overlay);
+            RenderType layer = ItemBlockRenderTypes.getRenderType(fluidState.createLegacyBlock());
+            FluidVertexConsumer consumer = new FluidVertexConsumer(consumers.getBuffer(layer), matrices.last(), overlay);
 
-            mc.getBlockRenderManager().renderFluid(BlockPos.ORIGIN, this.fluidView.set(state, light), consumer, state, fluidState);
+            mc.getBlockRenderer().renderLiquid(BlockPos.ZERO, this.fluidView.set(state, light), consumer, state, fluidState);
         }
 
-        if (type != BlockRenderType.INVISIBLE)
+        if (type != RenderShape.INVISIBLE)
         {
-            mc.getBlockRenderManager().renderBlockAsEntity(state, matrices, consumers, light, overlay);
+            mc.getBlockRenderer().renderSingleBlock(state, matrices, consumers, light, overlay);
         }
 
         if (picking)
@@ -246,7 +246,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
             return;
         }
 
-        if (type == BlockRenderType.INVISIBLE && fluidState.isEmpty())
+        if (type == RenderShape.INVISIBLE && fluidState.isEmpty())
         {
             /* Barrier, light block, structure void: invisible in the world, but they do have
              * an icon, and a form of one should show something. The item model is centered on
@@ -255,10 +255,10 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
 
             if (!stack.isEmpty())
             {
-                matrices.push();
+                matrices.pushPose();
                 matrices.translate(0.5F, 0.5F, 0.5F);
-                ItemFormRenderer.renderItem(stack, ItemDisplayContext.NONE, matrices, consumers, mc.world, light, overlay);
-                matrices.pop();
+                ItemFormRenderer.renderItem(stack, ItemDisplayContext.NONE, matrices, consumers, mc.level, light, overlay);
+                matrices.popPose();
             }
         }
     }
@@ -269,16 +269,16 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
      *
      * @return whether there was a renderer to run
      */
-    private boolean renderBlockEntity(MinecraftClient mc, BlockState state, MatrixStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay)
+    private boolean renderBlockEntity(Minecraft mc, BlockState state, PoseStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay)
     {
-        if (mc.world == null || !(state.getBlock() instanceof BlockEntityProvider provider))
+        if (mc.level == null || !(state.getBlock() instanceof EntityBlock provider))
         {
             return false;
         }
 
         if (this.blockEntity == null || this.blockEntityState != state)
         {
-            this.blockEntity = provider.createBlockEntity(BlockPos.ORIGIN, state);
+            this.blockEntity = provider.newBlockEntity(BlockPos.ZERO, state);
             this.blockEntityState = state;
         }
 
@@ -287,15 +287,15 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
             return false;
         }
 
-        if (this.blockEntity.getWorld() != mc.world)
+        if (this.blockEntity.getLevel() != mc.level)
         {
             /* Renderers of blocks that tick or move (the bell, the beacon) read the world off
              * the block entity, and the client's is the only one a form can offer. */
-            this.blockEntity.setWorld(mc.world);
+            this.blockEntity.setLevel(mc.level);
         }
 
-        BlockEntityRenderManager manager = mc.getBlockEntityRenderDispatcher();
-        BlockEntityRenderer renderer = manager.get(this.blockEntity);
+        BlockEntityRenderDispatcher manager = mc.getBlockEntityRenderDispatcher();
+        BlockEntityRenderer renderer = manager.getRenderer(this.blockEntity);
 
         if (renderer == null)
         {
@@ -308,13 +308,13 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
          * by hand instead, and the form's own light replaces the light at that origin. */
         BlockEntityRenderState renderState = renderer.createRenderState();
 
-        renderer.updateRenderState(this.blockEntity, renderState, MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false), mc.gameRenderer.getCamera().getCameraPos(), null);
+        renderer.extractRenderState(this.blockEntity, renderState, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false), mc.gameRenderer.getMainCamera().getCameraPos(), null);
 
-        renderState.lightmapCoordinates = light;
+        renderState.lightCoords = light;
 
         /* Block entity renderers only submit commands since 1.21.2, so they go through the BBS
          * queue and are flushed right here - the same path the mob form's entity takes. */
-        manager.render(renderState, matrices, QueueDispatch.queue(), QueueDispatch.cameraState());
+        manager.submit(renderState, matrices, QueueDispatch.queue(), QueueDispatch.cameraState());
         QueueDispatch.flush();
         consumers.draw();
 

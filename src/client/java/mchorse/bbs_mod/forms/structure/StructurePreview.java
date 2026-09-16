@@ -1,12 +1,12 @@
 package mchorse.bbs_mod.forms.structure;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.structure.StructureTemplate;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 
 import java.util.List;
 
@@ -28,7 +28,7 @@ public class StructurePreview
     /** @return the region parsed the way a structure file is, or null without a world */
     public static StructureRenderData capture(String id, BlockPos min, Vec3i size)
     {
-        ClientWorld world = MinecraftClient.getInstance().world;
+        ClientLevel world = Minecraft.getInstance().level;
 
         if (world == null)
         {
@@ -38,8 +38,8 @@ public class StructurePreview
         StructureTemplate template = new StructureTemplate();
 
         /* 1.21.11 takes a list of blocks to leave out, not a single one. */
-        template.saveFromWorld(world, min, size, false, List.of(Blocks.STRUCTURE_VOID));
+        template.fillFromWorld(world, min, size, false, List.of(Blocks.STRUCTURE_VOID));
 
-        return StructureRenderData.parse(id, template.writeNbt(new NbtCompound()));
+        return StructureRenderData.parse(id, template.save(new CompoundTag()));
     }
 }

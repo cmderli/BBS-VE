@@ -2,7 +2,7 @@ package mchorse.bbs_mod.ui.utils;
 
 import mchorse.bbs_mod.l10n.keys.IKey;
 import mchorse.bbs_mod.utils.OS;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
@@ -152,7 +152,7 @@ public class UIFileDialogs
             {
                 File file = new File(picked);
 
-                MinecraftClient.getInstance().execute(() -> callback.accept(file));
+                Minecraft.getInstance().execute(() -> callback.accept(file));
             }
         }, "BBS file dialog");
 

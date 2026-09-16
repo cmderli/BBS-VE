@@ -12,12 +12,12 @@ import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.gl.GpuSampler;
-import net.minecraft.client.gl.MappableRingBuffer;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
+import com.mojang.blaze3d.textures.GpuSampler;
+import net.minecraft.client.renderer.MappableRingBuffer;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
@@ -64,7 +64,7 @@ public class ScreenQuadPass
 
         uboRing.rotate();
 
-        GpuBuffer ubo = uboRing.getBlocking();
+        GpuBuffer ubo = uboRing.currentBuffer();
 
         try (GpuBuffer.MappedView view = encoder.mapBuffer(ubo, false, true))
         {
@@ -78,7 +78,7 @@ public class ScreenQuadPass
     {
         if (nearestSampler == null)
         {
-            nearestSampler = RenderSystem.getSamplerCache().get(
+            nearestSampler = RenderSystem.getSamplerCache().getClampToEdge(
                 AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.NEAREST, FilterMode.NEAREST, false);
         }
 
@@ -89,7 +89,7 @@ public class ScreenQuadPass
     {
         if (linearSampler == null)
         {
-            linearSampler = RenderSystem.getSamplerCache().get(
+            linearSampler = RenderSystem.getSamplerCache().getClampToEdge(
                 AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.LINEAR, FilterMode.LINEAR, false);
         }
 
@@ -193,7 +193,7 @@ public class ScreenQuadPass
 
         /* Identity model-view, neutral ColorModulator; the vertex colour carries any tint. */
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .write(new Matrix4f(), new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
+            .writeTransform(new Matrix4f(), new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
 
         if (projectionRing == null)
         {
@@ -202,7 +202,7 @@ public class ScreenQuadPass
 
         projectionRing.rotate();
 
-        GpuBuffer projection = projectionRing.getBlocking();
+        GpuBuffer projection = projectionRing.currentBuffer();
 
         try (GpuBuffer.MappedView view = encoder.mapBuffer(projection, false, true))
         {
@@ -210,14 +210,14 @@ public class ScreenQuadPass
                 .putMat4f(new Matrix4f().ortho(0F, quad.targetWidth, quad.targetHeight, 0F, -1000F, 1000F));
         }
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
-        builder.vertex(quad.x, quad.y + quad.h, 0F).texture(quad.u1, quad.v2).color(quad.color);
-        builder.vertex(quad.x + quad.w, quad.y + quad.h, 0F).texture(quad.u2, quad.v2).color(quad.color);
-        builder.vertex(quad.x + quad.w, quad.y, 0F).texture(quad.u2, quad.v1).color(quad.color);
-        builder.vertex(quad.x, quad.y, 0F).texture(quad.u1, quad.v1).color(quad.color);
+        builder.vertex(quad.x, quad.y + quad.h, 0F).setUv(quad.u1, quad.v2).setColor(quad.color);
+        builder.vertex(quad.x + quad.w, quad.y + quad.h, 0F).setUv(quad.u2, quad.v2).setColor(quad.color);
+        builder.vertex(quad.x + quad.w, quad.y, 0F).setUv(quad.u2, quad.v1).setColor(quad.color);
+        builder.vertex(quad.x, quad.y, 0F).setUv(quad.u1, quad.v1).setColor(quad.color);
 
-        BuiltBuffer buffer = builder.endNullable();
+        MeshData buffer = builder.build();
 
         if (buffer == null)
         {
@@ -225,10 +225,10 @@ public class ScreenQuadPass
         }
 
         VertexFormat format = quad.pipeline.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.getBuffer());
-        RenderSystem.ShapeIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.getDrawParameters().mode());
-        GpuBuffer indexBuffer = sequential.getIndexBuffer(buffer.getDrawParameters().indexCount());
-        VertexFormat.IndexType indexType = sequential.getIndexType();
+        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
+        GpuBuffer indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
+        VertexFormat.IndexType indexType = sequential.type();
 
         try (RenderPass pass = encoder.createRenderPass(() -> name, quad.target,
             quad.clear ? OptionalInt.of(0x00000000) : OptionalInt.empty()))
@@ -255,7 +255,7 @@ public class ScreenQuadPass
 
             pass.setVertexBuffer(0, vertexBuffer);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.getDrawParameters().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
         }
         finally
         {

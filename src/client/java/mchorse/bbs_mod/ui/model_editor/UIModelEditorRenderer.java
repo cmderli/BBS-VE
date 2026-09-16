@@ -34,17 +34,17 @@ import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.InteractionHand;
+import com.mojang.math.Axis;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -344,11 +344,11 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
         {
             case FIRST_PERSON_MAIN, FIRST_PERSON_OFF ->
             {
-                MatrixStack stack = new MatrixStack();
+                PoseStack stack = new PoseStack();
 
                 ModelFormRenderer.applyFirstPersonArm(stack, !target.kind().offHand);
-                stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
-                frame.set(stack.peek().getPositionMatrix());
+                stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
+                frame.set(stack.last().pose());
             }
             case ITEM_MAIN, ITEM_OFF ->
             {
@@ -503,7 +503,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
     }
 
     /** Move the stack to the gizmo's placement, reoriented into the editor's active space. */
-    private void placeGizmo(MatrixStack stack, ModelSlotTarget target)
+    private void placeGizmo(PoseStack stack, ModelSlotTarget target)
     {
         TransformSpace space = target.editor().getSpace();
 
@@ -538,7 +538,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
     {
         if (this.firstPerson)
         {
-            this.camera.setFov(MinecraftClient.getInstance().options.getFov().getValue());
+            this.camera.setFov(Minecraft.getInstance().options.fov().get());
             this.camera.near = FIRST_PERSON_NEAR;
             this.camera.position.set(0, 0, 0);
             this.camera.rotation.set(0, 0, 0);
@@ -566,7 +566,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
     {
         super.update();
 
-        this.entity.setWorld(MinecraftClient.getInstance().world);
+        this.entity.setWorld(Minecraft.getInstance().level);
 
         if (this.form != null)
         {
@@ -586,7 +586,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
             /* 1.21.11: the GUI stack is 2D, and the preview pass leaves the global model-view identity,
              * so every draw bakes `camera.view * translate(-camera.pos)` into its own vertices — which is
              * exactly what createCameraStack() hands back. Same seed UIFormRenderer already uses. */
-            .set(FormRenderType.PREVIEW, this.entity, this.createCameraStack(), LightmapTextureManager.pack(15, 15), OverlayTexture.DEFAULT_UV, context.getTransition())
+            .set(FormRenderType.PREVIEW, this.entity, this.createCameraStack(), LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, context.getTransition())
             .camera(this.camera)
             .modelRenderer(context.getTick());
 
@@ -634,12 +634,12 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
 
             if (shown != null && !UIBaseMenu.isHideGizmoHeld())
             {
-                MatrixStack stack = this.createCameraStack();
+                PoseStack stack = this.createCameraStack();
 
-                stack.push();
+                stack.pushPose();
                 this.placeGizmo(stack, shown);
                 Gizmo.INSTANCE.renderStencil(stack, maskOf(shown));
-                stack.pop();
+                stack.popPose();
             }
 
             if (inside)
@@ -682,23 +682,23 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
 
         ModelSlotTarget target = this.target.get();
         boolean mainHand = target == null || !target.kind().firstPerson || !target.kind().offHand;
-        MatrixStack stack = this.createCameraStack();
+        PoseStack stack = this.createCameraStack();
 
         renderer.ensureAnimator(context.getTransition());
 
-        stack.push();
+        stack.pushPose();
         ModelFormRenderer.applyFirstPersonArm(stack, mainHand);
-        this.firstPersonShown = renderer.renderFirstPersonHand(stack, LightmapTextureManager.pack(15, 15), mainHand ? Hand.MAIN_HAND : Hand.OFF_HAND);
-        stack.pop();
+        this.firstPersonShown = renderer.renderFirstPersonHand(stack, LightTexture.pack(15, 15), mainHand ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND);
+        stack.popPose();
 
         this.captureFirstPersonBones(renderer);
     }
 
     private void renderAxes(UIContext context, ModelSlotTarget target)
     {
-        MatrixStack stack = this.createCameraStack();
+        PoseStack stack = this.createCameraStack();
 
-        stack.push();
+        stack.pushPose();
         this.placeGizmo(stack, target);
 
         if (UIBaseMenu.shouldRenderAxes())
@@ -707,7 +707,7 @@ public class UIModelEditorRenderer extends UIFormRenderer implements GizmoViewpo
             Gizmo.INSTANCE.render(stack, maskOf(target));
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override

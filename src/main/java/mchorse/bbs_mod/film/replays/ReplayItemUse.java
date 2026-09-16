@@ -6,9 +6,9 @@ import mchorse.bbs_mod.cubic.animation.ItemUsePose;
 import mchorse.bbs_mod.utils.clips.Clip;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.consume.UseAction;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemUseAnimation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,14 +51,14 @@ public class ReplayItemUse
             }
 
             ItemStack clipStack = useClip.itemStack.get();
-            UseAction action = displayed.getUseAction() != UseAction.NONE ? displayed.getUseAction() : clipStack.getUseAction();
+            ItemUseAnimation action = displayed.getUseAnimation() != ItemUseAnimation.NONE ? displayed.getUseAnimation() : clipStack.getUseAnimation();
 
-            if (action == UseAction.NONE)
+            if (action == ItemUseAnimation.NONE)
             {
                 continue;
             }
 
-            ItemStack timing = displayed.getUseAction() != UseAction.NONE ? displayed : clipStack;
+            ItemStack timing = displayed.getUseAnimation() != ItemUseAnimation.NONE ? displayed : clipStack;
             float window = useClip.duration.get() > 1 ? useClip.duration.get() : naturalWindow(action, timing, user);
 
             fires.clear();
@@ -90,7 +90,7 @@ public class ReplayItemUse
      * saturation point - a bite takes its eating time, a bow reaches full pull
      * in 20 ticks, a crossbow in its pull time, a trident charges in 10.
      */
-    private static float naturalWindow(UseAction action, ItemStack stack, LivingEntity user)
+    private static float naturalWindow(ItemUseAnimation action, ItemStack stack, LivingEntity user)
     {
         switch (action)
         {

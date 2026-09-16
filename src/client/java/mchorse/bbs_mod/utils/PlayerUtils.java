@@ -3,8 +3,8 @@ package mchorse.bbs_mod.utils;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.film.replays.ReplayKeyframes;
 import mchorse.bbs_mod.network.ClientNetwork;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import org.joml.Vector3d;
 
 public class PlayerUtils
@@ -16,21 +16,21 @@ public class PlayerUtils
 
     public static void teleport(double x, double y, double z, float yaw, float bodyYaw, float pitch)
     {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
 
         if (!ClientNetwork.isIsBBSModOnServer())
         {
             String command = "tp " + player.getGameProfile().name() + " " + x + " " + y + " " + z + " " + yaw + " " + pitch;
 
-            player.networkHandler.sendChatCommand(command);
+            player.connection.sendCommand(command);
         }
         else
         {
             ClientNetwork.sendTeleport(x, y, z, yaw, bodyYaw, pitch);
-            player.setYaw(yaw);
+            player.setYRot(yaw);
             player.setHeadYaw(yaw);
             player.setBodyYaw(bodyYaw);
-            player.setPitch(pitch);
+            player.setXRot(pitch);
         }
     }
 
@@ -51,7 +51,7 @@ public class PlayerUtils
      */
     public static Vector3d teleportToReplay(Replay replay, int tick)
     {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
         ReplayKeyframes keyframes = replay == null ? null : replay.keyframes;
 
         if (player == null || keyframes == null || (keyframes.x.isEmpty() && keyframes.y.isEmpty() && keyframes.z.isEmpty()))
@@ -72,21 +72,21 @@ public class PlayerUtils
 
         teleport(x, y, z, headYaw, pitch);
 
-        player.setYaw(yaw);
+        player.setYRot(yaw);
         player.setHeadYaw(headYaw);
         player.setBodyYaw(bodyYaw);
-        player.setPitch(pitch);
+        player.setXRot(pitch);
 
         return new Vector3d(x, y, z);
     }
 
     public static void teleport(double x, double y, double z)
     {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
 
         if (!ClientNetwork.isIsBBSModOnServer())
         {
-            player.networkHandler.sendChatCommand("tp " + player.getGameProfile().name() + " " + x + " " + y + " " + z);
+            player.connection.sendCommand("tp " + player.getGameProfile().name() + " " + x + " " + y + " " + z);
         }
         else
         {

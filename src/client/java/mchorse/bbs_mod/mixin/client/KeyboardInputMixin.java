@@ -6,14 +6,14 @@ import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.framework.UIBaseMenu;
 import mchorse.bbs_mod.ui.framework.UIScreen;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.Input;
-import net.minecraft.client.input.KeyboardInput;
-import net.minecraft.client.option.GameOptions;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.Vec2f;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.ClientInput;
+import net.minecraft.client.player.KeyboardInput;
+import net.minecraft.client.Options;
+import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.phys.Vec2;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(KeyboardInput.class)
-public abstract class KeyboardInputMixin extends Input
+public abstract class KeyboardInputMixin extends ClientInput
 {
     /* NOTE(1.21.11 port): movementVector is declared in the superclass Input (this mixin's declared
      * parent), so it is a normal inherited protected field accessed directly — NOT @Shadow. Mixin only
@@ -40,21 +40,21 @@ public abstract class KeyboardInputMixin extends Input
      * while a screen holds the keyboard. That is why this used to read W/A/S/D straight from GLFW
      * &mdash; which also meant a rebound layout steered nothing at all.
      */
-    private static boolean isBoundKeyDown(KeyBinding binding)
+    private static boolean isBoundKeyDown(KeyMapping binding)
     {
-        InputUtil.Key key = KeyBindingHelper.getBoundKeyOf(binding);
+        InputConstants.Key key = KeyBindingHelper.getBoundKeyOf(binding);
 
-        if (key.getCode() == GLFW.GLFW_KEY_UNKNOWN)
+        if (key.getValue() == GLFW.GLFW_KEY_UNKNOWN)
         {
             return false;
         }
 
-        if (key.getCategory() == InputUtil.Type.MOUSE)
+        if (key.getType() == InputConstants.Type.MOUSE)
         {
-            return GLFW.glfwGetMouseButton(Window.getWindow(), key.getCode()) == GLFW.GLFW_PRESS;
+            return GLFW.glfwGetMouseButton(Window.getWindow(), key.getValue()) == GLFW.GLFW_PRESS;
         }
 
-        return key.getCategory() == InputUtil.Type.KEYSYM && Window.isKeyPressed(key.getCode());
+        return key.getType() == InputConstants.Type.KEYSYM && Window.isKeyPressed(key.getValue());
     }
 
     @Inject(method = "tick", at = @At("RETURN"))
@@ -75,21 +75,21 @@ public abstract class KeyboardInputMixin extends Input
             return;
         }
 
-        GameOptions options = MinecraftClient.getInstance().options;
+        Options options = Minecraft.getInstance().options;
 
-        boolean forward = isBoundKeyDown(options.forwardKey);
-        boolean back = isBoundKeyDown(options.backKey);
-        boolean left = isBoundKeyDown(options.leftKey);
-        boolean right = isBoundKeyDown(options.rightKey);
-        boolean jump = isBoundKeyDown(options.jumpKey);
-        boolean sneak = isBoundKeyDown(options.sneakKey);
+        boolean forward = isBoundKeyDown(options.keyUp);
+        boolean back = isBoundKeyDown(options.keyDown);
+        boolean left = isBoundKeyDown(options.keyLeft);
+        boolean right = isBoundKeyDown(options.keyRight);
+        boolean jump = isBoundKeyDown(options.keyJump);
+        boolean sneak = isBoundKeyDown(options.keyShift);
 
         /* Sprinting is not part of the input vanilla reads here — the player's own tick asks the
          * binding itself — so the binding is what has to be told, or a take could never record a
          * sprint at all. */
-        options.sprintKey.setPressed(isBoundKeyDown(options.sprintKey));
+        options.keySprint.setDown(isBoundKeyDown(options.keySprint));
 
-        this.playerInput = new PlayerInput(forward, back, left, right, jump, sneak, this.playerInput.sprint());
-        this.movementVector = new Vec2f(getMovementMultiplier(left, right), getMovementMultiplier(forward, back)).normalize();
+        this.keyPresses = new Input(forward, back, left, right, jump, sneak, this.keyPresses.sprint());
+        this.moveVector = new Vec2(getMovementMultiplier(left, right), getMovementMultiplier(forward, back)).normalized();
     }
 }

@@ -16,14 +16,14 @@ import mchorse.bbs_mod.particles.components.IComponentParticleUpdate;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.world.World;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
@@ -43,7 +43,7 @@ public class ParticleEmitter
 
     public Link texture;
     public LivingEntity target;
-    public World world;
+    public Level world;
     public boolean lit;
 
     public boolean running = true;
@@ -122,7 +122,7 @@ public class ParticleEmitter
         this.world = target == null ? null : target.getEntityWorld();
     }
 
-    public void setWorld(World world)
+    public void setWorld(Level world)
     {
         this.world = world;
     }
@@ -427,7 +427,7 @@ public class ParticleEmitter
     /**
      * Render the particle on screen
      */
-    public void renderUI(MatrixStack stack, float transition)
+    public void renderUI(PoseStack stack, float transition)
     {
         if (this.scheme == null)
         {
@@ -450,21 +450,21 @@ public class ParticleEmitter
             this.setEmitterVariables(transition);
             this.setParticleVariables(this.uiParticle, transition);
 
-            Matrix4f matrix = stack.peek().getPositionMatrix();
+            Matrix4f matrix = stack.last().pose();
 
             /* The UI preview particle now renders through the same non-picker particles layer the in-world path
              * uses (BBSShaders.getParticlesLayer(), POSITION_TEXTURE_COLOR_LIGHT). The 1.21.1 original drew this
              * via GameRenderer::getPositionTexColorProgram with culling disabled; the migrated particles pipeline
              * has cull off too, and the components' renderUI writes a full-bright light so the lightmap sampler
              * (the only difference from the original POSITION_TEXTURE_COLOR format) leaves the colour unchanged. */
-            BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_TEXTURE_COLOR_LIGHT);
+            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.PARTICLE);
 
             for (IComponentParticleRender render : list)
             {
                 render.renderUI(this.uiParticle, builder, matrix, transition);
             }
 
-            BuiltBuffer built = builder.endNullable();
+            MeshData built = builder.build();
 
             if (built != null)
             {
@@ -476,7 +476,7 @@ public class ParticleEmitter
     /**
      * Render all the particles in this particle emitter
      */
-    public void render(VertexFormat format, RenderLayer layer, MatrixStack stack, int overlay, float transition)
+    public void render(VertexFormat format, RenderType layer, PoseStack stack, int overlay, float transition)
     {
         if (this.scheme == null)
         {
@@ -492,10 +492,10 @@ public class ParticleEmitter
 
         if (!this.particles.isEmpty())
         {
-            Matrix4f matrix = stack.peek().getPositionMatrix();
+            Matrix4f matrix = stack.last().pose();
 
             this.bindTexture();
-            BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
 
             for (Particle particle : this.particles)
             {
@@ -513,7 +513,7 @@ public class ParticleEmitter
              * RenderSystem.setShader/disableBlend/disableCull state calls. The per-emitter texture
              * binding (bindTexture above, old GL-style) still needs to be wired to the layer's
              * Sampler0; until then the geometry is built faithfully but may sample the wrong texture. */
-            BuiltBuffer built = builder.endNullable();
+            MeshData built = builder.build();
 
             if (built != null)
             {

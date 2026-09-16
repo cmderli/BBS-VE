@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.utils;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.Window;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.Window;
 import org.lwjgl.glfw.GLFW;
 
 public class WorldExportWindowSession
@@ -11,8 +11,8 @@ public class WorldExportWindowSession
 
     public void begin(int width, int height)
     {
-        Window window = MinecraftClient.getInstance().getWindow();
-        long handle = window.getHandle();
+        Window window = Minecraft.getInstance().getWindow();
+        long handle = window.handle();
 
         if (this.snapshot == null)
         {
@@ -30,9 +30,9 @@ public class WorldExportWindowSession
             GLFW.glfwRestoreWindow(handle);
         }
 
-        if (window.getWidth() != width || window.getHeight() != height)
+        if (window.getScreenWidth() != width || window.getScreenHeight() != height)
         {
-            window.setWindowedSize(width, height);
+            window.setWindowed(width, height);
         }
 
         this.restoreOriginalPosition(handle);
@@ -49,17 +49,17 @@ public class WorldExportWindowSession
             return;
         }
 
-        Window window = MinecraftClient.getInstance().getWindow();
-        long handle = window.getHandle();
+        Window window = Minecraft.getInstance().getWindow();
+        long handle = window.handle();
 
         if (!this.snapshot.fullscreen && this.changed)
         {
             int width = Math.max(this.snapshot.width, 2);
             int height = Math.max(this.snapshot.height, 2);
 
-            if (window.getWidth() != width || window.getHeight() != height)
+            if (window.getScreenWidth() != width || window.getScreenHeight() != height)
             {
-                window.setWindowedSize(width, height);
+                window.setWindowed(width, height);
             }
 
             this.restoreOriginalPosition(handle);
@@ -114,7 +114,7 @@ public class WorldExportWindowSession
             boolean maximized = GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_MAXIMIZED) == GLFW.GLFW_TRUE;
             boolean fullscreen = GLFW.glfwGetWindowMonitor(handle) != 0L;
 
-            return new WindowSnapshot(window.getWidth(), window.getHeight(), position.x, position.y, maximized, fullscreen);
+            return new WindowSnapshot(window.getScreenWidth(), window.getScreenHeight(), position.x, position.y, maximized, fullscreen);
         }
     }
 

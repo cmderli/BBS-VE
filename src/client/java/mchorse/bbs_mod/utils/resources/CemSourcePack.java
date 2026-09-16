@@ -8,10 +8,10 @@ import mchorse.bbs_mod.cubic.jem.CemNames;
 import mchorse.bbs_mod.resources.ISourcePack;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.IOUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.resources.Identifier;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -95,7 +95,7 @@ public class CemSourcePack implements ISourcePack
 
     public CemSourcePack()
     {
-        this.manager = MinecraftClient.getInstance().getResourceManager();
+        this.manager = Minecraft.getInstance().getResourceManager();
 
         this.reindex();
     }
@@ -107,7 +107,7 @@ public class CemSourcePack implements ISourcePack
         Map<String, Map<String, Identifier>> layers = new TreeMap<>();
         Textures textures = this.textures();
 
-        for (Identifier jem : this.manager.findResources(CEM, (id) -> isMinecraft(id) && id.getPath().endsWith(".jem")).keySet())
+        for (Identifier jem : this.manager.listResources(CEM, (id) -> isMinecraft(id) && id.getPath().endsWith(".jem")).keySet())
         {
             /* The path under the CEM folder without its extension: "cow", or "boat/bamboo" for the
              * ones a pack files away in a subfolder. The last segment names the model's folder, and
@@ -366,7 +366,7 @@ public class CemSourcePack implements ISourcePack
         Textures textures = new Textures();
 
         /* Sorted, so a name two packs both answer resolves the same way twice. */
-        for (Identifier id : new TreeMap<>(this.manager.findResources(TEXTURES, (l) -> isMinecraft(l) && l.getPath().endsWith(".png"))).keySet())
+        for (Identifier id : new TreeMap<>(this.manager.listResources(TEXTURES, (l) -> isMinecraft(l) && l.getPath().endsWith(".png"))).keySet())
         {
             String path = id.getPath().substring(TEXTURES.length() + 1);
             String name = path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
@@ -783,7 +783,7 @@ public class CemSourcePack implements ISourcePack
     {
         try
         {
-            return Identifier.of("minecraft", path);
+            return Identifier.fromNamespaceAndPath("minecraft", path);
         }
         catch (Exception e)
         {
@@ -795,7 +795,7 @@ public class CemSourcePack implements ISourcePack
     {
         Optional<Resource> resource = this.manager.getResource(id);
 
-        return resource.isPresent() ? resource.get().getInputStream() : null;
+        return resource.isPresent() ? resource.get().open() : null;
     }
 
     @Override

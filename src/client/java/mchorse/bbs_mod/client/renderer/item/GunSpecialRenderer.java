@@ -8,11 +8,11 @@ import mchorse.bbs_mod.items.GunProperties;
 import mchorse.bbs_mod.ui.framework.UIScreen;
 import mchorse.bbs_mod.ui.model_blocks.UIModelBlockEditorMenu;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.item.model.special.SpecialModelRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.special.SpecialModelRenderer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
 import org.joml.Vector3fc;
 
 import java.util.function.Consumer;
@@ -36,7 +36,7 @@ public class GunSpecialRenderer implements SpecialModelRenderer<GunSpecialRender
     {}
 
     @Override
-    public Key getData(ItemStack stack)
+    public Key extractArgument(ItemStack stack)
     {
         GunItemRenderer.Item item = BBSModClient.getGunItemRenderer().get(stack);
 
@@ -57,7 +57,7 @@ public class GunSpecialRenderer implements SpecialModelRenderer<GunSpecialRender
     }
 
     @Override
-    public void render(Key key, ItemDisplayContext displayContext, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, int overlay, boolean glint, int outlineColor)
+    public void submit(Key key, ItemDisplayContext displayContext, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay, boolean glint, int outlineColor)
     {
         if (key == null)
         {
@@ -68,7 +68,7 @@ public class GunSpecialRenderer implements SpecialModelRenderer<GunSpecialRender
         GunProperties properties = item.properties;
         Form form = properties.getForm(displayContext);
         Transform transform = properties.getTransform(displayContext);
-        boolean zoom = displayContext.isFirstPerson() && BBSModClient.getGunZoom() != null && properties.getZoomForm() != null;
+        boolean zoom = displayContext.firstPerson() && BBSModClient.getGunZoom() != null && properties.getZoomForm() != null;
 
         if (zoom)
         {
@@ -92,7 +92,7 @@ public class GunSpecialRenderer implements SpecialModelRenderer<GunSpecialRender
     }
 
     @Override
-    public void collectVertices(Consumer<Vector3fc> consumer)
+    public void getExtents(Consumer<Vector3fc> consumer)
     {
         FormRenderCapture.collectItemBounds(consumer);
     }
@@ -102,13 +102,13 @@ public class GunSpecialRenderer implements SpecialModelRenderer<GunSpecialRender
         public static final MapCodec<GunSpecialRenderer.Unbaked> CODEC = MapCodec.unit(new GunSpecialRenderer.Unbaked());
 
         @Override
-        public SpecialModelRenderer<?> bake(SpecialModelRenderer.BakeContext context)
+        public SpecialModelRenderer<?> bake(SpecialModelRenderer.BakingContext context)
         {
             return new GunSpecialRenderer();
         }
 
         @Override
-        public MapCodec<? extends SpecialModelRenderer.Unbaked> getCodec()
+        public MapCodec<? extends SpecialModelRenderer.Unbaked> type()
         {
             return CODEC;
         }

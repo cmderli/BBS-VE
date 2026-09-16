@@ -5,9 +5,9 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.utils.OS;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.sound.SoundEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvents;
 
 import java.io.File;
 import java.io.IOException;
@@ -103,11 +103,11 @@ public class UIUtils
      */
     public static int[] viewportArea(Area area)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         float scale = BBSModClient.getGUIScale();
 
         int vx = Math.round(area.x * scale);
-        int vy = Math.round(mc.getWindow().getFramebufferHeight() - (area.y + area.h) * scale);
+        int vy = Math.round(mc.getWindow().getHeight() - (area.y + area.h) * scale);
         int vw = Math.round(area.w * scale);
         int vh = Math.round(area.h * scale);
 
@@ -142,11 +142,11 @@ public class UIUtils
     {
         if (BBSSettings.clickSound.get())
         {
-            MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.ui(BBSMod.CLICK, pitch));
+            Minecraft.getInstance().getSoundManager().playDelayed(SimpleSoundInstance.forUI(BBSMod.CLICK, pitch));
         }
         else
         {
-            MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.ui(SoundEvents.UI_BUTTON_CLICK, pitch));
+            Minecraft.getInstance().getSoundManager().playDelayed(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, pitch));
         }
     }
 }

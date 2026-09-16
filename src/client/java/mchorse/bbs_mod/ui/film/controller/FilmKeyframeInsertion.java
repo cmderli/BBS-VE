@@ -12,7 +12,7 @@ import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.film.replays.UIReplaysEditorUtils;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.utils.UIUtils;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -117,12 +117,12 @@ public class FilmKeyframeInsertion
     {
         Replay replay = this.controller.getReplay();
 
-        if (replay == null || MinecraftClient.getInstance().player == null)
+        if (replay == null || Minecraft.getInstance().player == null)
         {
             return;
         }
 
-        Morph morph = Morph.getMorph(MinecraftClient.getInstance().player);
+        Morph morph = Morph.getMorph(Minecraft.getInstance().player);
 
         if (morph == null)
         {

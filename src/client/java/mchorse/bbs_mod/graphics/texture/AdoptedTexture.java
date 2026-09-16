@@ -6,11 +6,11 @@ import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.TextureFormat;
 import mchorse.bbs_mod.BBSMod;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.AbstractTexture;
-import net.minecraft.client.texture.GlTexture;
-import net.minecraft.client.texture.GlTextureView;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import com.mojang.blaze3d.opengl.GlTexture;
+import com.mojang.blaze3d.opengl.GlTextureView;
+import net.minecraft.resources.Identifier;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -84,11 +84,11 @@ public final class AdoptedTexture extends AbstractTexture
 
             if (id == null)
             {
-                id = Identifier.of(BBSMod.MOD_ID, "adopted/" + (counter++));
+                id = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "adopted/" + (counter++));
                 REGISTRY.put(texture, id);
             }
 
-            MinecraftClient.getInstance().getTextureManager().registerTexture(id,
+            Minecraft.getInstance().getTextureManager().registerAndLoad(id,
                 new AdoptedTexture(texture.id, "bbs_adopted_" + texture.id,
                     texture.width, texture.height, linear));
             LINEAR.put(texture, linear);
@@ -133,11 +133,11 @@ public final class AdoptedTexture extends AbstractTexture
 
             if (id == null)
             {
-                id = Identifier.of(BBSMod.MOD_ID, "adopted/glid_" + glId);
+                id = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "adopted/glid_" + glId);
                 GLID_REGISTRY.put(glId, id);
             }
 
-            MinecraftClient.getInstance().getTextureManager().registerTexture(id,
+            Minecraft.getInstance().getTextureManager().registerAndLoad(id,
                 new AdoptedTexture(glId, "bbs_adopted_glid_" + glId, width, height, linear));
             GLID_STAMP.put(glId, stamp);
         }
@@ -153,7 +153,7 @@ public final class AdoptedTexture extends AbstractTexture
      */
     public static void register(Identifier id, Texture texture)
     {
-        MinecraftClient.getInstance().getTextureManager().registerTexture(id,
+        Minecraft.getInstance().getTextureManager().registerAndLoad(id,
             new AdoptedTexture(texture.id, "bbs_adopted_" + texture.id, texture.width, texture.height, texture.isLinear()));
     }
 
@@ -175,12 +175,12 @@ public final class AdoptedTexture extends AbstractTexture
     {
         AdoptedGlTexture glTexture = new AdoptedGlTexture(glId, label, width, height);
 
-        this.glTexture = glTexture;
-        this.glTextureView = new AdoptedGlTextureView(glTexture);
+        this.texture = glTexture;
+        this.textureView = new AdoptedGlTextureView(glTexture);
 
         FilterMode filter = linear ? FilterMode.LINEAR : FilterMode.NEAREST;
 
-        this.sampler = RenderSystem.getSamplerCache().get(
+        this.sampler = RenderSystem.getSamplerCache().getClampToEdge(
             AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, filter, filter, false);
     }
 

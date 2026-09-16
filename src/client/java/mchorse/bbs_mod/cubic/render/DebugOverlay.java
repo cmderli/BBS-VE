@@ -9,8 +9,8 @@ import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.settings.values.ui.ValueDebugElement;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -117,8 +117,8 @@ public final class DebugOverlay
 
     public static void line(BufferBuilder builder, Matrix4f matrix, Vector3f p1, Vector3f p2, float[] col, float a)
     {
-        builder.vertex(matrix, p1.x, p1.y, p1.z).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, p2.x, p2.y, p2.z).color(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p1.x, p1.y, p1.z).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p2.x, p2.y, p2.z).setColor(col[0], col[1], col[2], a);
     }
 
     private static void solid(BufferBuilder builder, Matrix4f matrix, float thickness, Vector3f p1, Vector3f p2, float[] col, float a)
@@ -166,9 +166,9 @@ public final class DebugOverlay
     }
 
     /** A marker of the element's shape at {@code p}. The factors even out the shapes' visual footprint at equal sizes. */
-    public static void marker(BufferBuilder builder, MatrixStack stack, int shape, Vector3f p, float radius, float[] col, float a)
+    public static void marker(BufferBuilder builder, PoseStack stack, int shape, Vector3f p, float radius, float[] col, float a)
     {
-        stack.push();
+        stack.pushPose();
         stack.translate(p.x, p.y, p.z);
 
         if (shape == ValueDebugElement.SHAPE_CUBE)
@@ -194,13 +194,13 @@ public final class DebugOverlay
             Draw.sphere(builder, stack, radius, 9, 9, col[0], col[1], col[2], a);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     /** An octahedron with apexes at {@code s} along every axis. */
-    private static void diamond(BufferBuilder builder, MatrixStack stack, float s, float[] col, float a)
+    private static void diamond(BufferBuilder builder, PoseStack stack, float s, float[] col, float a)
     {
-        Matrix4f m = stack.peek().getPositionMatrix();
+        Matrix4f m = stack.last().pose();
 
         tri(builder, m, 0, s, 0, s, 0, 0, 0, 0, s, col, a);
         tri(builder, m, 0, s, 0, 0, 0, s, -s, 0, 0, col, a);
@@ -213,9 +213,9 @@ public final class DebugOverlay
     }
 
     /** A thin torus around the Y axis. */
-    private static void ring(BufferBuilder builder, MatrixStack stack, float radius, float tube, float[] col, float a)
+    private static void ring(BufferBuilder builder, PoseStack stack, float radius, float tube, float[] col, float a)
     {
-        Matrix4f m = stack.peek().getPositionMatrix();
+        Matrix4f m = stack.last().pose();
         int segU = 20;
         int segV = 8;
 
@@ -247,7 +247,7 @@ public final class DebugOverlay
     }
 
     /** Three thin axis-aligned bars through the centre, Blender's plain-axes empty. */
-    private static void cross(BufferBuilder builder, MatrixStack stack, float radius, float[] col, float a)
+    private static void cross(BufferBuilder builder, PoseStack stack, float radius, float[] col, float a)
     {
         float l = radius * 1.4F;
         float t = radius * 0.16F;
@@ -259,18 +259,18 @@ public final class DebugOverlay
 
     private static void quad(BufferBuilder builder, Matrix4f matrix, Vector3f p1, Vector3f p2, Vector3f p3, Vector3f p4, float[] col, float a)
     {
-        builder.vertex(matrix, p1.x, p1.y, p1.z).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, p2.x, p2.y, p2.z).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, p3.x, p3.y, p3.z).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, p1.x, p1.y, p1.z).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, p3.x, p3.y, p3.z).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, p4.x, p4.y, p4.z).color(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p1.x, p1.y, p1.z).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p2.x, p2.y, p2.z).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p3.x, p3.y, p3.z).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p1.x, p1.y, p1.z).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p3.x, p3.y, p3.z).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, p4.x, p4.y, p4.z).setColor(col[0], col[1], col[2], a);
     }
 
     private static void tri(BufferBuilder builder, Matrix4f matrix, float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3, float[] col, float a)
     {
-        builder.vertex(matrix, x1, y1, z1).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, x2, y2, z2).color(col[0], col[1], col[2], a);
-        builder.vertex(matrix, x3, y3, z3).color(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, x1, y1, z1).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, x2, y2, z2).setColor(col[0], col[1], col[2], a);
+        builder.addVertex(matrix, x3, y3, z3).setColor(col[0], col[1], col[2], a);
     }
 }

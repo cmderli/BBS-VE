@@ -1,10 +1,10 @@
 package mchorse.bbs_mod.cubic.animation;
 
 import mchorse.bbs_mod.cubic.animation.ItemUsePose.Use;
-import net.minecraft.item.CrossbowItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.item.CrossbowItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.util.Mth;
 
 /**
  * Vanilla's arm poses (a drawn bow, a raised shield, a charged crossbow, a
@@ -97,7 +97,7 @@ public class VanillaArmPoses
                 default: break;
             }
         }
-        else if (!swinging && stack.isOf(Items.CROSSBOW) && CrossbowItem.isCharged(stack))
+        else if (!swinging && stack.is(Items.CROSSBOW) && CrossbowItem.isCharged(stack))
         {
             return Pose.CROSSBOW_HOLD;
         }
@@ -128,8 +128,8 @@ public class VanillaArmPoses
 
                 break;
             case BLOCK:
-                arm.pitch(arm.pitch() * 0.5F - 0.9424779F + MathHelper.clamp(headPitch, -1.3962634F, 0.43633232F));
-                arm.yaw((rightSide ? -30F : 30F) * 0.017453292F + MathHelper.clamp(headYaw, -0.5235988F, 0.5235988F));
+                arm.pitch(arm.pitch() * 0.5F - 0.9424779F + Mth.clamp(headPitch, -1.3962634F, 0.43633232F));
+                arm.yaw((rightSide ? -30F : 30F) * 0.017453292F + Mth.clamp(headYaw, -0.5235988F, 0.5235988F));
 
                 break;
             case THROW_SPEAR:
@@ -158,12 +158,12 @@ public class VanillaArmPoses
 
                 break;
             case SPYGLASS:
-                arm.pitch(MathHelper.clamp(headPitch - 1.9198622F - (sneaking ? 0.2617994F : 0F), -2.4F, 3.3F));
+                arm.pitch(Mth.clamp(headPitch - 1.9198622F - (sneaking ? 0.2617994F : 0F), -2.4F, 3.3F));
                 arm.yaw(headYaw + (rightSide ? -0.2617994F : 0.2617994F));
 
                 break;
             case TOOT_HORN:
-                arm.pitch(MathHelper.clamp(headPitch, -1.2F, 1.2F) - 1.4835298F);
+                arm.pitch(Mth.clamp(headPitch, -1.2F, 1.2F) - 1.4835298F);
                 arm.yaw(headYaw + (rightSide ? -0.5235988F : 0.5235988F));
 
                 break;
@@ -193,10 +193,10 @@ public class VanillaArmPoses
         other.pitch(charging.pitch());
 
         float pullTime = use == null ? 25F : Math.max(1, ItemUsePose.pullTime(use.stack(), use.user()));
-        float used = MathHelper.clamp(use == null ? 0F : use.elapsed(), 0F, pullTime);
+        float used = Mth.clamp(use == null ? 0F : use.elapsed(), 0F, pullTime);
         float progress = used / pullTime;
 
-        other.yaw(MathHelper.lerp(progress, 0.4F, 0.85F) * (rightSide ? 1F : -1F));
-        other.pitch(MathHelper.lerp(progress, other.pitch(), -1.5707964F));
+        other.yaw(Mth.lerpInt(progress, 0.4F, 0.85F) * (rightSide ? 1F : -1F));
+        other.pitch(Mth.lerpInt(progress, other.pitch(), -1.5707964F));
     }
 }

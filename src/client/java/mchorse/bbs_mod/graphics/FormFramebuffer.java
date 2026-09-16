@@ -6,8 +6,8 @@ import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
-import net.minecraft.client.texture.GlTexture;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.opengl.GlTexture;
+import net.minecraft.resources.Identifier;
 
 /**
  * The off-screen colour + depth pair a framebuffer form draws itself into, handed out by
@@ -77,7 +77,7 @@ public class FormFramebuffer implements AutoCloseable
      */
     public Identifier getIdentifier()
     {
-        return AdoptedTexture.identifier(((GlTexture) this.color).getGlId(), this.width, this.height, false);
+        return AdoptedTexture.identifier(((GlTexture) this.color).glId(), this.width, this.height, false);
     }
 
     /** Colour + depth, four bytes each, for the pool's idle budget. */

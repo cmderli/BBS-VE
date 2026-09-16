@@ -4,7 +4,7 @@ import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.systems.ProjectionType;
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -36,18 +36,18 @@ import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RawProjectionMatrix;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.platform.Lighting;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.PerspectiveProjectionMatrixBuffer;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
@@ -74,7 +74,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
      * away — so the box stands upright and the flip moved to the quad's UVs, where vanilla's own
      * off-screen previews put theirs. */
     private static final Matrix4f ORTHO = new Matrix4f().setOrtho(-1F, 1F, -1F, 1F, -500F, 500F);
-    private static final RawProjectionMatrix PROJECTION = new RawProjectionMatrix("bbs_framebuffer_form");
+    private static final PerspectiveProjectionMatrixBuffer PROJECTION = new PerspectiveProjectionMatrixBuffer("bbs_framebuffer_form");
 
     private static GpuBuffer lightsBuffer;
     private static GpuBufferSlice lights;
@@ -119,7 +119,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
      * frame is mirrored by, or the quad is lit from the wrong side (see ModelFormRenderer).</p>
      */
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         if (this.form.parts.getAll().isEmpty())
         {
@@ -130,20 +130,20 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
 
         this.applyTransforms(uiMatrix, transition);
 
-        stack.push();
+        stack.pushPose();
 
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.translate(0F, 1F, 0F);
         stack.scale(1.5F, 1.5F, 1.5F);
 
-        stack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-        stack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+        stack.last().normal().getScale(Vectors.EMPTY_3F);
+        stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         this.renderBodyParts(new FormRenderingContext()
-            .set(FormRenderType.ENTITY, this.entity, stack, LightmapTextureManager.pack(15, 15), OverlayTexture.DEFAULT_UV, transition)
+            .set(FormRenderType.ENTITY, this.entity, stack, LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, transition)
             .inUI());
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -242,7 +242,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         BBSPickerRenderer.setRenderTarget(framebuffer.getColorView(), framebuffer.getDepthView());
 
         RenderSystem.setShaderLights(lights());
-        RenderSystem.setProjectionMatrix(PROJECTION.set(ORTHO), ProjectionType.ORTHOGRAPHIC);
+        RenderSystem.setProjectionMatrix(PROJECTION.getBuffer(ORTHO), ProjectionType.ORTHOGRAPHIC);
 
         /* The programs read the model-view off this stack, and in the interface it carries the GUI's
          * translate(0, 0, -11000): with our ortho reaching only 500 units deep, every vertex of the parts
@@ -254,9 +254,9 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         modelView.pushMatrix();
         modelView.identity();
 
-        context.stack.push();
-        context.stack.peek().getPositionMatrix().identity();
-        context.stack.peek().getNormalMatrix().identity();
+        context.stack.pushPose();
+        context.stack.last().pose().identity();
+        context.stack.last().normal().identity();
 
         /* The nested forms render under an ortho projection into this framebuffer — deferring
          * their translucent pixels into the world's queue would replay them with the wrong
@@ -278,7 +278,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
          * land the very same shading on them twice. */
         int light = context.light;
 
-        context.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+        context.light = LightTexture.FULL_BRIGHT;
 
         /* Iris can leave indexed blend overrides behind while GlStateManager already caches the
          * default. Reset the real factors as well as the cache before the parts select their own
@@ -305,7 +305,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         FramebufferDebug.readBuffer("after parts", framebuffer);
         FramebufferDebug.state("after parts", context);
 
-        context.stack.pop();
+        context.stack.popPose();
 
         modelView.popMatrix();
 
@@ -336,8 +336,8 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
          * be exactly the pipeline's own. Neither layer needs a texture bind: the picture is a device
          * texture, and the layers name it by the id it was adopted under. */
         Identifier identifier = framebuffer.getIdentifier();
-        VertexFormat format = shading ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL : VertexFormats.POSITION_TEXTURE_COLOR;
-        RenderLayer layer = shading
+        VertexFormat format = shading ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
+        RenderType layer = shading
             ? BBSShaders.getModelLayer(BBSShaders.ModelVariant.SINGLE.withCull(true), identifier)
             : BBSShaders.getBillboardLayer(identifier);
 
@@ -394,21 +394,21 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         {
             try (MemoryStack stack = MemoryStack.stackPush())
             {
-                ByteBuffer data = Std140Builder.onStack(stack, DiffuseLighting.UBO_SIZE)
+                ByteBuffer data = Std140Builder.onStack(stack, Lighting.UBO_SIZE)
                     .putVec3(new Vector3f(0F, 0F, 1F))
                     .putVec3(new Vector3f(0F, 0F, -1F))
                     .get();
 
                 /* usage 136 = UNIFORM | COPY_DST, mirroring DiffuseLighting's own Lighting UBO. */
                 lightsBuffer = RenderSystem.getDevice().createBuffer(() -> "BBS framebuffer form lights UBO", 136, data);
-                lights = lightsBuffer.slice(0, DiffuseLighting.UBO_SIZE);
+                lights = lightsBuffer.slice(0, Lighting.UBO_SIZE);
             }
         }
 
         return lights;
     }
 
-    private void renderModel(FormFramebuffer framebuffer, Identifier identifier, VertexFormat format, RenderLayer layer, MatrixStack matrices, int overlay, int light, int overlayColor, float transition, boolean defer)
+    private void renderModel(FormFramebuffer framebuffer, Identifier identifier, VertexFormat format, RenderType layer, PoseStack matrices, int overlay, int light, int overlayColor, float transition, boolean defer)
     {
         float w = framebuffer.width;
         float h = framebuffer.height;
@@ -447,11 +447,11 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         this.renderQuad(format, identifier, layer, matrices, overlay, light, overlayColor, transition, defer);
     }
 
-    private void renderQuad(VertexFormat format, Identifier identifier, RenderLayer layer, MatrixStack matrices, int overlay, int light, int overlayColor, float transition, boolean defer)
+    private void renderQuad(VertexFormat format, Identifier identifier, RenderType layer, PoseStack matrices, int overlay, int light, int overlayColor, float transition, boolean defer)
     {
         Color color = Color.white();
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
-        MatrixStack.Entry entry = matrices.peek();
+        Matrix4f matrix = matrices.last().pose();
+        PoseStack.Pose entry = matrices.last();
 
         color.mul(overlayColor);
 
@@ -459,7 +459,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
          * overlay and the program all belong to the layer now — the BBS model layer declares
          * useLightmap()/useOverlay() and its pipeline is the shader, and the layer carries the picture in
          * its own Sampler0, so there is nothing left to bind here. */
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
 
         /* Front */
         this.fill(format, builder, matrix, quad.p3.x, quad.p3.y, color, uvQuad.p3.x, uvQuad.p3.y, overlay, light, entry, 1F);
@@ -482,7 +482,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         /* Was: defaultBlendFunc + enableBlend + BufferRenderer.drawWithGlobalProgram. Blend is encoded in
          * the layer's pipeline now, and the quad is submitted through the layer, which carries this
          * framebuffer's texture in its own Sampler0. */
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -496,7 +496,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
                  * The pool hands the same target to the next form of the same size, so several deferred
                  * quads end up showing the same content — a known trade-off of the pooled scheme, exactly
                  * as on 1.21.1. */
-                RenderLayer deferred = BBSShaders.getModelLayer(new BBSShaders.ModelVariant(
+                RenderType deferred = BBSShaders.getModelLayer(new BBSShaders.ModelVariant(
                     FormTranslucentQueue.PASS_SINGLE, BBSRendering.isIrisWorldForms(), true), identifier);
                 Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix());
                 Vector3f origin = modelView.transformPosition(matrix.getTranslation(new Vector3f()));
@@ -513,7 +513,7 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
                  * for a split model, and the opaque half always writes depth even though the deferred
                  * one above may not. Drawing hands the buffer over, so the capture is taken first. */
                 FormRenderCapture.Captured captured = FormRenderCapture.copy(built);
-                RenderLayer opaque = BBSShaders.getModelLayer(new BBSShaders.ModelVariant(
+                RenderType opaque = BBSShaders.getModelLayer(new BBSShaders.ModelVariant(
                     FormTranslucentQueue.PASS_OPAQUE, true, true), identifier);
 
                 opaque.draw(built);
@@ -527,40 +527,40 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
         }
     }
 
-    private VertexConsumer fill(VertexFormat format, VertexConsumer consumer, Matrix4f matrix, float x, float y, Color color, float u, float v, int overlay, int light, MatrixStack.Entry entry, float nz)
+    private VertexConsumer fill(VertexFormat format, VertexConsumer consumer, Matrix4f matrix, float x, float y, Color color, float u, float v, int overlay, int light, PoseStack.Pose entry, float nz)
     {
-        if (format == VertexFormats.POSITION_TEXTURE_COLOR)
+        if (format == DefaultVertexFormat.POSITION_TEX_COLOR)
         {
             /* The unlit path: vanilla position_tex_color reads exactly Position/UV0/Color. */
-            return consumer.vertex(matrix, x, y, 0F).texture(u, v).color(color.r, color.g, color.b, color.a);
+            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setColor(color.r, color.g, color.b, color.a);
         }
 
-        if (format == VertexFormats.POSITION_TEXTURE_LIGHT_COLOR)
+        if (format == DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR)
         {
-            return consumer.vertex(matrix, x, y, 0F).texture(u, v).light(light).color(color.r, color.g, color.b, color.a);
+            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setUv2(light).setColor(color.r, color.g, color.b, color.a);
         }
 
-        return consumer.vertex(matrix, x, y, 0F).color(color.r, color.g, color.b, color.a).texture(u, v).overlay(overlay).light(light).normal(entry, 0F, 0F, nz);
+        return consumer.addVertex(matrix, x, y, 0F).setColor(color.r, color.g, color.b, color.a).setUv(u, v).setUv1(overlay).setUv2(light).setNormal(entry, 0F, 0F, nz);
     }
 
     @Override
-    public void collectMatrices(IEntity entity, MatrixStack stack, MatrixCache matrices, String prefix, float transition)
+    public void collectMatrices(IEntity entity, PoseStack stack, MatrixCache matrices, String prefix, float transition)
     {
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, true, transition);
-        Matrix4f origin = new Matrix4f(stack.peek().getPositionMatrix());
-        stack.pop();
+        Matrix4f origin = new Matrix4f(stack.last().pose());
+        stack.popPose();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, false, transition);
-        matrices.put(prefix, new Matrix4f(stack.peek().getPositionMatrix()), origin);
+        matrices.put(prefix, new Matrix4f(stack.last().pose()), origin);
 
         float width = MathUtils.clamp(this.form.width.get(), 2, 4096);
         float height = MathUtils.clamp(this.form.height.get(), 2, 4096);
         float scale = this.form.scale.get();
 
-        Matrix4f parent = new Matrix4f(stack.peek().getPositionMatrix());
-        MatrixStack childStack = new MatrixStack();
+        Matrix4f parent = new Matrix4f(stack.last().pose());
+        PoseStack childStack = new PoseStack();
         MatrixCache children = new MatrixCache();
 
         /* The body parts live in the framebuffer's ortho box (-1..1 across the whole texture),
@@ -574,16 +574,16 @@ public class FramebufferFormRenderer extends FormRenderer<FramebufferForm>
 
             if (form != null)
             {
-                childStack.push();
+                childStack.pushPose();
                 MatrixStackUtils.applyTransform(childStack, part.transform.get());
 
                 FormUtilsClient.getRenderer(form).collectMatrices(entity, childStack, children, StringUtils.combinePaths(prefix, part.getId()), transition);
 
-                childStack.pop();
+                childStack.popPose();
             }
         }
 
-        stack.pop();
+        stack.popPose();
 
         for (Map.Entry<String, MatrixCacheEntry> entry : children.entrySet())
         {

@@ -2,22 +2,22 @@ package mchorse.bbs_mod.client.renderer;
 
 import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.forms.FormUtilsClient;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.entity.state.EntityRenderState;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.ColorHelper;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.chunk.WorldChunk;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.multiplayer.ClientLevel;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.util.ARGB;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
@@ -43,11 +43,11 @@ public class FormShadows
      * position, keep full-cube lit blocks, fade the alpha with camera distance, depth below
      * the entity and sky brightness.
      */
-    public static List<EntityRenderState.ShadowPiece> buildPieces(ClientWorld world, double x, double y, double z, float radius, float opacity, double squaredDistanceToCamera)
+    public static List<EntityRenderState.ShadowPiece> buildPieces(ClientLevel world, double x, double y, double z, float radius, float opacity, double squaredDistanceToCamera)
     {
         List<EntityRenderState.ShadowPiece> pieces = new ArrayList<>();
 
-        if (!MinecraftClient.getInstance().options.getEntityShadows().getValue())
+        if (!Minecraft.getInstance().options.entityShadows().get())
         {
             return pieces;
         }
@@ -61,30 +61,30 @@ public class FormShadows
             return pieces;
         }
 
-        int minX = MathHelper.floor(x - radius);
-        int maxX = MathHelper.floor(x + radius);
-        int minZ = MathHelper.floor(z - radius);
-        int maxZ = MathHelper.floor(z + radius);
+        int minX = Mth.floor(x - radius);
+        int maxX = Mth.floor(x + radius);
+        int minZ = Mth.floor(z - radius);
+        int maxZ = Mth.floor(z + radius);
         /* Column depth: 1.21.11 vanilla scans min(alpha / 0.5 - 1, radius) blocks down, which goes
          * NEGATIVE once the camera is past ~11 blocks (alpha < 0.5) — minY climbs above maxY, the
          * loop never runs and the shadow vanishes entirely. That is fine for vanilla's near-camera
          * mobs but kills film shadows: the editor's orbit camera routinely sits 12-20 blocks out.
          * Use the 1.21.1 depth, min(alpha / 0.5, radius) — no "- 1" — which stays positive for as
          * long as the distance fade itself does (alpha hits 0 at 16 blocks either way). */
-        int minY = MathHelper.floor(y - Math.min(alpha / 0.5F, radius));
-        int maxY = MathHelper.floor(y);
+        int minY = Mth.floor(y - Math.min(alpha / 0.5F, radius));
+        int maxY = Mth.floor(y);
 
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
 
         for (int bx = minX; bx <= maxX; bx++)
         {
             for (int bz = minZ; bz <= maxZ; bz++)
             {
-                WorldChunk chunk = world.getChunk(bx >> 4, bz >> 4);
+                LevelChunk chunk = world.getChunk(bx >> 4, bz >> 4);
 
                 for (int by = maxY; by >= minY; by--)
                 {
-                    addPiece(pieces, world, chunk, mutable.set(bx, by, bz), x, y, z, alpha);
+                    addPiece(pieces, world, chunk, mutable.setWithOffset(bx, by, bz), x, y, z, alpha);
                 }
             }
         }
@@ -93,38 +93,38 @@ public class FormShadows
     }
 
     /** One vanilla {@code addShadowPiece}: block-under checks + per-piece alpha. */
-    private static void addPiece(List<EntityRenderState.ShadowPiece> pieces, ClientWorld world, WorldChunk chunk, BlockPos.Mutable pos, double x, double y, double z, float alpha)
+    private static void addPiece(List<EntityRenderState.ShadowPiece> pieces, ClientLevel world, LevelChunk chunk, BlockPos.MutableBlockPos pos, double x, double y, double z, float alpha)
     {
         float pieceAlpha = alpha - (float) (y - pos.getY()) * 0.5F;
 
         BlockPos down = pos.down();
         BlockState state = chunk.getBlockState(down);
 
-        if (state.getRenderType() == BlockRenderType.INVISIBLE)
+        if (state.getRenderShape() == RenderShape.INVISIBLE)
         {
             return;
         }
 
-        int light = world.getLightLevel(pos);
+        int light = world.getMaxLocalRawBrightness(pos);
 
         if (light <= 3)
         {
             return;
         }
 
-        if (!state.isFullCube(chunk, down))
+        if (!state.isCollisionShapeFullBlock(chunk, down))
         {
             return;
         }
 
-        VoxelShape shape = state.getOutlineShape(chunk, down);
+        VoxelShape shape = state.getShape(chunk, down);
 
         if (shape.isEmpty())
         {
             return;
         }
 
-        float brightness = MathHelper.clamp(pieceAlpha * 0.5F * LightmapTextureManager.getBrightness(world.getDimension(), light), 0F, 1F);
+        float brightness = Mth.clamp(pieceAlpha * 0.5F * LightTexture.getBrightness(world.getDimension(), light), 0F, 1F);
 
         pieces.add(new EntityRenderState.ShadowPiece((float) (pos.getX() - x), (float) (pos.getY() - y), (float) (pos.getZ() - z), shape, brightness));
     }
@@ -134,7 +134,7 @@ public class FormShadows
      * {@code ShadowPiecesCommandRenderer} emits, for contexts with no command queue
      * (the film's immediate AFTER_ENTITIES rendering).
      */
-    public static void drawImmediate(MatrixStack matrices, List<EntityRenderState.ShadowPiece> pieces, float radius)
+    public static void drawImmediate(PoseStack matrices, List<EntityRenderState.ShadowPiece> pieces, float radius)
     {
         if (pieces.isEmpty())
         {
@@ -145,12 +145,12 @@ public class FormShadows
          * the film's AFTER_ENTITIES context takes (name tags etc.) — instead of a bare Tessellator
          * whose BuiltBuffer lifecycle we would own. consumers.draw() ends the batch properly. */
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
-        VertexConsumer builder = consumers.getBuffer(RenderLayers.entityShadow(net.minecraft.util.Identifier.ofVanilla("textures/misc/shadow.png")));
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        VertexConsumer builder = consumers.getBuffer(RenderTypes.entityShadow(net.minecraft.util.Identifier.withDefaultNamespace("textures/misc/shadow.png")));
+        Matrix4f matrix = matrices.last().pose();
 
         for (EntityRenderState.ShadowPiece piece : pieces)
         {
-            Box box = piece.shapeBelow().getBoundingBox();
+            AABB box = piece.shapeBelow().bounds();
 
             float x1 = piece.relativeX() + (float) box.minX;
             float x2 = piece.relativeX() + (float) box.maxX;
@@ -161,7 +161,7 @@ public class FormShadows
             float u2 = -x2 / 2F / radius + 0.5F;
             float v1 = -z1 / 2F / radius + 0.5F;
             float v2 = -z2 / 2F / radius + 0.5F;
-            int color = ColorHelper.getWhite(piece.alpha());
+            int color = ARGB.white(piece.alpha());
 
             vertex(builder, matrix, color, x1, y1, z1, u1, v1);
             vertex(builder, matrix, color, x1, y1, z2, u1, v2);
@@ -174,6 +174,6 @@ public class FormShadows
 
     private static void vertex(VertexConsumer builder, Matrix4f matrix, int color, float x, float y, float z, float u, float v)
     {
-        builder.vertex(matrix, x, y, z).color(color).texture(u, v).overlay(OverlayTexture.DEFAULT_UV).light(15728880).normal(0F, 1F, 0F);
+        builder.addVertex(matrix, x, y, z).setColor(color).setUv(u, v).setUv1(OverlayTexture.NO_OVERLAY).setUv2(15728880).setNormal(0F, 1F, 0F);
     }
 }

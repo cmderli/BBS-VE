@@ -59,17 +59,17 @@ import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
+import com.mojang.math.Axis;
 import org.joml.Vector3f;
 import org.joml.Matrix4f;
 
@@ -105,7 +105,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
     private boolean rest;
 
     @Override
-    protected void applyTransforms(MatrixStack stack, boolean origin, float transition)
+    protected void applyTransforms(PoseStack stack, boolean origin, float transition)
     {
         super.applyTransforms(stack, origin, transition);
 
@@ -379,7 +379,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
      * {@link ModelInstance#render} takes the entityCutoutNoCull immediate branch, then draw. The caller manages
      * {@code ModelPreviewRenderer.ACTIVE} + diffuse lighting + restore.
      */
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         this.ensureAnimator(transition);
 
@@ -420,7 +420,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
         this.applyTransforms(uiMatrix, transition);
 
-        stack.push();
+        stack.pushPose();
 
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.scale(scale, scale, scale);
@@ -428,7 +428,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         boolean additive = this.form.additiveColor.get();
 
         this.renderModel(this.entity, stack, model,
-            LightmapTextureManager.pack(15, 15), OverlayTexture.DEFAULT_UV,
+            LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY,
             contextColor, formColor, additive, true, null, transition, null);
 
         /* The attached body parts, on the model that was just drawn. They ride the world path through
@@ -438,20 +438,20 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
          * The normal matrix takes the same Y flip the model's own draw does (see renderModel's ui
          * branch): the preview frame is mirrored in Y, and a part drawn without it is lit from the
          * wrong side. */
-        stack.push();
-        stack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-        stack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+        stack.pushPose();
+        stack.last().normal().getScale(Vectors.EMPTY_3F);
+        stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         this.renderBodyParts(new FormRenderingContext()
-            .set(FormRenderType.ENTITY, this.entity, stack, LightmapTextureManager.pack(15, 15), OverlayTexture.DEFAULT_UV, transition)
+            .set(FormRenderType.ENTITY, this.entity, stack, LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, transition)
             .inUI());
 
-        stack.pop();
+        stack.popPose();
 
-        stack.pop();
+        stack.popPose();
     }
 
-    private void renderModel(IEntity target, MatrixStack stack, ModelInstance model, int light, int overlay, Color contextColor, Color formColor, boolean additive, boolean ui, StencilMap stencilMap, float transition, MatrixStack world)
+    private void renderModel(IEntity target, PoseStack stack, ModelInstance model, int light, int overlay, Color contextColor, Color formColor, boolean additive, boolean ui, StencilMap stencilMap, float transition, PoseStack world)
     {
         Color finalColor = contextColor.copy();
         FormColorBlend.blend(finalColor, formColor);
@@ -461,15 +461,15 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
          * between the culled and non-culled layer variant, made where the draw happens
          * (ModelInstance.render / BOBJModelVAO.render). */
 
-        MatrixStack newStack = new MatrixStack();
+        PoseStack newStack = new PoseStack();
 
-        MatrixStackUtils.multiply(newStack, stack.peek().getPositionMatrix());
-        newStack.peek().getNormalMatrix().set(stack.peek().getNormalMatrix());
+        MatrixStackUtils.multiply(newStack, stack.last().pose());
+        newStack.last().normal().set(stack.last().normal());
 
         if (ui)
         {
-            newStack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-            newStack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+            newStack.last().normal().getScale(Vectors.EMPTY_3F);
+            newStack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
         }
 
         /* Strictly the world frame: it's what places the model in the world for the simulating subsystems
@@ -477,7 +477,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
          * stack when there is no world stack — the first person arm — resolved them against the camera
          * instead, and gravity pulled toward the bottom of the screen. Without a world frame there is no
          * honest answer, so they run model-local, as they do in the UI. */
-        Matrix4f baseTransform = ui || world == null ? null : new Matrix4f(world.peek().getPositionMatrix());
+        Matrix4f baseTransform = ui || world == null ? null : new Matrix4f(world.last().pose());
 
         this.applyIK(model, baseTransform);
         this.applyPhysics(target, model, transition, baseTransform);
@@ -651,7 +651,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         ModelConstraintsRuntime.apply(model);
     }
 
-    private void renderArmor(IEntity target, MatrixStack stack, ArmorType type, ArmorSlot armorSlot, Color color, int overlay, int light)
+    private void renderArmor(IEntity target, PoseStack stack, ArmorType type, ArmorSlot armorSlot, Color color, int overlay, int light)
     {
         Matrix4f matrix = this.bones.get(armorSlot.group).matrix();
 
@@ -659,17 +659,17 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
         {
             CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
 
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, matrix);
             MatrixStackUtils.applyTransform(stack, armorSlot.transform);
-            stack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(180F));
+            stack.rotateAround(Axis.XP.rotationDegrees(180F));
 
             /* TODO(1.21.11 render): blend/depth state is now pipeline-encoded; hijack hook left as a no-op. */
             CustomVertexConsumerProvider.hijackVertexFormat((l) -> {});
 
             /* Translucent armor layers ride the deferred sorted pass (see
              * CustomVertexConsumerProvider#draw(RenderLayer)); only reached outside picking. */
-            Vector3f armorOrigin = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+            Vector3f armorOrigin = stack.last().pose().getTranslation(new Vector3f());
 
             FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(armorOrigin));
 
@@ -679,11 +679,11 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
             CustomVertexConsumerProvider.clearRunnables();
 
-            stack.pop();
+            stack.popPose();
         }
     }
 
-    private void renderItems(IEntity target, ModelInstance model, MatrixStack stack, EquipmentSlot slot, ItemDisplayContext mode, List<ArmorSlot> items, Color color, int overlay, int light)
+    private void renderItems(IEntity target, ModelInstance model, PoseStack stack, EquipmentSlot slot, ItemDisplayContext mode, List<ArmorSlot> items, Color color, int overlay, int light)
     {
         ItemStack itemStack = target.getEquipmentStack(slot);
 
@@ -707,10 +707,10 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             {
                 CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
 
-                stack.push();
+                stack.pushPose();
                 MatrixStackUtils.multiply(stack, matrix);
-                stack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90F));
-                stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180F));
+                stack.rotateAround(Axis.XP.rotationDegrees(90F));
+                stack.rotateAround(Axis.YP.rotationDegrees(180F));
                 stack.translate(0F, 0.125F, 0F);
                 MatrixStackUtils.applyTransform(stack, armorSlot.transform);
 
@@ -719,7 +719,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
                 /* Translucent item layers (potions, glass blocks in hand) ride the deferred
                  * sorted pass; only reached outside picking. */
-                Vector3f itemOrigin = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+                Vector3f itemOrigin = stack.last().pose().getTranslation(new Vector3f());
 
                 FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(itemOrigin));
 
@@ -737,7 +737,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
                 CustomVertexConsumerProvider.clearRunnables();
 
-                stack.pop();
+                stack.popPose();
             }
         }
     }
@@ -754,7 +754,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
     }
 
     @Override
-    public boolean renderArm(MatrixStack matrices, int light, AbstractClientPlayerEntity player, Hand hand)
+    public boolean renderArm(PoseStack matrices, int light, AbstractClientPlayer player, InteractionHand hand)
     {
         if (this.renderFirstPersonHand(matrices, light, hand))
         {
@@ -771,16 +771,16 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
      * multiplies before {@link #renderFirstPersonHand}, so the preview matches the game. The main hand
      * is the right arm; a left-handed player is not modelled here.
      */
-    public static void applyFirstPersonArm(MatrixStack stack, boolean mainHand)
+    public static void applyFirstPersonArm(PoseStack stack, boolean mainHand)
     {
         float f = mainHand ? 1F : -1F;
 
         stack.translate(f * 0.64F, -0.6F, -0.72F);
-        stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(f * 45F));
+        stack.rotateAround(Axis.YP.rotationDegrees(f * 45F));
         stack.translate(f * -1F, 3.6F, 3.5F);
-        stack.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(f * 120F));
-        stack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(200F));
-        stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(f * -135F));
+        stack.rotateAround(Axis.ZP.rotationDegrees(f * 120F));
+        stack.rotateAround(Axis.XP.rotationDegrees(200F));
+        stack.rotateAround(Axis.YP.rotationDegrees(f * -135F));
         stack.translate(f * 5.6F, 0F, 0F);
     }
 
@@ -790,13 +790,13 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
      * {@link #applyFirstPersonArm}). Shared by the in-game arm and the model editor's preview.
      * Returns false when the model has no slot for that hand.
      */
-    public boolean renderFirstPersonHand(MatrixStack matrices, int light, Hand hand)
+    public boolean renderFirstPersonHand(PoseStack matrices, int light, InteractionHand hand)
     {
         ModelInstance model = this.getModel();
 
         if (this.animator != null && model != null)
         {
-            ArmorSlot slot = hand == Hand.MAIN_HAND ? model.getFpMain() : model.getFpOffhand();
+            ArmorSlot slot = hand == InteractionHand.MAIN_HAND ? model.getFpMain() : model.getFpOffhand();
 
             if (slot == null)
             {
@@ -834,8 +834,8 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             model.model.resetPose();
             model.clearChannels();
 
-            matrices.push();
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            matrices.pushPose();
+            matrices.rotateAround(Axis.YP.rotation(MathUtils.PI));
             MatrixStackUtils.applyTransform(matrices, slot.transform);
 
             BBSModClient.getTextures().bindTexture(this.albedo("", texture));
@@ -852,7 +852,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
             try
             {
-                this.renderModel(this.entity, matrices, model, light, OverlayTexture.DEFAULT_UV, contextColor, formColor, additive, false, null, 0F, null);
+                this.renderModel(this.entity, matrices, model, light, OverlayTexture.NO_OVERLAY, contextColor, formColor, additive, false, null, 0F, null);
             }
             finally
             {
@@ -865,7 +865,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                 group.visible = true;
             }
 
-            matrices.pop();
+            matrices.popPose();
 
             return true;
         }
@@ -896,10 +896,10 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             }
             this.evaluateChannels(context.entity, model, context.getTransition());
 
-            context.stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            context.stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
             if (context.world != null)
             {
-                context.world.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+                context.world.rotateAround(Axis.YP.rotation(MathUtils.PI));
             }
 
             BBSModClient.getTextures().bindTexture(this.albedo("", texture));
@@ -924,9 +924,9 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
                 if (adopted != null)
                 {
-                    net.minecraft.client.texture.AbstractTexture at = MinecraftClient.getInstance().getTextureManager().getTexture(adopted);
+                    net.minecraft.client.texture.AbstractTexture at = Minecraft.getInstance().getTextureManager().getTexture(adopted);
 
-                    BBSPickerRenderer.setSampler0(at.getGlTextureView(), at.getSampler());
+                    BBSPickerRenderer.setSampler0(at.getTextureView(), at.getSampler());
                 }
             }
 
@@ -1034,20 +1034,20 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
     @Override
     public void renderBodyParts(FormRenderingContext context)
     {
-        context.stack.push();
+        context.stack.pushPose();
         if (context.world != null)
         {
-            context.world.push();
+            context.world.pushPose();
         }
 
         for (BodyPart part : this.form.parts.getAllTyped())
         {
             Matrix4f matrix = part.filterBoneMatrix(this.bones.get(part.bone.get()).matrix());
 
-            context.stack.push();
+            context.stack.pushPose();
             if (context.world != null)
             {
-                context.world.push();
+                context.world.pushPose();
             }
 
             if (matrix != null)
@@ -1060,45 +1060,45 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             }
             else
             {
-                context.stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+                context.stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
                 if (context.world != null)
                 {
-                    context.world.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+                    context.world.rotateAround(Axis.YP.rotation(MathUtils.PI));
                 }
             }
 
             this.renderBodyPart(part, context);
 
-            context.stack.pop();
+            context.stack.popPose();
             if (context.world != null)
             {
-                context.world.pop();
+                context.world.popPose();
             }
         }
 
         this.bones.clear();
-        context.stack.pop();
+        context.stack.popPose();
         if (context.world != null)
         {
-            context.world.pop();
+            context.world.popPose();
         }
     }
 
     @Override
-    public void collectMatrices(IEntity entity, MatrixStack stack, MatrixCache matrices, String prefix, float transition)
+    public void collectMatrices(IEntity entity, PoseStack stack, MatrixCache matrices, String prefix, float transition)
     {
         ModelInstance model = this.getModel();
         Matrix4f mm = new Matrix4f();
         Matrix4f oo = new Matrix4f();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, true, transition);
-        oo.set(stack.peek().getPositionMatrix());
-        stack.pop();
+        oo.set(stack.last().pose());
+        stack.popPose();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, false, transition);
-        mm.set(stack.peek().getPositionMatrix());
+        mm.set(stack.last().pose());
 
         matrices.put(prefix, mm, oo);
 
@@ -1116,7 +1116,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             model.form = this.form;
             ModelIKRuntime.apply(model, null, null);
 
-            stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
             this.captureMatrices(model);
         }
 
@@ -1125,15 +1125,15 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             Matrix4f matrix = new Matrix4f();
             Matrix4f o = new Matrix4f();
 
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, entry.getValue().matrix());
-            matrix.set(stack.peek().getPositionMatrix());
-            stack.pop();
+            matrix.set(stack.last().pose());
+            stack.popPose();
 
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, entry.getValue().origin());
-            o.set(stack.peek().getPositionMatrix());
-            stack.pop();
+            o.set(stack.last().pose());
+            stack.popPose();
 
             matrices.put(StringUtils.combinePaths(prefix, entry.getKey()), matrix, o, entry.getValue().evaluatedRotation());
         }
@@ -1147,7 +1147,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             {
                 Matrix4f matrix = part.filterBoneMatrix(this.bones.get(part.bone.get()).matrix());
 
-                stack.push();
+                stack.pushPose();
 
                 if (matrix != null)
                 {
@@ -1155,18 +1155,18 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                 }
                 else
                 {
-                    stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+                    stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
                 }
 
                 MatrixStackUtils.applyTransform(stack, part.transform.get());
 
                 FormUtilsClient.getRenderer(form).collectMatrices(part.getRenderEntity(entity), stack, matrices, StringUtils.combinePaths(prefix, part.getId()), transition);
 
-                stack.pop();
+                stack.popPose();
             }
         }
 
-        stack.pop();
+        stack.popPose();
 
         this.bones.clear();
     }
@@ -1220,9 +1220,9 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             return null;
         }
 
-        MatrixStack stack = new MatrixStack();
+        PoseStack stack = new PoseStack();
 
-        stack.push();
+        stack.pushPose();
 
         /* The current sample includes the form's own transform (so its keyframes move the shadow); the
          * rest sample omits it and stays in the bind pose, so subtracting the two yields the full
@@ -1253,7 +1253,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
             this.evaluateChannels(entity, model, transition);
         }
 
-        stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+        stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
         this.captureMatrices(model);
 
         Vector3f result = null;
@@ -1261,14 +1261,14 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
 
         if (entry != null)
         {
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, entry.origin());
-            result = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
-            stack.pop();
+            result = stack.last().pose().getTranslation(new Vector3f());
+            stack.popPose();
         }
 
         this.bones.clear();
-        stack.pop();
+        stack.popPose();
 
         return result;
     }

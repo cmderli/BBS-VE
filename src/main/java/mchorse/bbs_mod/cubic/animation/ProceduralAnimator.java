@@ -12,11 +12,11 @@ import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.pose.Transform;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.Arrays;
 import java.util.List;
@@ -129,7 +129,7 @@ public class ProceduralAnimator implements IAnimator
         ItemStack offhand = target.getEquipmentStack(EquipmentSlot.OFFHAND);
 
         boolean isRolling = target.getRoll() > 4;
-        boolean isInSwimmingPose = target.getEntityPose() == EntityPose.SWIMMING;
+        boolean isInSwimmingPose = target.getEntityPose() == Pose.SWIMMING;
 
         /* Common variables */
         float handSwingProgress = target.getHandSwingProgress(transition);
@@ -150,7 +150,7 @@ public class ProceduralAnimator implements IAnimator
 
         if (isRolling)
         {
-            coefficient = (float) (target.getVelocity().lengthSquared() / 0.2D);
+            coefficient = (float) (target.getVelocity().lengthSqr() / 0.2D);
             coefficient = Math.max(1F, coefficient * coefficient * coefficient);
         }
 
@@ -201,17 +201,17 @@ public class ProceduralAnimator implements IAnimator
                     if (target.isFallFlying())
                     {
                         float roll = target.getRoll() + transition;
-                        float riptide = MathHelper.clamp(roll * roll / 100F, 0F, 1F);
+                        float riptide = Mth.clamp(roll * roll / 100F, 0F, 1F);
 
                         if (!target.isUsingRiptide())
                         {
                             group.current.rotate.x = riptide * (-90 - pitch);
                         }
 
-                        Vec3d look = target.getRotationVec(transition);
-                        Vec3d velocity = target.lerpVelocity(transition);
-                        double vl = velocity.horizontalLengthSquared();
-                        double ll = look.horizontalLengthSquared();
+                        Vec3 look = target.getRotationVec(transition);
+                        Vec3 velocity = target.lerpVelocity(transition);
+                        double vl = velocity.horizontalDistanceSqr();
+                        double ll = look.horizontalDistanceSqr();
 
                         if (vl > 0 && ll > 0)
                         {
@@ -225,9 +225,9 @@ public class ProceduralAnimator implements IAnimator
                     {
                         float newPitch = target.isTouchingWater() ? -90F - pitch : -90F;
 
-                        group.current.rotate.x = MathHelper.lerp(leaningPitch, 0F, newPitch);
+                        group.current.rotate.x = Mth.lerpInt(leaningPitch, 0F, newPitch);
 
-                        if (target.getEntityPose() == EntityPose.SWIMMING)
+                        if (target.getEntityPose() == Pose.SWIMMING)
                         {
                             group.current.translate.y -= 0.5F * 16F;
                             group.current.translate.z += 0.3F * 16F;
@@ -254,17 +254,17 @@ public class ProceduralAnimator implements IAnimator
                 }
                 else if (group.id.equals("right_arm"))
                 {
-                    group.current.rotate.x += MathUtils.toDeg(MathHelper.cos(limbPhase * 0.6662F) * 2.0F * limbSpeed * 0.5F / coefficient);
-                    group.current.rotate.z += MathUtils.toDeg(1F * (MathHelper.cos(-age * 0.09F) * 0.05F + 0.05F));
-                    group.current.rotate.x += MathUtils.toDeg(1F * MathHelper.sin(-age * 0.067F) * 0.05F);
+                    group.current.rotate.x += MathUtils.toDeg(Mth.cos(limbPhase * 0.6662F) * 2.0F * limbSpeed * 0.5F / coefficient);
+                    group.current.rotate.z += MathUtils.toDeg(1F * (Mth.cos(-age * 0.09F) * 0.05F + 0.05F));
+                    group.current.rotate.x += MathUtils.toDeg(1F * Mth.sin(-age * 0.067F) * 0.05F);
 
                     rightArm = group;
                 }
                 else if (group.id.equals("left_arm"))
                 {
-                    group.current.rotate.x += MathUtils.toDeg(MathHelper.cos(limbPhase * 0.6662F + 3.1415927F) * 2.0F * limbSpeed * 0.5F / coefficient);
-                    group.current.rotate.z += MathUtils.toDeg(-1F * (MathHelper.cos(-age * 0.09F) * 0.05F + 0.05F));
-                    group.current.rotate.x += MathUtils.toDeg(-1F * MathHelper.sin(-age * 0.067F) * 0.05F);
+                    group.current.rotate.x += MathUtils.toDeg(Mth.cos(limbPhase * 0.6662F + 3.1415927F) * 2.0F * limbSpeed * 0.5F / coefficient);
+                    group.current.rotate.z += MathUtils.toDeg(-1F * (Mth.cos(-age * 0.09F) * 0.05F + 0.05F));
+                    group.current.rotate.x += MathUtils.toDeg(-1F * Mth.sin(-age * 0.067F) * 0.05F);
 
                     leftArm = group;
                 }
@@ -278,13 +278,13 @@ public class ProceduralAnimator implements IAnimator
                 }
                 else if (group.id.equals("right_leg"))
                 {
-                    group.current.rotate.x = MathUtils.toDeg(MathHelper.cos(limbPhase * 0.6662F + 3.1415927F) * 1.4F * limbSpeed / coefficient);
+                    group.current.rotate.x = MathUtils.toDeg(Mth.cos(limbPhase * 0.6662F + 3.1415927F) * 1.4F * limbSpeed / coefficient);
 
                     rightLeg = group;
                 }
                 else if (group.id.equals("left_leg"))
                 {
-                    group.current.rotate.x = MathUtils.toDeg(MathHelper.cos(limbPhase * 0.6662F) * 1.4F * limbSpeed / coefficient);
+                    group.current.rotate.x = MathUtils.toDeg(Mth.cos(limbPhase * 0.6662F) * 1.4F * limbSpeed / coefficient);
 
                     leftLeg = group;
                 }
@@ -347,7 +347,7 @@ public class ProceduralAnimator implements IAnimator
                 ModelGroup group;
                 float swingFactor = handSwingProgress;
 
-                torso.current.rotate.y = -MathUtils.toDeg(MathHelper.sin(MathHelper.sqrt(swingFactor) * MathUtils.PI * 2F) * 0.2F);
+                torso.current.rotate.y = -MathUtils.toDeg(Mth.sin(Mth.sqrt(swingFactor) * MathUtils.PI * 2F) * 0.2F);
 
                 leftArm.current.translate.z += (float) Math.sin(MathUtils.toRad(torso.current.rotate.y)) * 5F;
                 leftArm.current.translate.x += (float) Math.cos(MathUtils.toRad(torso.current.rotate.y)) * 5F - 5F;
@@ -367,11 +367,11 @@ public class ProceduralAnimator implements IAnimator
                 swingFactor = 1F - swingFactor;
 
                 float headPitch = 0F;
-                float swing1 = MathHelper.sin(swingFactor * MathUtils.PI);
-                float swign2 = MathHelper.sin(handSwingProgress * MathUtils.PI) * -(headPitch - 0.7F) * 0.75F;
+                float swing1 = Mth.sin(swingFactor * MathUtils.PI);
+                float swign2 = Mth.sin(handSwingProgress * MathUtils.PI) * -(headPitch - 0.7F) * 0.75F;
                 rightArm.current.rotate.x = group.current.rotate.x + MathUtils.toDeg(swing1 * 1.2F + swign2);
                 rightArm.current.rotate.y += torso.current.rotate.y * 2F;
-                rightArm.current.rotate.z += MathUtils.toDeg(MathHelper.sin(handSwingProgress * MathUtils.PI) * -0.4F);
+                rightArm.current.rotate.z += MathUtils.toDeg(Mth.sin(handSwingProgress * MathUtils.PI) * -0.4F);
             }
 
             /* Last, the way vanilla does it: the stroke overrides the walk the limbs were given
@@ -408,17 +408,17 @@ public class ProceduralAnimator implements IAnimator
                     if (target.isFallFlying())
                     {
                         float roll = target.getRoll() + transition;
-                        float riptide = MathHelper.clamp(roll * roll / 100F, 0F, 1F);
+                        float riptide = Mth.clamp(roll * roll / 100F, 0F, 1F);
 
                         if (!target.isUsingRiptide())
                         {
                             bone.transform.rotate.x = MathUtils.toRad(riptide * (-90 - pitch));
                         }
 
-                        Vec3d look = target.getRotationVec(transition);
-                        Vec3d velocity = target.lerpVelocity(transition);
-                        double vl = velocity.horizontalLengthSquared();
-                        double ll = look.horizontalLengthSquared();
+                        Vec3 look = target.getRotationVec(transition);
+                        Vec3 velocity = target.lerpVelocity(transition);
+                        double vl = velocity.horizontalDistanceSqr();
+                        double ll = look.horizontalDistanceSqr();
 
                         if (vl > 0 && ll > 0)
                         {
@@ -432,9 +432,9 @@ public class ProceduralAnimator implements IAnimator
                     {
                         float newPitch = target.isTouchingWater() ? -90F - pitch : -90F;
 
-                        bone.transform.rotate.x = MathUtils.toRad(MathHelper.lerp(leaningPitch, 0F, newPitch));
+                        bone.transform.rotate.x = MathUtils.toRad(Mth.lerpInt(leaningPitch, 0F, newPitch));
 
-                        if (target.getEntityPose() == EntityPose.SWIMMING)
+                        if (target.getEntityPose() == Pose.SWIMMING)
                         {
                             bone.transform.translate.y -= MathUtils.toRad(0.5F * 16F);
                             bone.transform.translate.z += MathUtils.toRad(0.3F * 16F);
@@ -461,29 +461,29 @@ public class ProceduralAnimator implements IAnimator
                 }
                 else if (bone.name.equals("right_arm"))
                 {
-                    bone.transform.rotate.x += MathHelper.cos(limbPhase * 0.6662F) * 2.0F * limbSpeed * 0.5F / coefficient;
-                    bone.transform.rotate.z -= 1F * (MathHelper.cos(-age * 0.09F) * 0.05F + 0.05F);
-                    bone.transform.rotate.x += 1F * MathHelper.sin(-age * 0.067F) * 0.05F;
+                    bone.transform.rotate.x += Mth.cos(limbPhase * 0.6662F) * 2.0F * limbSpeed * 0.5F / coefficient;
+                    bone.transform.rotate.z -= 1F * (Mth.cos(-age * 0.09F) * 0.05F + 0.05F);
+                    bone.transform.rotate.x += 1F * Mth.sin(-age * 0.067F) * 0.05F;
 
                     bobjRightArm = bone;
                 }
                 else if (bone.name.equals("left_arm"))
                 {
-                    bone.transform.rotate.x += MathHelper.cos(limbPhase * 0.6662F + 3.1415927F) * 2.0F * limbSpeed * 0.5F / coefficient;
-                    bone.transform.rotate.z -= -1F * (MathHelper.cos(-age * 0.09F) * 0.05F + 0.05F);
-                    bone.transform.rotate.x += -1F * MathHelper.sin(-age * 0.067F) * 0.05F;
+                    bone.transform.rotate.x += Mth.cos(limbPhase * 0.6662F + 3.1415927F) * 2.0F * limbSpeed * 0.5F / coefficient;
+                    bone.transform.rotate.z -= -1F * (Mth.cos(-age * 0.09F) * 0.05F + 0.05F);
+                    bone.transform.rotate.x += -1F * Mth.sin(-age * 0.067F) * 0.05F;
 
                     bobjLeftArm = bone;
                 }
                 else if (bone.name.equals("right_leg"))
                 {
-                    bone.transform.rotate.x = MathHelper.cos(limbPhase * 0.6662F + 3.1415927F) * 1.4F * limbSpeed / coefficient;
+                    bone.transform.rotate.x = Mth.cos(limbPhase * 0.6662F + 3.1415927F) * 1.4F * limbSpeed / coefficient;
 
                     bobjRightLeg = bone;
                 }
                 else if (bone.name.equals("left_leg"))
                 {
-                    bone.transform.rotate.x = MathHelper.cos(limbPhase * 0.6662F) * 1.4F * limbSpeed / coefficient;
+                    bone.transform.rotate.x = Mth.cos(limbPhase * 0.6662F) * 1.4F * limbSpeed / coefficient;
 
                     bobjLeftLeg = bone;
                 }
@@ -532,7 +532,7 @@ public class ProceduralAnimator implements IAnimator
             {
                 BOBJBone group;
                 float swingFactor = handSwingProgress;
-                float rotate = -MathUtils.toDeg(MathHelper.sin(MathHelper.sqrt(swingFactor) * MathUtils.PI * 2F) * 0.2F);
+                float rotate = -MathUtils.toDeg(Mth.sin(Mth.sqrt(swingFactor) * MathUtils.PI * 2F) * 0.2F);
 
                 bobjLeftArm.transform.translate.z -= ((float) Math.sin(MathUtils.toRad(rotate)) * 5F) / 16F;
                 bobjLeftArm.transform.translate.x -= ((float) Math.cos(MathUtils.toRad(rotate)) * 5F - 5F) / 16F;
@@ -552,11 +552,11 @@ public class ProceduralAnimator implements IAnimator
                 swingFactor = 1F - swingFactor;
 
                 float headPitch = 0F;
-                float swing1 = MathHelper.sin(swingFactor * MathUtils.PI);
-                float swign2 = MathHelper.sin(handSwingProgress * MathUtils.PI) * -(headPitch - 0.7F) * 0.75F;
+                float swing1 = Mth.sin(swingFactor * MathUtils.PI);
+                float swign2 = Mth.sin(handSwingProgress * MathUtils.PI) * -(headPitch - 0.7F) * 0.75F;
                 bobjRightArm.transform.rotate.x = MathUtils.toRad(group.transform.rotate.x + MathUtils.toDeg(swing1 * 1.2F + swign2));
                 bobjRightArm.transform.rotate.y -= MathUtils.toRad(rotate * 2F);
-                bobjRightArm.transform.rotate.z -= MathHelper.sin(handSwingProgress * MathUtils.PI) * -0.4F;
+                bobjRightArm.transform.rotate.z -= Mth.sin(handSwingProgress * MathUtils.PI) * -0.4F;
             }
 
             if (leaningPitch > 0F)

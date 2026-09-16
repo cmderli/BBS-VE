@@ -1,24 +1,24 @@
 package mchorse.bbs_mod.forms;
 
 import mchorse.bbs_mod.utils.colors.Color;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.BufferAllocator;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 
 import java.util.SequencedMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immediate
+public class CustomVertexConsumerProvider extends MultiBufferSource.BufferSource
 {
-    private static Consumer<RenderLayer> runnables;
+    private static Consumer<RenderType> runnables;
 
     private Function<VertexConsumer, VertexConsumer> substitute;
-    private Function<RenderLayer, RenderLayer> layerMapper;
+    private Function<RenderType, RenderType> layerMapper;
     private boolean ui;
 
-    public static void drawLayer(RenderLayer layer)
+    public static void drawLayer(RenderType layer)
     {
         if (runnables != null)
         {
@@ -26,7 +26,7 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
         }
     }
 
-    public static void hijackVertexFormat(Consumer<RenderLayer> runnable)
+    public static void hijackVertexFormat(Consumer<RenderType> runnable)
     {
         runnables = runnable;
     }
@@ -36,7 +36,7 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
         runnables = null;
     }
 
-    public CustomVertexConsumerProvider(BufferAllocator allocator, SequencedMap<RenderLayer, BufferAllocator> layers)
+    public CustomVertexConsumerProvider(ByteBufferBuilder allocator, SequencedMap<RenderType, ByteBufferBuilder> layers)
     {
         super(allocator, layers);
     }
@@ -51,7 +51,7 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
      * custom-texture feature routes its first body layer onto a layer carrying the form's own
      * texture — the per-layer replacement for 1.21.1's global texture bind.
      */
-    public void setLayerMapper(Function<RenderLayer, RenderLayer> layerMapper)
+    public void setLayerMapper(Function<RenderType, RenderType> layerMapper)
     {
         this.layerMapper = layerMapper;
     }
@@ -62,11 +62,11 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
     }
 
     @Override
-    public VertexConsumer getBuffer(RenderLayer renderLayer)
+    public VertexConsumer getBuffer(RenderType renderLayer)
     {
         if (this.layerMapper != null)
         {
-            RenderLayer mapped = this.layerMapper.apply(renderLayer);
+            RenderType mapped = this.layerMapper.apply(renderLayer);
 
             if (mapped != null)
             {
@@ -96,7 +96,7 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
      * current form renderer published its sort origin (never in picking or UI paths).
      */
     @Override
-    public void draw(RenderLayer layer)
+    public void endBatch(RenderType layer)
     {
         /* TODO(1.21.11 render): the deferred branch that used to live here retained the built
          * geometry in a VertexBuffer and handed it to FormTranslucentQueue. Both the buffer type
@@ -104,13 +104,13 @@ public class CustomVertexConsumerProvider extends VertexConsumerProvider.Immedia
          * on this branch (see FormTranslucentQueue) and every layer draws immediately. The colour
          * overlay needs nothing here either way: the layer a tinted form draws through IS the tinted
          * one (see FormOverlay#withOverlay), so the tint travels with the layer, not with a flag. */
-        super.draw(layer);
+        super.endBatch(layer);
     }
 
     @Override
-    public void draw()
+    public void endBatch()
     {
-        super.draw();
+        super.endBatch();
 
         if (this.ui)
         {

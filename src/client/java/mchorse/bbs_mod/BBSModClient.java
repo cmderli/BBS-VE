@@ -98,8 +98,8 @@ import mchorse.bbs_mod.utils.VideoRecorder;
 import mchorse.bbs_mod.utils.colors.Color;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.PackType;
 import mchorse.bbs_mod.cubic.jem.VanillaRigs;
 import mchorse.bbs_mod.utils.resources.CemSourcePack;
 import mchorse.bbs_mod.utils.resources.MinecraftSourcePack;
@@ -118,24 +118,24 @@ import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.data.GameRegistries;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.core.HolderLookup;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.Camera;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.render.item.model.special.SpecialModelTypes;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.client.util.Window;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.renderer.special.SpecialModelRenderers;
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.Window;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
@@ -161,22 +161,22 @@ public class BBSModClient implements ClientModInitializer
 
     private static ParticleManager particles;
 
-    private static KeyBinding keyDashboard;
-    private static KeyBinding keyItemEditor;
-    private static KeyBinding keyPlayFilm;
-    private static KeyBinding keyPauseFilm;
-    private static KeyBinding keyRecordReplay;
-    private static KeyBinding keyRecordVideo;
-    private static KeyBinding keyPlayFilmAndRecord;
-    private static KeyBinding keyOpenReplays;
-    private static KeyBinding keyOpenMorphing;
-    private static KeyBinding keyDemorph;
-    private static KeyBinding keyTeleport;
-    private static KeyBinding keyZoom;
+    private static KeyMapping keyDashboard;
+    private static KeyMapping keyItemEditor;
+    private static KeyMapping keyPlayFilm;
+    private static KeyMapping keyPauseFilm;
+    private static KeyMapping keyRecordReplay;
+    private static KeyMapping keyRecordVideo;
+    private static KeyMapping keyPlayFilmAndRecord;
+    private static KeyMapping keyOpenReplays;
+    private static KeyMapping keyOpenMorphing;
+    private static KeyMapping keyDemorph;
+    private static KeyMapping keyTeleport;
+    private static KeyMapping keyZoom;
 
     /* NOTE(1.21.11 port): KeyBinding categories are now registered objects (KeyBinding.Category.create);
      * create once and reuse, otherwise re-registering the same id throws "already registered". */
-    private static final KeyBinding.Category KEY_CATEGORY = KeyBinding.Category.create(Identifier.of(BBSMod.MOD_ID, "main"));
+    private static final KeyMapping.Category KEY_CATEGORY = KeyMapping.Category.create(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "main"));
 
     private static UIDashboard dashboard;
 
@@ -313,12 +313,12 @@ public class BBSModClient implements ClientModInitializer
         return gunZoom;
     }
 
-    public static KeyBinding getKeyZoom()
+    public static KeyMapping getKeyZoom()
     {
         return keyZoom;
     }
 
-    public static KeyBinding getKeyRecordVideo()
+    public static KeyMapping getKeyRecordVideo()
     {
         return keyRecordVideo;
     }
@@ -399,15 +399,15 @@ public class BBSModClient implements ClientModInitializer
      */
     public static float getGUIScale()
     {
-        Window window = MinecraftClient.getInstance().getWindow();
+        Window window = Minecraft.getInstance().getWindow();
         float custom = getCustomGUIScale();
 
         if (custom > 0F)
         {
-            return clampGUIScale(custom, window.getFramebufferWidth(), window.getFramebufferHeight());
+            return clampGUIScale(custom, window.getWidth(), window.getHeight());
         }
 
-        return window.getScaleFactor();
+        return window.getGuiScale();
     }
 
     /**
@@ -453,9 +453,9 @@ public class BBSModClient implements ClientModInitializer
             return;
         }
 
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
 
-        if (player == null || MinecraftClient.getInstance().currentScreen != null)
+        if (player == null || Minecraft.getInstance().screen != null)
         {
             return;
         }
@@ -471,8 +471,8 @@ public class BBSModClient implements ClientModInitializer
             return;
 
         /* Animation state trigger for items*/
-        ModelProperties main = getItemStackProperties(player.getStackInHand(Hand.MAIN_HAND));
-        ModelProperties offhand = getItemStackProperties(player.getStackInHand(Hand.OFF_HAND));
+        ModelProperties main = getItemStackProperties(player.getItemInHand(InteractionHand.MAIN_HAND));
+        ModelProperties offhand = getItemStackProperties(player.getItemInHand(InteractionHand.OFF_HAND));
 
         if (main != null && main.getForm() != null && main.getForm().findState(key, (form, state) ->
         {
@@ -525,28 +525,28 @@ public class BBSModClient implements ClientModInitializer
         GameRegistries.addPreferredSource(new GameRegistries.Source()
         {
             @Override
-            public RegistryWrapper.WrapperLookup lookup()
+            public HolderLookup.Provider lookup()
             {
-                ClientPlayNetworkHandler handler = MinecraftClient.getInstance().getNetworkHandler();
+                ClientPacketListener handler = Minecraft.getInstance().getConnection();
 
-                return handler == null ? null : handler.getRegistryManager();
+                return handler == null ? null : handler.registryAccess();
             }
 
             @Override
             public boolean isOwnThread()
             {
-                return MinecraftClient.getInstance().isOnThread();
+                return Minecraft.getInstance().isSameThread();
             }
         });
 
         /* Every resource reload: the pack list changed, or the user pressed F3+T. It fires before the
          * client has started too, which reloadFromResourcePacks sits out. */
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener()
+        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener()
         {
             @Override
             public Identifier getFabricId()
             {
-                return Identifier.of(BBSMod.MOD_ID, "resource_pack_models");
+                return Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "resource_pack_models");
             }
 
             @Override
@@ -610,9 +610,9 @@ public class BBSModClient implements ClientModInitializer
                 return true;
             }
 
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
 
-            return mc.player != null && mc.player.getMainHandStack().isOf(BBSMod.MODEL_BLOCK_ITEM);
+            return mc.player != null && mc.player.getMainHandItem().is(BBSMod.MODEL_BLOCK_ITEM);
         };
 
         URLRepository repository = new URLRepository(new File(parentFile, "url_cache"));
@@ -635,9 +635,9 @@ public class BBSModClient implements ClientModInitializer
         BBSSettings.language.postCallback((v, f) -> reloadLanguage(getLanguageKey()));
         BBSSettings.userIntefaceScale.postCallback((v, f) ->
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
 
-            if (mc.currentScreen instanceof UIScreen)
+            if (mc.screen instanceof UIScreen)
             {
                 mc.onResolutionChanged();
             }
@@ -804,19 +804,19 @@ public class BBSModClient implements ClientModInitializer
                      * Matrix note (1.21.11): the context stack is identity and the view rotation lives in the
                      * global RenderSystem modelview, so the camera rotation is composed ONTO the stack to
                      * cancel it (the BaseFilmController "relative" idiom) — the quad stays screen-fixed. */
-                    MatrixStack stack = context.matrices();
-                    Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+                    PoseStack stack = context.matrices();
+                    Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
                     Integer fromCurve = BBSRendering.getChromaSkyColorArgb();
                     Color color = Colors.COLOR.set(fromCurve != null ? fromCurve : BBSSettings.chromaSkyColor.get());
 
-                    stack.push();
-                    stack.peek().getPositionMatrix().rotate(camera.getRotation());
-                    stack.peek().getNormalMatrix().rotate(camera.getRotation());
+                    stack.pushPose();
+                    stack.last().pose().rotate(camera.rotation());
+                    stack.last().normal().rotate(camera.rotation());
                     stack.translate(0F, 0F, -d);
 
-                    BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+                    BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
-                    float fov = MinecraftClient.getInstance().options.getFov().getValue();
+                    float fov = Minecraft.getInstance().options.fov().get();
                     float dd = d * (float) Math.pow(fov / 40F, 2F);
 
                     Draw.fillQuad(builder, stack,
@@ -829,7 +829,7 @@ public class BBSModClient implements ClientModInitializer
 
                     Draw.flushTriangles(builder);
 
-                    stack.pop();
+                    stack.popPose();
                 }
             }
 
@@ -894,7 +894,7 @@ public class BBSModClient implements ClientModInitializer
 
         ClientTickEvents.END_WORLD_TICK.register((client) ->
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
 
             if (!mc.isPaused())
             {
@@ -906,9 +906,9 @@ public class BBSModClient implements ClientModInitializer
 
         ClientTickEvents.END_CLIENT_TICK.register((client) ->
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
 
-            if (mc.currentScreen instanceof UIScreen screen)
+            if (mc.screen instanceof UIScreen screen)
             {
                 screen.update();
             }
@@ -925,7 +925,7 @@ public class BBSModClient implements ClientModInitializer
             /* Animated textures keep going in BBS's own screens even while the game is paused
              * under them — the texture manager pauses it, the film editor doesn't, and a preview
              * should play in both. With no BBS screen the clock stops with the world, as vanilla's does. */
-            if (!mc.isPaused() || mc.currentScreen instanceof UIScreen)
+            if (!mc.isPaused() || mc.screen instanceof UIScreen)
             {
                 textures.update();
             }
@@ -936,28 +936,28 @@ public class BBSModClient implements ClientModInitializer
              * opens one that is already there */
             DashboardWarmup.tick(mc);
 
-            while (keyDashboard.wasPressed()) UIScreen.open(getDashboard());
-            while (keyItemEditor.wasPressed()) this.keyOpenModelBlockEditor(mc);
-            while (keyPlayFilm.wasPressed()) this.keyPlayFilm();
-            while (keyPauseFilm.wasPressed()) this.keyPauseFilm();
-            while (keyRecordReplay.wasPressed()) this.keyRecordReplay();
-            while (keyRecordVideo.wasPressed()) this.keyRecordVideo(mc);
-            while (keyPlayFilmAndRecord.wasPressed()) this.keyPlayFilmAndRecord();
-            while (keyOpenReplays.wasPressed()) this.keyOpenReplays();
-            while (keyOpenMorphing.wasPressed())
+            while (keyDashboard.consumeClick()) UIScreen.open(getDashboard());
+            while (keyItemEditor.consumeClick()) this.keyOpenModelBlockEditor(mc);
+            while (keyPlayFilm.consumeClick()) this.keyPlayFilm();
+            while (keyPauseFilm.consumeClick()) this.keyPauseFilm();
+            while (keyRecordReplay.consumeClick()) this.keyRecordReplay();
+            while (keyRecordVideo.consumeClick()) this.keyRecordVideo(mc);
+            while (keyPlayFilmAndRecord.consumeClick()) this.keyPlayFilmAndRecord();
+            while (keyOpenReplays.consumeClick()) this.keyOpenReplays();
+            while (keyOpenMorphing.consumeClick())
             {
                 UIDashboard dashboard = getDashboard();
 
                 UIScreen.open(dashboard);
                 dashboard.setPanel(dashboard.getPanel(UIMorphingPanel.class));
             }
-            while (keyDemorph.wasPressed()) ClientNetwork.sendPlayerForm(null);
-            while (keyTeleport.wasPressed()) this.keyTeleport();
+            while (keyDemorph.consumeClick()) ClientNetwork.sendPlayerForm(null);
+            while (keyTeleport.consumeClick()) this.keyTeleport();
 
             if (mc.player != null)
             {
-                boolean zoom = keyZoom.isPressed();
-                ItemStack stack = mc.player.getMainHandStack();
+                boolean zoom = keyZoom.isDown();
+                ItemStack stack = mc.player.getMainHandItem();
 
                 if (gunZoom == null && zoom && stack.getItem() == BBSMod.GUN_ITEM)
                 {
@@ -978,7 +978,7 @@ public class BBSModClient implements ClientModInitializer
 
             if (gunZoom != null)
             {
-                gunZoom.update(keyZoom.isPressed(), MinecraftClient.getInstance().getRenderTickCounter().getDynamicDeltaTicks());
+                gunZoom.update(keyZoom.isDown(), Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaTicks());
 
                 if (gunZoom.canBeRemoved())
                 {
@@ -1003,9 +1003,9 @@ public class BBSModClient implements ClientModInitializer
 
             provider.register(cemSourcePack);
 
-            Window window = MinecraftClient.getInstance().getWindow();
+            Window window = Minecraft.getInstance().getWindow();
 
-            originalFramebufferScale = window.getFramebufferWidth() / window.getWidth();
+            originalFramebufferScale = window.getWidth() / window.getScreenWidth();
         });
 
         URLTextureErrorCallback.EVENT.register((url, error) ->
@@ -1045,8 +1045,8 @@ public class BBSModClient implements ClientModInitializer
          * SpecialModelRenderer. The queue defers every draw, so the renderer captures the
          * form's immediate pipeline (FormRenderCapture, hooked into RenderLayer#draw) and
          * replays it into queue commands — one mechanism for hand, ground and GUI. */
-        SpecialModelTypes.ID_MAPPER.put(Identifier.of(BBSMod.MOD_ID, "gun"), GunSpecialRenderer.Unbaked.CODEC);
-        SpecialModelTypes.ID_MAPPER.put(Identifier.of(BBSMod.MOD_ID, "model_block"), ModelBlockSpecialRenderer.Unbaked.CODEC);
+        SpecialModelRenderers.ID_MAPPER.put(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "gun"), GunSpecialRenderer.Unbaked.CODEC);
+        SpecialModelRenderers.ID_MAPPER.put(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "model_block"), ModelBlockSpecialRenderer.Unbaked.CODEC);
 
         /* Create folders */
         BBSMod.getAudioFolder().mkdirs();
@@ -1065,7 +1065,7 @@ public class BBSModClient implements ClientModInitializer
         BBSMod.events.post(new BBSClientReadyEvent());
     }
 
-    private void keyRecordVideo(MinecraftClient mc)
+    private void keyRecordVideo(Minecraft mc)
     {
         if (worldExportSession.isExporting())
         {
@@ -1077,29 +1077,29 @@ public class BBSModClient implements ClientModInitializer
         worldExportSession.start(null, null);
     }
 
-    private KeyBinding createKey(String id, int key)
+    private KeyMapping createKey(String id, int key)
     {
-        return KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        return KeyBindingHelper.registerKeyBinding(new KeyMapping(
             "key." + BBSMod.MOD_ID + "." + id,
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             key,
             KEY_CATEGORY
         ));
     }
 
-    private KeyBinding createKeyMouse(String id, int button)
+    private KeyMapping createKeyMouse(String id, int button)
     {
-        return KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        return KeyBindingHelper.registerKeyBinding(new KeyMapping(
             "key." + BBSMod.MOD_ID + "." + id,
-            InputUtil.Type.MOUSE,
+            InputConstants.Type.MOUSE,
             button,
             KEY_CATEGORY
         ));
     }
 
-    private void keyOpenModelBlockEditor(MinecraftClient mc)
+    private void keyOpenModelBlockEditor(Minecraft mc)
     {
-        ItemStack stack = mc.player.getEquippedStack(EquipmentSlot.MAINHAND);
+        ItemStack stack = mc.player.getItemBySlot(EquipmentSlot.MAINHAND);
         ModelBlockItemRenderer.Item item = modelBlockItemRenderer.get(stack);
         GunItemRenderer.Item gunItem = gunItemRenderer.get(stack);
 
@@ -1244,7 +1244,7 @@ public class BBSModClient implements ClientModInitializer
     {
         if (key.isEmpty())
         {
-            key = MinecraftClient.getInstance().options.language;
+            key = Minecraft.getInstance().options.languageCode;
         }
 
         return key;

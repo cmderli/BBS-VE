@@ -6,12 +6,12 @@ import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.entities.MCEntity;
 import mchorse.bbs_mod.forms.forms.Form;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.storage.NbtWriteView;
-import net.minecraft.util.ErrorReporter;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.level.Level;
 
 import java.util.HashSet;
 import java.util.Objects;
@@ -24,7 +24,7 @@ public class SelectorOwner
     private Form form;
     private long check;
     private int nbtCheck;
-    private NbtCompound lastNbt;
+    private CompoundTag lastNbt;
 
     private LivingEntity mcEntity;
 
@@ -41,9 +41,9 @@ public class SelectorOwner
 
     public void update()
     {
-        World world = this.entity.getWorld();
+        Level world = this.entity.getWorld();
 
-        if (!world.isClient())
+        if (!world.isClientSide())
         {
             return;
         }
@@ -66,19 +66,19 @@ public class SelectorOwner
             this.nbtCheck = 10;
 
             Set<String> keys = createWhitelist();
-            NbtCompound compound = this.saveData();
+            CompoundTag compound = this.saveData();
 
             if (compound != null)
             {
-                NbtCompound newCompound = new NbtCompound();
+                CompoundTag newCompound = new CompoundTag();
 
                 for (String key : keys)
                 {
-                    NbtElement element = compound.get(key);
+                    Tag element = compound.read(key);
 
                     if (element != null)
                     {
-                        newCompound.put(key, element);
+                        newCompound.store(key, element);
                     }
                 }
 
@@ -115,15 +115,15 @@ public class SelectorOwner
         this.nbtCheck -= 1;
     }
 
-    private NbtCompound saveData()
+    private CompoundTag saveData()
     {
         try
         {
-            NbtWriteView view = NbtWriteView.create(ErrorReporter.EMPTY);
+            TagValueOutput view = TagValueOutput.createWithContext(ProblemReporter.DISCARDING);
 
-            this.mcEntity.saveData(view);
+            this.mcEntity.save(view);
 
-            return view.getNbt();
+            return view.buildResult();
         }
         catch (Exception e)
         {

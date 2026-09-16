@@ -7,11 +7,11 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.client.render.picker.BBSPickerRenderer;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -30,9 +30,9 @@ public class ModelVAORenderer
      * capture the frame's model-view for their own maths (the deferred translucent queue it was
      * written for is disabled on 1.21.11).
      */
-    public static Matrix4f captureModelView(MatrixStack stack)
+    public static Matrix4f captureModelView(PoseStack stack)
     {
-        return new Matrix4f(RenderSystem.getModelViewMatrix()).mul(stack.peek().getPositionMatrix());
+        return new Matrix4f(RenderSystem.getModelViewMatrix()).mul(stack.last().pose());
     }
 
     /**
@@ -45,13 +45,13 @@ public class ModelVAORenderer
      * <p>{@code cull} carries the model's own culling flag ({@code ModelInstance.isCulling()}); on
      * 1.21.1 it toggled the global GL cull around the draw, now it picks the layer variant.
      */
-    public static void render(ModelVAO modelVAO, MatrixStack stack, float r, float g, float b, float a, int light, int overlay, boolean cull)
+    public static void render(ModelVAO modelVAO, PoseStack stack, float r, float g, float b, float a, int light, int overlay, boolean cull)
     {
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
 
         modelVAO.writeImmediate(builder, stack, r, g, b, a, light, overlay);
 
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -69,13 +69,13 @@ public class ModelVAORenderer
      * need the custom BBSPicker UBO (the Target index), which the immediate RenderLayer path cannot carry,
      * so the draw is driven by {@link BBSPickerRenderer}. The caller records the Target and Sampler0 first.
      */
-    public static void renderPicking(ModelVAO modelVAO, MatrixStack stack, float r, float g, float b, float a, int light, int overlay, RenderPipeline picker)
+    public static void renderPicking(ModelVAO modelVAO, PoseStack stack, float r, float g, float b, float a, int light, int overlay, RenderPipeline picker)
     {
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
 
         modelVAO.writeImmediate(builder, stack, r, g, b, a, light, overlay);
 
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {

@@ -1,17 +1,17 @@
 package mchorse.bbs_mod.actions;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.ChestBlockEntity;
-import net.minecraft.block.entity.EnderChestBlockEntity;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.EnderChestBlockEntity;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
 
 /**
  * Raises and lowers a container's lid for a film (LUCKYWAY).
@@ -35,14 +35,14 @@ public class ContainerLid
     private static final int VIEWER_COUNT = 1;
 
     /** Whether the block at this position has a lid worth animating at all. */
-    public static boolean isLidded(World world, BlockPos pos)
+    public static boolean isLidded(Level world, BlockPos pos)
     {
         BlockEntity entity = world.getBlockEntity(pos);
 
         return entity instanceof ChestBlockEntity || entity instanceof EnderChestBlockEntity;
     }
 
-    public static void setOpen(World world, BlockPos pos, boolean open)
+    public static void setOpen(Level world, BlockPos pos, boolean open)
     {
         BlockEntity entity = world.getBlockEntity(pos);
 
@@ -56,10 +56,10 @@ public class ContainerLid
              * moves both of them - a half open chest reads as a broken one */
             if (chestType(state) != ChestType.SINGLE)
             {
-                BlockPos other = pos.offset(ChestBlock.getFacing(state));
+                BlockPos other = pos.relative(ChestBlock.getConnectedDirection(state));
                 BlockState otherState = world.getBlockState(other);
 
-                if (otherState.isOf(state.getBlock()))
+                if (otherState.is(state.getBlock()))
                 {
                     setChestHalfOpen(world, other, otherState, open);
                 }
@@ -69,23 +69,23 @@ public class ContainerLid
         {
             BlockState state = world.getBlockState(pos);
 
-            world.addSyncedBlockEvent(pos, state.getBlock(), VIEWER_COUNT, open ? 1 : 0);
-            playSound(world, pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D, open ? SoundEvents.BLOCK_ENDER_CHEST_OPEN : SoundEvents.BLOCK_ENDER_CHEST_CLOSE);
+            world.blockEvent(pos, state.getBlock(), VIEWER_COUNT, open ? 1 : 0);
+            playSound(world, pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D, open ? SoundEvents.ENDER_CHEST_OPEN : SoundEvents.ENDER_CHEST_CLOSE);
         }
     }
 
-    private static void setChestHalfOpen(World world, BlockPos pos, BlockState state, boolean open)
+    private static void setChestHalfOpen(Level world, BlockPos pos, BlockState state, boolean open)
     {
-        world.addSyncedBlockEvent(pos, state.getBlock(), VIEWER_COUNT, open ? 1 : 0);
+        world.blockEvent(pos, state.getBlock(), VIEWER_COUNT, open ? 1 : 0);
 
-        playChestSound(world, pos, state, open ? SoundEvents.BLOCK_CHEST_OPEN : SoundEvents.BLOCK_CHEST_CLOSE);
+        playChestSound(world, pos, state, open ? SoundEvents.CHEST_OPEN : SoundEvents.CHEST_CLOSE);
     }
 
     /**
      * ChestBlockEntity#playSound, which isn't ours to call: the left half stays
      * quiet so a double chest is heard once, from the middle of the two.
      */
-    private static void playChestSound(World world, BlockPos pos, BlockState state, SoundEvent sound)
+    private static void playChestSound(Level world, BlockPos pos, BlockState state, SoundEvent sound)
     {
         ChestType type = chestType(state);
 
@@ -100,23 +100,23 @@ public class ContainerLid
 
         if (type == ChestType.RIGHT)
         {
-            Direction direction = ChestBlock.getFacing(state);
+            Direction direction = ChestBlock.getConnectedDirection(state);
 
-            x += direction.getOffsetX() * 0.5D;
-            z += direction.getOffsetZ() * 0.5D;
+            x += direction.getStepX() * 0.5D;
+            z += direction.getStepZ() * 0.5D;
         }
 
         playSound(world, x, y, z, sound);
     }
 
-    private static void playSound(World world, double x, double y, double z, SoundEvent sound)
+    private static void playSound(Level world, double x, double y, double z, SoundEvent sound)
     {
-        world.playSound(null, x, y, z, sound, SoundCategory.BLOCKS, 0.5F, world.getRandom().nextFloat() * 0.1F + 0.9F);
+        world.playSeededSound(null, x, y, z, sound, SoundSource.BLOCKS, 0.5F, world.getRandom().nextFloat() * 0.1F + 0.9F);
     }
 
     /** A chest block entity doesn't have to sit in a vanilla chest block. */
     private static ChestType chestType(BlockState state)
     {
-        return state.contains(ChestBlock.CHEST_TYPE) ? state.get(ChestBlock.CHEST_TYPE) : ChestType.SINGLE;
+        return state.hasProperty(ChestBlock.TYPE) ? state.getValueOrElse(ChestBlock.TYPE) : ChestType.SINGLE;
     }
 }

@@ -7,11 +7,11 @@ import mchorse.bbs_mod.math.IExpression;
 import mchorse.bbs_mod.math.Variable;
 import mchorse.bbs_mod.utils.interps.Lerps;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.Level;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -493,17 +493,17 @@ public class CemAnimation
 
         /* OptiFine's "player" is the viewer. The nearest player is exactly that in singleplayer and the
          * sensible stand-in otherwise; with no one around the entity looks at itself. */
-        World world = target.getWorld();
-        PlayerEntity player = world == null ? null : world.getClosestPlayer(x, y, z, -1D, false);
+        Level world = target.getWorld();
+        Player player = world == null ? null : world.getNearestPlayer(x, y, z, -1D, false);
 
         if (player != null)
         {
-            Vec3d position = player.getLerpedPos(transition);
+            Vec3 position = player.getPosition(transition);
 
             this.parser.setValue("player_pos_x", position.x);
             this.parser.setValue("player_pos_y", position.y);
             this.parser.setValue("player_pos_z", position.z);
-            this.parser.setValue("player_rot_x", Math.toRadians(player.getPitch(transition)));
+            this.parser.setValue("player_rot_x", Math.toRadians(player.getViewXRot(transition)));
             this.parser.setValue("player_rot_y", Math.toRadians(player.getYaw(transition)));
         }
         else

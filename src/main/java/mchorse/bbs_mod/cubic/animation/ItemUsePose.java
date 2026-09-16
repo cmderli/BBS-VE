@@ -2,11 +2,11 @@ package mchorse.bbs_mod.cubic.animation;
 
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.entities.MCEntity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.CrossbowItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Hand;
-import net.minecraft.item.consume.UseAction;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.CrossbowItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemUseAnimation;
 
 /**
  * The item use state of a body, as everything that poses or dresses it needs it:
@@ -25,7 +25,7 @@ public class ItemUsePose
      * the body holding it - null when a replay's hand has none behind it (the
      * actor can be a bare form), which the vanilla timings below allow for.
      */
-    public record Use(UseAction action, float elapsed, ItemStack stack, float window, LivingEntity user)
+    public record Use(ItemUseAnimation action, float elapsed, ItemStack stack, float window, LivingEntity user)
     {}
 
     /** The living body behind an entity, if there is one - the timings below ask it. */
@@ -46,18 +46,18 @@ public class ItemUsePose
     {
         if (user != null)
         {
-            return stack.getMaxUseTime(user);
+            return stack.getUseDuration(user);
         }
 
         /* Only CrossbowItem reads the holder (its pull time plus three); every
          * other item answers from the stack alone. */
-        return stack.getItem() instanceof CrossbowItem ? pullTime(stack, null) + 3 : stack.getMaxUseTime(null);
+        return stack.getItem() instanceof CrossbowItem ? pullTime(stack, null) + 3 : stack.getUseDuration(null);
     }
 
     public static int pullTime(ItemStack stack, LivingEntity user)
     {
         /* CrossbowItem.getPullTime: floor(charge time * 20), and 1.25s is the base. */
-        return user == null ? 25 : CrossbowItem.getPullTime(stack, user);
+        return user == null ? 25 : CrossbowItem.getChargeDuration(stack, user);
     }
 
     public interface Source
@@ -110,14 +110,14 @@ public class ItemUsePose
             return null;
         }
 
-        if ((living.getActiveHand() == Hand.MAIN_HAND) != mainHand)
+        if ((living.getUsedItemHand() == InteractionHand.MAIN_HAND) != mainHand)
         {
             return null;
         }
 
-        ItemStack stack = living.getActiveItem();
-        UseAction action = stack.getUseAction();
+        ItemStack stack = living.getUseItem();
+        ItemUseAnimation action = stack.getUseAnimation();
 
-        return action == UseAction.NONE ? null : new Use(action, living.getItemUseTime(), stack, maxUseTime(stack, living), living);
+        return action == ItemUseAnimation.NONE ? null : new Use(action, living.getTicksUsingItem(), stack, maxUseTime(stack, living), living);
     }
 }

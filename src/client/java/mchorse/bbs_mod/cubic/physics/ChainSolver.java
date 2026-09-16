@@ -4,9 +4,9 @@ import mchorse.bbs_mod.cubic.IModel;
 import mchorse.bbs_mod.cubic.constraints.BoneConstraint;
 import mchorse.bbs_mod.cubic.render.CubicRenderer.PivotFrame;
 import mchorse.bbs_mod.utils.joml.Matrices;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.Level;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -224,7 +224,7 @@ final class ChainSolver
         }
     }
 
-    static void step(World world, int age, float transition, IModel model, List<String> ids, ModelPhysicsCache.CompiledChain chain, float gravityMul, float dampingValue, float stiffnessValue, ModelPhysicsConfig.Wind wind, Map<String, BoneConstraint> constraints, Vector3f anchorPosition, Quaternionf anchorRotation, Quaternionf parentRotation, Vector3f targetPosition, List<PivotFrame> chainFrames, ChainState state)
+    static void step(Level world, int age, float transition, IModel model, List<String> ids, ModelPhysicsCache.CompiledChain chain, float gravityMul, float dampingValue, float stiffnessValue, ModelPhysicsConfig.Wind wind, Map<String, BoneConstraint> constraints, Vector3f anchorPosition, Quaternionf anchorRotation, Quaternionf parentRotation, Vector3f targetPosition, List<PivotFrame> chainFrames, ChainState state)
     {
         Vector3f newAnchor = anchorPosition;
         Quaternionf newAnchorRotation = anchorRotation;
@@ -324,7 +324,7 @@ final class ChainSolver
         Vector3f poseDir = new Vector3f();
         Vector3f curDir = new Vector3f();
 
-        BlockPos.Mutable mutable = collisions ? new BlockPos.Mutable() : null;
+        BlockPos.MutableBlockPos mutable = collisions ? new BlockPos.MutableBlockPos() : null;
 
         /* Roll the settled snapshots: the previous tick's shape keeps its own anchor frame, the new
          * tick's shape is snapshot after the sub-steps in its. renderInterpolate blends the two local
@@ -525,7 +525,7 @@ final class ChainSolver
     }
 
     /** Depenetrates the chain against the world, then re-pins the endpoints. The tip is excluded from the sweep when it is hard-pinned. */
-    private static void resolveCollisions(World world, Vector3f[] pos, Vector3f[] prev, Vector3f anchor, Vector3f target, int last, float radius)
+    private static void resolveCollisions(Level world, Vector3f[] pos, Vector3f[] prev, Vector3f anchor, Vector3f target, int last, float radius)
     {
         int to = target != null ? last : pos.length;
 
@@ -567,7 +567,7 @@ final class ChainSolver
      * (or its own diameter) in one sub-step and there are solid blocks in its swept volume, clamp the
      * step length so the depenetration pass can still catch it instead of passing through thin geometry.
      */
-    private static void clampTunnelStep(World world, BlockPos.Mutable mutable, Vector3f p, Vector3f prev, float radius)
+    private static void clampTunnelStep(Level world, BlockPos.MutableBlockPos mutable, Vector3f p, Vector3f prev, float radius)
     {
         float dx = p.x - prev.x;
         float dy = p.y - prev.y;
@@ -581,12 +581,12 @@ final class ChainSolver
             return;
         }
 
-        int minBX = MathHelper.floor(Math.min(prev.x, p.x) - radius);
-        int minBY = MathHelper.floor(Math.min(prev.y, p.y) - radius);
-        int minBZ = MathHelper.floor(Math.min(prev.z, p.z) - radius);
-        int maxBX = MathHelper.floor(Math.max(prev.x, p.x) + radius);
-        int maxBY = MathHelper.floor(Math.max(prev.y, p.y) + radius);
-        int maxBZ = MathHelper.floor(Math.max(prev.z, p.z) + radius);
+        int minBX = Mth.floor(Math.min(prev.x, p.x) - radius);
+        int minBY = Mth.floor(Math.min(prev.y, p.y) - radius);
+        int minBZ = Mth.floor(Math.min(prev.z, p.z) - radius);
+        int maxBX = Mth.floor(Math.max(prev.x, p.x) + radius);
+        int maxBY = Mth.floor(Math.max(prev.y, p.y) + radius);
+        int maxBZ = Mth.floor(Math.max(prev.z, p.z) + radius);
 
         if (!ModelPhysicsWorldCollisions.hasFullCubeInAabb(world, mutable, minBX, minBY, minBZ, maxBX, maxBY, maxBZ))
         {

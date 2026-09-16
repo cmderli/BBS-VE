@@ -3,8 +3,8 @@ package mchorse.bbs_mod.forms.renderers.mob;
 import mchorse.bbs_mod.cubic.IBoneHierarchy;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.EntityModel;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;

@@ -3,7 +3,7 @@ package mchorse.bbs_mod.client.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
-import net.minecraft.client.texture.GlTexture;
+import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.textures.TextureFormat;
 
 /**
@@ -62,7 +62,7 @@ public class OffscreenTarget
     /** Raw GL id, for the recorded {@code texturedBox(int, ...)} blit back over the viewport. */
     public int getGlId()
     {
-        return this.texture == null ? -1 : ((GlTexture) this.texture).getGlId();
+        return this.texture == null ? -1 : ((GlTexture) this.texture).glId();
     }
 
     public int getWidth()

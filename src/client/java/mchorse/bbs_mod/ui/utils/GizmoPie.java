@@ -7,9 +7,8 @@ import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformOp;
 import mchorse.bbs_mod.utils.Axis;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.RotationAxis;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -36,7 +35,7 @@ public class GizmoPie
      * @param ringGesture the axis drag's own gesture, whose anchored turn axis decides which
      *                    way the wedge sweeps; ignored for the view ring.
      */
-    public static void draw(MatrixStack stack, TransformGesture transform, DragStrategy ringGesture)
+    public static void draw(PoseStack stack, TransformGesture transform, DragStrategy ringGesture)
     {
         if (transform == null || !transform.isEditing() || transform.getOp() != TransformOp.ROTATE)
         {
@@ -69,7 +68,7 @@ public class GizmoPie
      * starts exactly under the grab, its leading edge follows the cursor, and — being in the
      * gizmo's own (distance-scaled) frame — its radius rides the ring at any FOV.
      */
-    private static void drawView(MatrixStack stack, TransformGesture transform)
+    private static void drawView(PoseStack stack, TransformGesture transform)
     {
         float sweepRad = transform.getViewScreenSweepRad();
 
@@ -78,7 +77,7 @@ public class GizmoPie
             return;
         }
 
-        Matrix4f mat = stack.peek().getPositionMatrix();
+        Matrix4f mat = stack.last().pose();
         Matrix3f basis = mat.get3x3(new Matrix3f());
 
         if (Math.abs(basis.determinant()) < 1.0E-8F)
@@ -118,9 +117,9 @@ public class GizmoPie
             rimPoint(p1, right, down, startRad + step * i, radius);
             rimPoint(p2, right, down, startRad + step * (i + 1), radius);
 
-            builder.vertex(mat, 0, 0, 0).color(r, g, b, fillAlpha);
-            builder.vertex(mat, p1.x, p1.y, p1.z).color(r, g, b, fillAlpha);
-            builder.vertex(mat, p2.x, p2.y, p2.z).color(r, g, b, fillAlpha);
+            builder.addVertex(mat, 0, 0, 0).setColor(r, g, b, fillAlpha);
+            builder.addVertex(mat, p1.x, p1.y, p1.z).setColor(r, g, b, fillAlpha);
+            builder.addVertex(mat, p2.x, p2.y, p2.z).setColor(r, g, b, fillAlpha);
         }
 
         Gizmo.flush(builder);
@@ -153,17 +152,17 @@ public class GizmoPie
         rimPoint(rim, right, down, angle, radius);
         rimPoint(perp, right, down, angle + (float) (Math.PI / 2D), thickness);
 
-        builder.vertex(mat, perp.x, perp.y, perp.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, -perp.x, -perp.y, -perp.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, rim.x - perp.x, rim.y - perp.y, rim.z - perp.z).color(r, g, b, edgeAlpha);
+        builder.addVertex(mat, perp.x, perp.y, perp.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, -perp.x, -perp.y, -perp.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, rim.x - perp.x, rim.y - perp.y, rim.z - perp.z).setColor(r, g, b, edgeAlpha);
 
-        builder.vertex(mat, perp.x, perp.y, perp.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, rim.x - perp.x, rim.y - perp.y, rim.z - perp.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, rim.x + perp.x, rim.y + perp.y, rim.z + perp.z).color(r, g, b, edgeAlpha);
+        builder.addVertex(mat, perp.x, perp.y, perp.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, rim.x - perp.x, rim.y - perp.y, rim.z - perp.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, rim.x + perp.x, rim.y + perp.y, rim.z + perp.z).setColor(r, g, b, edgeAlpha);
     }
 
     /** Sweep pie for one of the three axis rings, drawn in the ring's own plane. */
-    private static void drawAxis(MatrixStack stack, TransformGesture transform, DragStrategy ringGesture, Axis axis)
+    private static void drawAxis(PoseStack stack, TransformGesture transform, DragStrategy ringGesture, Axis axis)
     {
         if (transform.drag() == null) return;
 
@@ -223,10 +222,10 @@ public class GizmoPie
         float startDeg = MathUtils.toDeg((float) Math.atan2(pz, px));
         float sweepDeg = transform.getAccumulatedRotateDeg() * sweepDir;
 
-        stack.push();
+        stack.pushPose();
 
-        if (axis == Axis.X) stack.multiply(RotationAxis.POSITIVE_Z.rotation(MathUtils.PI / 2F));
-        if (axis == Axis.Z) stack.multiply(RotationAxis.POSITIVE_X.rotation(MathUtils.PI / 2F));
+        if (axis == Axis.X) stack.rotateAround(com.mojang.math.Axis.ZP.rotation(MathUtils.PI / 2F));
+        if (axis == Axis.Z) stack.rotateAround(com.mojang.math.Axis.XP.rotation(MathUtils.PI / 2F));
 
         int color = axis == Axis.X ? Colors.RED : (axis == Axis.Y ? Colors.GREEN : Colors.BLUE);
         float r = Colors.getR(color);
@@ -235,7 +234,7 @@ public class GizmoPie
         float edgeAlpha = BBSSettings.gizmoOpacity.get();
         float a = 0.25F * edgeAlpha;
 
-        Matrix4f mat = stack.peek().getPositionMatrix();
+        Matrix4f mat = stack.last().pose();
 
         /* Blend, no culling and always-pass depth all belong to the gizmo pipeline now. */
         BufferBuilder builder = Gizmo.begin();
@@ -253,17 +252,17 @@ public class GizmoPie
             float x2 = (float) Math.cos(a2) * radius;
             float z2 = (float) Math.sin(a2) * radius;
 
-            builder.vertex(mat, 0, 0, 0).color(r, g, b, a);
+            builder.addVertex(mat, 0, 0, 0).setColor(r, g, b, a);
 
             if (sweepDeg > 0)
             {
-                builder.vertex(mat, x1, 0, z1).color(r, g, b, a);
-                builder.vertex(mat, x2, 0, z2).color(r, g, b, a);
+                builder.addVertex(mat, x1, 0, z1).setColor(r, g, b, a);
+                builder.addVertex(mat, x2, 0, z2).setColor(r, g, b, a);
             }
             else
             {
-                builder.vertex(mat, x2, 0, z2).color(r, g, b, a);
-                builder.vertex(mat, x1, 0, z1).color(r, g, b, a);
+                builder.addVertex(mat, x2, 0, z2).setColor(r, g, b, a);
+                builder.addVertex(mat, x1, 0, z1).setColor(r, g, b, a);
             }
         }
 
@@ -281,25 +280,25 @@ public class GizmoPie
 
         Vector3f p1 = new Vector3f(-sz, 0, sx).normalize().mul(lineThickness);
 
-        builder.vertex(mat, p1.x, 0, p1.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, -p1.x, 0, -p1.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, sx - p1.x, 0, sz - p1.z).color(r, g, b, edgeAlpha);
+        builder.addVertex(mat, p1.x, 0, p1.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, -p1.x, 0, -p1.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, sx - p1.x, 0, sz - p1.z).setColor(r, g, b, edgeAlpha);
 
-        builder.vertex(mat, p1.x, 0, p1.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, sx - p1.x, 0, sz - p1.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, sx + p1.x, 0, sz + p1.z).color(r, g, b, edgeAlpha);
+        builder.addVertex(mat, p1.x, 0, p1.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, sx - p1.x, 0, sz - p1.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, sx + p1.x, 0, sz + p1.z).setColor(r, g, b, edgeAlpha);
 
         Vector3f p2 = new Vector3f(-ez, 0, ex).normalize().mul(lineThickness);
-        builder.vertex(mat, p2.x, 0, p2.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, -p2.x, 0, -p2.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, ex - p2.x, 0, ez - p2.z).color(r, g, b, edgeAlpha);
+        builder.addVertex(mat, p2.x, 0, p2.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, -p2.x, 0, -p2.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, ex - p2.x, 0, ez - p2.z).setColor(r, g, b, edgeAlpha);
 
-        builder.vertex(mat, p2.x, 0, p2.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, ex - p2.x, 0, ez - p2.z).color(r, g, b, edgeAlpha);
-        builder.vertex(mat, ex + p2.x, 0, ez + p2.z).color(r, g, b, edgeAlpha);
+        builder.addVertex(mat, p2.x, 0, p2.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, ex - p2.x, 0, ez - p2.z).setColor(r, g, b, edgeAlpha);
+        builder.addVertex(mat, ex + p2.x, 0, ez + p2.z).setColor(r, g, b, edgeAlpha);
 
         Gizmo.flush(builder);
 
-        stack.pop();
+        stack.popPose();
     }
 }

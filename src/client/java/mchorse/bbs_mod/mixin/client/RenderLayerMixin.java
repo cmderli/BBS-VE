@@ -2,14 +2,14 @@ package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.forms.FormRenderCapture;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.rendertype.RenderType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(RenderLayer.class)
+@Mixin(RenderType.class)
 public class RenderLayerMixin
 {
     /* This hook lets form renderers override what vanilla set up for the layer (custom texture for
@@ -26,17 +26,17 @@ public class RenderLayerMixin
      * captured instead of executed — no GL pass is open at item-record time, so an immediate
      * draw here would land in the wrong phase. */
     @Inject(method = "draw", at = @At("HEAD"), cancellable = true)
-    public void onDraw(BuiltBuffer buffer, CallbackInfo info)
+    public void onDraw(MeshData buffer, CallbackInfo info)
     {
         if (FormRenderCapture.isActive())
         {
-            FormRenderCapture.capture((RenderLayer) (Object) this, buffer);
+            FormRenderCapture.capture((RenderType) (Object) this, buffer);
 
             info.cancel();
 
             return;
         }
 
-        CustomVertexConsumerProvider.drawLayer((RenderLayer) (Object) this);
+        CustomVertexConsumerProvider.drawLayer((RenderType) (Object) this);
     }
 }

@@ -11,8 +11,8 @@ import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.forms.FramebufferForm;
 import mchorse.bbs_mod.forms.renderers.FormRenderingContext;
 import mchorse.bbs_mod.graphics.FormFramebuffer;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.GlTexture;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -78,13 +78,13 @@ public class FramebufferDebug
 
         if (logging)
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
 
             last = now;
             LOGGER.info("[BBS FB] ===== frame {} ===== pack={} graphics={} mainColor={} window={}x{}",
                 frame, staticCall("net.irisshaders.iris.Iris", "getCurrentPackName"),
-                mc.options.getPreset().getValue(), texture(mc.getFramebuffer().getColorAttachment()),
-                mc.getWindow().getFramebufferWidth(), mc.getWindow().getFramebufferHeight());
+                mc.options.graphicsPreset().get(), texture(mc.getMainRenderTarget().getColorTexture()),
+                mc.getWindow().getWidth(), mc.getWindow().getHeight());
         }
     }
 
@@ -302,7 +302,7 @@ public class FramebufferDebug
     /** Where the form sits and what the programs will multiply by. */
     public static String matrices(FormRenderingContext context)
     {
-        Matrix4f stack = context.stack.peek().getPositionMatrix();
+        Matrix4f stack = context.stack.last().pose();
         Matrix4f modelView = RenderSystem.getModelViewStack();
         boolean identity = modelView.equals(new Matrix4f(), 1e-5F);
 
@@ -375,7 +375,7 @@ public class FramebufferDebug
 
     private static String texture(GpuTexture texture)
     {
-        return texture instanceof GlTexture gl ? texture.getLabel() + "#" + gl.getGlId() : String.valueOf(texture);
+        return texture instanceof GlTexture gl ? texture.getLabel() + "#" + gl.glId() : String.valueOf(texture);
     }
 
     private static void readPixels(String tag, int expected, int width, int height)

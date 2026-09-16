@@ -6,11 +6,11 @@ import mchorse.bbs_mod.blocks.entities.ModelProperties;
 import mchorse.bbs_mod.forms.FormRenderCapture;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.ui.model_blocks.UIModelBlockEditorMenu;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.item.model.special.SpecialModelRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.special.SpecialModelRenderer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
 import org.joml.Vector3fc;
 
 import java.util.function.Consumer;
@@ -36,7 +36,7 @@ public class ModelBlockSpecialRenderer implements SpecialModelRenderer<ModelBloc
     {}
 
     @Override
-    public Key getData(ItemStack stack)
+    public Key extractArgument(ItemStack stack)
     {
         ModelBlockItemRenderer.Item item = BBSModClient.getModelBlockItemRenderer().get(stack);
 
@@ -60,7 +60,7 @@ public class ModelBlockSpecialRenderer implements SpecialModelRenderer<ModelBloc
     }
 
     @Override
-    public void render(Key key, ItemDisplayContext displayContext, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, int overlay, boolean glint, int outlineColor)
+    public void submit(Key key, ItemDisplayContext displayContext, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay, boolean glint, int outlineColor)
     {
         if (key == null)
         {
@@ -80,7 +80,7 @@ public class ModelBlockSpecialRenderer implements SpecialModelRenderer<ModelBloc
     }
 
     @Override
-    public void collectVertices(Consumer<Vector3fc> consumer)
+    public void getExtents(Consumer<Vector3fc> consumer)
     {
         FormRenderCapture.collectItemBounds(consumer);
     }
@@ -90,13 +90,13 @@ public class ModelBlockSpecialRenderer implements SpecialModelRenderer<ModelBloc
         public static final MapCodec<ModelBlockSpecialRenderer.Unbaked> CODEC = MapCodec.unit(new ModelBlockSpecialRenderer.Unbaked());
 
         @Override
-        public SpecialModelRenderer<?> bake(SpecialModelRenderer.BakeContext context)
+        public SpecialModelRenderer<?> bake(SpecialModelRenderer.BakingContext context)
         {
             return new ModelBlockSpecialRenderer();
         }
 
         @Override
-        public MapCodec<? extends SpecialModelRenderer.Unbaked> getCodec()
+        public MapCodec<? extends SpecialModelRenderer.Unbaked> type()
         {
             return CODEC;
         }

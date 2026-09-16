@@ -14,11 +14,11 @@ import mchorse.bbs_mod.particles.emitter.ParticleEmitter;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -42,7 +42,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
         return this.emitter;
     }
 
-    public void ensureEmitter(World world, float transition)
+    public void ensureEmitter(Level world, float transition)
     {
         if (this.lastParticleUpdate < lastUpdate)
         {
@@ -87,9 +87,9 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
     }
 
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
-        this.ensureEmitter(MinecraftClient.getInstance().world, transition);
+        this.ensureEmitter(Minecraft.getInstance().level, transition);
 
         ParticleEmitter emitter = this.emitter;
 
@@ -103,7 +103,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
          * origin up from 0.85*height to the centre (0.5*height -> -0.35*(y2-y1) in base units) then apply that
          * scale. Z handedness is irrelevant: emitter.renderUI builds a screen-facing quad at z=0 and the
          * particle pipeline disables culling. */
-        stack.push();
+        stack.pushPose();
         stack.translate(0F, -0.35F * (y2 - y1), 0F);
         float scale = (y2 - y1) / 2F;
         stack.scale(scale, scale, scale);
@@ -113,13 +113,13 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
         emitter.rotation.identity();
         emitter.renderUI(stack, transition);
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override
     public void render3D(FormRenderingContext context)
     {
-        this.ensureEmitter(MinecraftClient.getInstance().world, context.transition);
+        this.ensureEmitter(Minecraft.getInstance().level, context.transition);
 
         ParticleEmitter emitter = this.emitter;
 
@@ -144,7 +144,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
              * model-view in (identity, hence a no-op, in the form editor) so the emitter's
              * world origin and rotation come out right. */
             matrix.mul(RenderSystem.getModelViewMatrix());
-            matrix.mul(context.stack.peek().getPositionMatrix());
+            matrix.mul(context.stack.last().pose());
 
             Vector3d translation = new Vector3d(matrix.getTranslation(Vectors.TEMP_3F));
             translation.add(context.camera.position.x, context.camera.position.y, context.camera.position.z);
@@ -154,15 +154,15 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
              * now bound automatically as samplers by the RenderLayer's pipeline (the BBS billboard
              * layer declares useLightmap()/useOverlay()), so there is nothing to enable/teardown here. */
 
-            context.stack.push();
-            context.stack.loadIdentity();
+            context.stack.pushPose();
+            context.stack.setIdentity();
             /* The emitter builds its quads in camera-relative world space, so the effective
              * model-view (RenderSystem.getModelViewMatrix() * stack) must be the pure camera
              * view. Since 1.21.1 holds that view in RenderSystem's global model-view (it used
              * to be identity), cancel it here so it isn't applied twice: stack = inv(global) * view.
              * In the form editor the global model-view is identity, so this stays the old `view`. */
             Matrix4f particleView = new Matrix4f(InverseView.get()).invert();
-            context.stack.multiplyPositionMatrix(new Matrix4f(RenderSystem.getModelViewMatrix()).invert().mul(particleView));
+            context.stack.mulPose(new Matrix4f(RenderSystem.getModelViewMatrix()).invert().mul(particleView));
 
             emitter.lastGlobal.set(translation);
             emitter.rotation.set(matrix);
@@ -171,7 +171,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
             {
                 boolean shadersEnabled = BBSRendering.isIrisShadersEnabled();
 
-                VertexFormat format = shadersEnabled ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL : VertexFormats.POSITION_TEXTURE_COLOR_LIGHT;
+                VertexFormat format = shadersEnabled ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.PARTICLE;
 
                 /* 1.21.5: ParticleEmitter.render now takes the target RenderLayer directly instead of a
                  * Supplier<ShaderProgram> (ShaderProgram + GameRenderer.getXxxProgram() were removed).
@@ -183,7 +183,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
                  * TODO(1.21.11 render): the picker branch still needs the per-object Target UBO upload
                  * wired (picker_particles pipeline also still needs its std140 migration); picking is a
                  * no-op until then, but normal in-world particles now render. */
-                RenderLayer layer;
+                RenderType layer;
 
                 if (context.isPicking())
                 {
@@ -205,7 +205,7 @@ public class ParticleFormRenderer extends FormRenderer<ParticleForm> implements 
                 emitter.render(format, layer, context.stack, context.overlay, context.getTransition());
             }
 
-            context.stack.pop();
+            context.stack.popPose();
         }
     }
 

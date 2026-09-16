@@ -3,12 +3,12 @@ package mchorse.bbs_mod.forms.structure;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.StructureSaver;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtSizeTracker;
+import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.File;
 import java.io.InputStream;
@@ -108,7 +108,7 @@ public class StructureManager
     /** Drop caches when the integrated server changes (entering/leaving a world). */
     private static void checkServer()
     {
-        MinecraftServer server = MinecraftClient.getInstance().getServer();
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
 
         if (server != lastServer)
         {
@@ -120,9 +120,9 @@ public class StructureManager
 
     private static Path getGeneratedPath()
     {
-        MinecraftServer server = MinecraftClient.getInstance().getServer();
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
 
-        return server == null ? null : server.getSavePath(WorldSavePath.GENERATED);
+        return server == null ? null : server.getWorldPath(LevelResource.GENERATED_DIR);
     }
 
     /** The folder BBS's own structures are read from and dropped into. */
@@ -248,7 +248,7 @@ public class StructureManager
 
         try
         {
-            NbtCompound root = id.startsWith(ASSETS_PREFIX) ? readAsset(id) : readGenerated(id);
+            CompoundTag root = id.startsWith(ASSETS_PREFIX) ? readAsset(id) : readGenerated(id);
 
             if (root == null)
             {
@@ -272,7 +272,7 @@ public class StructureManager
     }
 
     /** BBS's own structure, wherever the provider finds it — the assets folder or a source pack. */
-    private static NbtCompound readAsset(String id) throws Exception
+    private static CompoundTag readAsset(String id) throws Exception
     {
         Link link = toAssetLink(id);
 
@@ -284,12 +284,12 @@ public class StructureManager
 
         try (InputStream stream = BBSMod.getProvider().getAsset(link))
         {
-            return NbtIo.readCompressed(stream, NbtSizeTracker.ofUnlimitedBytes());
+            return NbtIo.readCompressed(stream, NbtAccounter.unlimitedHeap());
         }
     }
 
     /** The world's own structure, as a vanilla structure block wrote it. */
-    private static NbtCompound readGenerated(String id) throws Exception
+    private static CompoundTag readGenerated(String id) throws Exception
     {
         Path generated = getGeneratedPath();
 
@@ -310,6 +310,6 @@ public class StructureManager
             return null;
         }
 
-        return NbtIo.readCompressed(file, NbtSizeTracker.ofUnlimitedBytes());
+        return NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
     }
 }

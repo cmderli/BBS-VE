@@ -21,7 +21,7 @@ import mchorse.bbs_mod.utils.clips.Clips;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.interps.Interpolations;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 import java.io.File;
@@ -82,7 +82,7 @@ public class UIAudioRecorder extends UIElement
                     /* The wave is delivered on the recorder thread once it stops (and only when
                      * finished, not cancelled), so bounce the clip placement onto the main thread. */
                     OpenALRecorder recorder = new OpenALRecorder((wave) ->
-                        MinecraftClient.getInstance().execute(() -> saveRecording(filmPanel, newT, value, origin, wave))
+                        Minecraft.getInstance().execute(() -> saveRecording(filmPanel, newT, value, origin, wave))
                     );
 
                     UIAudioRecorder audioRecorder = new UIAudioRecorder(filmPanel, recorder, origin);

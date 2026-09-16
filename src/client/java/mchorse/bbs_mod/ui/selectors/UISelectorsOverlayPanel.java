@@ -19,8 +19,8 @@ import mchorse.bbs_mod.ui.utils.UIConstants;
 import mchorse.bbs_mod.ui.utils.UI;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.ui.utils.context.MenuVerb;
-import net.minecraft.nbt.StringNbtReader;
-import net.minecraft.util.Identifier;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
@@ -70,7 +70,7 @@ public class UISelectorsOverlayPanel extends UIOverlayPanel
 
             try
             {
-                this.current.entity = id.isEmpty() ? null : Identifier.of(id);
+                this.current.entity = id.isEmpty() ? null : Identifier.fromNamespaceAndPath(id);
             }
             catch (Exception e)
             {
@@ -95,7 +95,7 @@ public class UISelectorsOverlayPanel extends UIOverlayPanel
                 }
                 else
                 {
-                    this.current.nbt = StringNbtReader.readCompound(t);
+                    this.current.nbt = TagParser.parseCompoundFully(t);
                 }
 
                 BBSModClient.getSelectors().update();

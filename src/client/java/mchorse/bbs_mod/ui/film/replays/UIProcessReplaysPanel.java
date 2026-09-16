@@ -30,11 +30,11 @@ import mchorse.bbs_mod.utils.RayTracing;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.factories.KeyframeFactories;
 import mchorse.bbs_mod.ui.utils.Label;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -383,8 +383,8 @@ public class UIProcessReplaysPanel extends UIConfirmOverlayPanel
 
     private ReplayBatchProcessor.GroundProvider createGroundProvider()
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        World world = mc.world;
+        Minecraft mc = Minecraft.getInstance();
+        Level world = mc.level;
 
         if (world == null)
         {
@@ -406,15 +406,15 @@ public class UIProcessReplaysPanel extends UIConfirmOverlayPanel
                 return cached;
             }
 
-            double top = world.getTopYInclusive() + 5;
-            Vec3d pos = new Vec3d(x, top, z);
-            BlockHitResult result = RayTracing.rayTrace(world, pos, new Vec3d(0D, -1D, 0D), top - world.getBottomY() + 5D);
+            double top = world.getMaxY() + 5;
+            Vec3 pos = new Vec3(x, top, z);
+            BlockHitResult result = RayTracing.rayTrace(world, pos, new Vec3(0D, -1D, 0D), top - world.getBottomY() + 5D);
 
             double y = Double.NaN;
 
             if (result != null && result.getType() != HitResult.Type.MISS)
             {
-                y = result.getPos().y;
+                y = result.getLocation().y;
             }
 
             cache.put(key, y);

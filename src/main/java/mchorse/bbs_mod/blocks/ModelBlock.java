@@ -4,47 +4,47 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.blocks.entities.ModelBlockEntity;
 import mchorse.bbs_mod.blocks.entities.ModelBody;
 import mchorse.bbs_mod.network.ServerNetwork;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockEntityProvider;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ShapeContext;
-import net.minecraft.block.Waterloggable;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.BlockEntityTicker;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.TypedEntityData;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.item.ItemPlacementContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.BlockSoundGroup;
-import net.minecraft.state.StateManager;
-import net.minecraft.state.property.EnumProperty;
-import net.minecraft.state.property.IntProperty;
-import net.minecraft.state.property.Properties;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.ItemScatterer;
-import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.shape.VoxelShapes;
-import net.minecraft.world.BlockView;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldView;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.level.block.SimpleWaterloggedBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.component.TypedEntityData;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.Containers;
+import net.minecraft.core.NonNullList;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.BooleanSupplier;
 
-public class ModelBlock extends Block implements BlockEntityProvider, Waterloggable
+public class ModelBlock extends Block implements EntityBlock, SimpleWaterloggedBlock
 {
-    public static final IntProperty LIGHT_LEVEL = IntProperty.of("light_level", 0, 15);
-    public static final EnumProperty<ModelBlockSound> SOUND = EnumProperty.of("sound", ModelBlockSound.class);
+    public static final IntegerProperty LIGHT_LEVEL = IntegerProperty.create("light_level", 0, 15);
+    public static final EnumProperty<ModelBlockSound> SOUND = EnumProperty.create("sound", ModelBlockSound.class);
 
     /**
      * Client-side hook: whether the player is currently editing (dashboard
@@ -60,20 +60,20 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
         return expectedType == givenType ? (BlockEntityTicker<A>) ticker : null;
     }
 
-    public ModelBlock(Settings settings)
+    public ModelBlock(Properties settings)
     {
         super(settings);
 
-        this.setDefaultState(getDefaultState()
-            .with(Properties.WATERLOGGED, false)
-            .with(LIGHT_LEVEL, 0)
-            .with(SOUND, ModelBlockSound.STONE));
+        this.registerDefaultState(defaultBlockState()
+            .setValueInternal(BlockStateProperties.WATERLOGGED, false)
+            .setValueInternal(LIGHT_LEVEL, 0)
+            .setValueInternal(SOUND, ModelBlockSound.STONE));
     }
 
     @Override
-    protected void appendProperties(StateManager.Builder<Block, BlockState> builder)
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder)
     {
-        builder.add(Properties.WATERLOGGED, LIGHT_LEVEL, SOUND);
+        builder.add(BlockStateProperties.WATERLOGGED, LIGHT_LEVEL, SOUND);
     }
 
     /**
@@ -81,7 +81,7 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
      * into the block state, where the engine actually reads them. Server side;
      * the state change then syncs to clients on its own.
      */
-    public static void mirrorBlockState(World world, BlockPos pos)
+    public static void mirrorBlockState(Level world, BlockPos pos)
     {
         BlockEntity be = world.getBlockEntity(pos);
         BlockState state = world.getBlockState(pos);
@@ -93,17 +93,17 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
 
         ModelBody body = model.getProperties().getBody();
         BlockState updated = state
-            .with(LIGHT_LEVEL, body.getLightLevel())
-            .with(SOUND, body.getSound());
+            .setValueInternal(LIGHT_LEVEL, body.getLightLevel())
+            .setValueInternal(SOUND, body.getSound());
 
         if (updated != state)
         {
-            world.setBlockState(pos, updated, Block.NOTIFY_ALL);
+            world.setBlockAndUpdate(pos, updated, Block.UPDATE_ALL);
         }
     }
 
     @Nullable
-    private static ModelBlockEntity getModelBlockEntity(BlockView world, BlockPos pos)
+    private static ModelBlockEntity getModelBlockEntity(BlockGetter world, BlockPos pos)
     {
         return world.getBlockEntity(pos) instanceof ModelBlockEntity model ? model : null;
     }
@@ -111,24 +111,24 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
     /* Shape (the block's hitbox is authored per block in its body settings) */
 
     @Override
-    public VoxelShape getOutlineShape(BlockState state, BlockView world, BlockPos pos, ShapeContext context)
+    public VoxelShape getOutlineShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
-        VoxelShape shape = model == null ? VoxelShapes.fullCube() : model.getShape();
+        VoxelShape shape = model == null ? Shapes.block() : model.getShape();
 
         /* While editing, the block stays targetable as at least a full cube
          * even when its actual hitbox is tiny or offset. CUBE mode returns the
          * fullCube() singleton, so the reference check skips a wasteful union. */
-        if (shape != VoxelShapes.fullCube() && editingCheck.getAsBoolean())
+        if (shape != Shapes.block() && editingCheck.getAsBoolean())
         {
-            return VoxelShapes.union(shape, VoxelShapes.fullCube());
+            return Shapes.or(shape, Shapes.block());
         }
 
         return shape;
     }
 
     @Override
-    public VoxelShape getCollisionShape(BlockState state, BlockView world, BlockPos pos, ShapeContext context)
+    public VoxelShape getCollisionShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
 
@@ -137,11 +137,11 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
             return model.getShape();
         }
 
-        return VoxelShapes.empty();
+        return Shapes.empty();
     }
 
     @Override
-    public VoxelShape getCameraCollisionShape(BlockState state, BlockView world, BlockPos pos, ShapeContext context)
+    public VoxelShape getCameraCollisionShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
 
@@ -150,13 +150,13 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
             return model.getShape();
         }
 
-        return VoxelShapes.empty();
+        return Shapes.empty();
     }
 
     @Override
-    public BlockSoundGroup getSoundGroup(BlockState state)
+    public SoundType getSoundGroup(BlockState state)
     {
-        return state.get(SOUND).group;
+        return state.getValueOrElse(SOUND).group;
     }
 
     /**
@@ -166,7 +166,7 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
      * (the server steps its own break progress), fed by the synced entity.
      */
     @Override
-    public float calcBlockBreakingDelta(BlockState state, PlayerEntity player, BlockView world, BlockPos pos)
+    public float calcBlockBreakingDelta(BlockState state, Player player, BlockGetter world, BlockPos pos)
     {
         ModelBlockEntity model = getModelBlockEntity(world, pos);
         float hardness = model == null ? 0F : model.getProperties().getBody().getHardness();
@@ -177,19 +177,19 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
             return 1F;
         }
 
-        int divisor = player.canHarvest(state) ? 30 : 100;
+        int divisor = player.hasCorrectToolForDrops(state) ? 30 : 100;
 
-        return player.getBlockBreakingSpeed(state) / hardness / divisor;
+        return player.getDestroySpeed(state) / hardness / divisor;
     }
 
     @Override
-    public void onPlaced(World world, BlockPos pos, BlockState state, LivingEntity placer, ItemStack itemStack)
+    public void setPlacedBy(Level world, BlockPos pos, BlockState state, LivingEntity placer, ItemStack itemStack)
     {
-        super.onPlaced(world, pos, state, placer, itemStack);
+        super.setPlacedBy(world, pos, state, placer, itemStack);
 
         /* A placed item may carry body data in its BlockEntityTag (already
          * poured into the block entity by now) — mirror it into the state. */
-        if (!world.isClient())
+        if (!world.isClientSide())
         {
             mirrorBlockState(world, pos);
         }
@@ -197,14 +197,14 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
 
     @Nullable
     @Override
-    public BlockState getPlacementState(ItemPlacementContext ctx)
+    public BlockState getStateForPlacement(BlockPlaceContext ctx)
     {
-        return this.getDefaultState()
-            .with(Properties.WATERLOGGED, ctx.getWorld().getFluidState(ctx.getBlockPos()).isOf(Fluids.WATER));
+        return this.defaultBlockState()
+            .setValueInternal(BlockStateProperties.WATERLOGGED, ctx.getLevel().getFluidState(ctx.getBlockPos()).is(Fluids.WATER));
     }
 
     @Override
-    public ItemStack getPickStack(WorldView world, BlockPos pos, BlockState state, boolean includeData)
+    public ItemStack getPickStack(LevelReader world, BlockPos pos, BlockState state, boolean includeData)
     {
         BlockEntity entity = world.getBlockEntity(pos);
 
@@ -212,18 +212,18 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
         {
             ItemStack stack = new ItemStack(this);
 
-            stack.set(DataComponentTypes.BLOCK_ENTITY_DATA, TypedEntityData.create(BBSMod.MODEL_BLOCK_ENTITY, modelBlock.createNbt(world.getRegistryManager())));
+            stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(BBSMod.MODEL_BLOCK_ENTITY, modelBlock.saveWithoutMetadata(world.registryAccess())));
 
             return stack;
         }
 
-        return super.getPickStack(world, pos, state, includeData);
+        return super.getCloneItemStack(world, pos, state, includeData);
     }
 
     @Override
-    public BlockRenderType getRenderType(BlockState state)
+    public RenderShape getRenderType(BlockState state)
     {
-        return BlockRenderType.INVISIBLE;
+        return RenderShape.INVISIBLE;
     }
 
     @Override
@@ -234,9 +234,9 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
 
     @Nullable
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type)
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level world, BlockState state, BlockEntityType<T> type)
     {
-        if (world.isClient())
+        if (world.isClientSide())
         {
             return validateTicker(type, BBSMod.MODEL_BLOCK_ENTITY, (theWorld, blockPos, blockState, blockEntity) -> blockEntity.tick(theWorld, blockPos, blockState));
         }
@@ -246,20 +246,20 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
 
     @Nullable
     @Override
-    public BlockEntity createBlockEntity(BlockPos pos, BlockState state)
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state)
     {
         return new ModelBlockEntity(pos, state);
     }
 
     @Override
-    public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit)
+    public InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit)
     {
-        if (player instanceof ServerPlayerEntity serverPlayer)
+        if (player instanceof ServerPlayer serverPlayer)
         {
             ServerNetwork.sendClickedModelBlock(serverPlayer, pos);
         }
 
-        return ActionResult.SUCCESS;
+        return InteractionResult.SUCCESS;
     }
 
     /* Waterloggable implementation */
@@ -267,24 +267,24 @@ public class ModelBlock extends Block implements BlockEntityProvider, Waterlogga
     @Override
     public FluidState getFluidState(BlockState state)
     {
-        return state.get(Properties.WATERLOGGED) ? Fluids.WATER.getStill(false) : super.getFluidState(state);
+        return state.getValueOrElse(BlockStateProperties.WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
     }
 
     @Override
-    public void afterBreak(World world, PlayerEntity player, BlockPos pos, BlockState state, BlockEntity be, ItemStack tool)
+    public void playerDestroy(Level world, Player player, BlockPos pos, BlockState state, BlockEntity be, ItemStack tool)
     {
-        if (!world.isClient() && !player.getAbilities().creativeMode)
+        if (!world.isClientSide() && !player.getAbilities().instabuild)
         {
             if (be instanceof ModelBlockEntity model)
             {
                 ItemStack stack = new ItemStack(this);
 
-                stack.set(DataComponentTypes.BLOCK_ENTITY_DATA, TypedEntityData.create(BBSMod.MODEL_BLOCK_ENTITY, model.createNbt(world.getRegistryManager())));
+                stack.set(DataComponents.BLOCK_ENTITY_DATA, TypedEntityData.of(BBSMod.MODEL_BLOCK_ENTITY, model.saveWithoutMetadata(world.getRegistryManager())));
 
-                ItemScatterer.spawn(world, pos, DefaultedList.ofSize(1, stack));
+                Containers.dropContents(world, pos, NonNullList.withSize(1, stack));
             }
         }
 
-        super.afterBreak(world, player, pos, state, be, tool);
+        super.playerDestroy(world, player, pos, state, be, tool);
     }
 }

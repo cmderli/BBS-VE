@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.mixin.client;
 
-import com.mojang.blaze3d.systems.ProjectionType;
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
@@ -10,11 +10,11 @@ import mchorse.bbs_mod.camera.controller.PlayCameraController;
 import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.items.GunZoom;
 import mchorse.bbs_mod.utils.colors.Color;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.DeltaTracker;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -66,13 +66,13 @@ public class GameRendererMixin
      * This injection replaces the camera roll when camera controller takes over
      */
     @Inject(method = "tiltViewWhenHurt", at = @At("HEAD"), cancellable = true)
-    public void onTiltViewWhenHurt(MatrixStack matrices, float tickDelta, CallbackInfo info)
+    public void onTiltViewWhenHurt(PoseStack matrices, float tickDelta, CallbackInfo info)
     {
         CameraController controller = BBSModClient.getCameraController();
 
         if (controller.getCurrent() != null && !BBSRendering.isIrisShadowPass())
         {
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(controller.getRoll()));
+            matrices.rotateAround(Axis.ZP.rotationDegrees(controller.getRoll()));
 
             info.cancel();
         }
@@ -233,11 +233,11 @@ public class GameRendererMixin
     }
 
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/hud/InGameHud;render(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/render/RenderTickCounter;)V", ordinal = 0), require = 0)
-    private void onBeforeHudRendering(RenderTickCounter tickCounter, boolean tick, CallbackInfo info)
+    private void onBeforeHudRendering(DeltaTracker tickCounter, boolean tick, CallbackInfo info)
     {
         ICameraController current = BBSModClient.getCameraController().getCurrent();
 
-        if (MinecraftClient.getInstance().options.hudHidden && current == null)
+        if (Minecraft.getInstance().options.hideGui && current == null)
         {
             BBSRendering.onRenderBeforeScreen();
         }
@@ -249,7 +249,7 @@ public class GameRendererMixin
      * 1.21.1 when InGameHud.render still drew instead of recording into a GuiRenderState.
      */
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/render/GuiRenderer;render(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V", shift = At.Shift.AFTER))
-    private void onAfterInterfaceRendering(RenderTickCounter tickCounter, boolean tick, CallbackInfo info)
+    private void onAfterInterfaceRendering(DeltaTracker tickCounter, boolean tick, CallbackInfo info)
     {
         BBSRendering.onRenderAfterInterface();
     }

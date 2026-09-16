@@ -1,27 +1,27 @@
 package mchorse.bbs_mod.blocks;
 
-import net.minecraft.sound.BlockSoundGroup;
-import net.minecraft.util.StringIdentifiable;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.util.StringRepresentable;
 
 /**
  * Sound material of a model block. Lives in the block STATE (not the block
  * entity) because {@link net.minecraft.block.AbstractBlock#getSoundGroup}
  * receives only a state — there is no position to reach the block entity from.
  */
-public enum ModelBlockSound implements StringIdentifiable
+public enum ModelBlockSound implements StringRepresentable
 {
-    STONE("stone", BlockSoundGroup.STONE),
-    WOOD("wood", BlockSoundGroup.WOOD),
-    METAL("metal", BlockSoundGroup.METAL),
-    GLASS("glass", BlockSoundGroup.GLASS),
-    WOOL("wool", BlockSoundGroup.WOOL),
-    GRASS("grass", BlockSoundGroup.GRASS),
-    NONE("none", BlockSoundGroup.INTENTIONALLY_EMPTY);
+    STONE("stone", SoundType.STONE),
+    WOOD("wood", SoundType.WOOD),
+    METAL("metal", SoundType.METAL),
+    GLASS("glass", SoundType.GLASS),
+    WOOL("wool", SoundType.WOOL),
+    GRASS("grass", SoundType.GRASS),
+    NONE("none", SoundType.EMPTY);
 
     public final String id;
-    public final BlockSoundGroup group;
+    public final SoundType group;
 
-    ModelBlockSound(String id, BlockSoundGroup group)
+    ModelBlockSound(String id, SoundType group)
     {
         this.id = id;
         this.group = group;
@@ -41,7 +41,7 @@ public enum ModelBlockSound implements StringIdentifiable
     }
 
     @Override
-    public String asString()
+    public String getSerializedName()
     {
         return this.id;
     }

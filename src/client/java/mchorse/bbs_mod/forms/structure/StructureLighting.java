@@ -4,11 +4,11 @@ import it.unimi.dsi.fastutil.longs.Long2ByteMap;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
-import net.minecraft.block.BlockState;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.LightType;
-import net.minecraft.world.chunk.light.ChunkLightProvider;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.lighting.LightEngine;
 
 import java.util.Map;
 
@@ -64,9 +64,9 @@ public class StructureLighting
     }
 
     /** Full sun overhead; block light is whatever the structure's own emitters flooded into this cell. */
-    public int getLightLevel(LightType type, BlockPos pos)
+    public int getLightLevel(LightLayer type, BlockPos pos)
     {
-        return type == LightType.SKY ? MAX_LEVEL : this.blockLight.get(pos.asLong());
+        return type == LightLayer.SKY ? MAX_LEVEL : this.blockLight.get(pos.asLong());
     }
 
     /**
@@ -82,7 +82,7 @@ public class StructureLighting
 
         for (Map.Entry<BlockPos, BlockState> entry : data.getBlocks().entrySet())
         {
-            int luminance = entry.getValue().getLuminance();
+            int luminance = entry.getValue().getLightEmission();
 
             if (luminance <= 0)
             {
@@ -112,8 +112,8 @@ public class StructureLighting
      */
     private static void propagate(StructureRenderData data, Long2ByteMap levels, LongList[] pending)
     {
-        BlockPos.Mutable source = new BlockPos.Mutable();
-        BlockPos.Mutable target = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos source = new BlockPos.MutableBlockPos();
+        BlockPos.MutableBlockPos target = new BlockPos.MutableBlockPos();
 
         /* Level 1 has nothing to give: a step costs at least 1 */
         for (int level = MAX_LEVEL; level > 1; level--)
@@ -134,13 +134,13 @@ public class StructureLighting
                     continue;
                 }
 
-                source.set(packed);
+                source.setWithOffset(packed);
 
                 BlockState sourceState = data.getBlockState(source);
 
                 for (Direction direction : DIRECTIONS)
                 {
-                    target.set(source, direction);
+                    target.setWithOffset(source, direction);
 
                     long targetPacked = target.asLong();
 
@@ -156,8 +156,8 @@ public class StructureLighting
                      * light even though the slab itself is see-through) */
                     /* 1.21.11: both calls lost their view/position arguments — a block state knows
                      * its own opacity and its own shapes now. */
-                    int opacity = ChunkLightProvider.getRealisticOpacity(
-                        sourceState, targetState, direction, targetState.getOpacity());
+                    int opacity = LightEngine.getLightBlockInto(
+                        sourceState, targetState, direction, targetState.getLightBlock());
                     int next = level - Math.max(1, opacity);
 
                     if (next > levels.get(targetPacked))

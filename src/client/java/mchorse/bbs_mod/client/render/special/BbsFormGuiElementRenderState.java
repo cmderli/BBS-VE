@@ -1,8 +1,8 @@
 package mchorse.bbs_mod.client.render.special;
 
 import mchorse.bbs_mod.forms.renderers.FormRenderer;
-import net.minecraft.client.gui.ScreenRect;
-import net.minecraft.client.gui.render.state.special.SpecialGuiElementRenderState;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.gui.render.state.pip.PictureInPictureRenderState;
 import org.joml.Matrix3x2f;
 import org.jspecify.annotations.Nullable;
 
@@ -29,11 +29,11 @@ public record BbsFormGuiElementRenderState(
     Matrix3x2f pose,
     int x1, int y1, int x2, int y2,
     float scale,
-    @Nullable ScreenRect scissorArea,
-    @Nullable ScreenRect bounds
-) implements SpecialGuiElementRenderState
+    @Nullable ScreenRectangle scissorArea,
+    @Nullable ScreenRectangle bounds
+) implements PictureInPictureRenderState
 {
-    public BbsFormGuiElementRenderState(FormRenderer<?> renderer, float angle, float transition, Matrix3x2f pose, int x1, int y1, int x2, int y2, float scale, @Nullable ScreenRect scissorArea)
+    public BbsFormGuiElementRenderState(FormRenderer<?> renderer, float angle, float transition, Matrix3x2f pose, int x1, int y1, int x2, int y2, float scale, @Nullable ScreenRectangle scissorArea)
     {
         /* The cell rect (x1..y2) is unscrolled content space; the composite quad is placed on-screen by `pose`
          * (which carries the list's scroll translate), and `scissorArea` was likewise captured already scrolled.
@@ -42,7 +42,7 @@ public record BbsFormGuiElementRenderState(
          * once the scroll exceeds the cell height, culling the thumbnail entirely (crop-then-vanish on scroll).
          * Shift the cell by the pose translate so bounds, scissor and the drawn geometry share one screen space. */
         this(renderer, angle, transition, pose, x1, y1, x2, y2, scale, scissorArea,
-            SpecialGuiElementRenderState.createBounds(
+            PictureInPictureRenderState.getBounds(
                 x1 + (int) pose.m20(), y1 + (int) pose.m21(),
                 x2 + (int) pose.m20(), y2 + (int) pose.m21(), scissorArea));
     }

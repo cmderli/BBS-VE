@@ -13,21 +13,21 @@ import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.item.ItemModelManager;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.command.BatchingRenderCommandQueue;
-import net.minecraft.client.render.command.OrderedRenderCommandQueueImpl;
-import net.minecraft.client.render.item.ItemRenderState;
-import net.minecraft.client.render.item.ItemRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.SubmitNodeCollection;
+import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.entity.ItemRenderer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -38,7 +38,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
 {
     /* Reused per render to avoid per-frame allocation; the form renderers run single-threaded on the
      * client render thread (same assumption as BlockFormRenderer.color). clearAndUpdate() wipes it first. */
-    private static final ItemRenderState renderState = new ItemRenderState();
+    private static final ItemStackRenderState renderState = new ItemStackRenderState();
 
     public ItemFormRenderer(ItemForm form)
     {
@@ -58,7 +58,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
     }
 
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
 
@@ -68,24 +68,24 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
          * centred at the origin. */
         Matrix4f uiMatrix = getUIPreviewMatrix(angle, y1, y2);
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.scale(this.form.uiScale.get(), this.form.uiScale.get(), this.form.uiScale.get());
 
-        stack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-        stack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+        stack.last().normal().getScale(Vectors.EMPTY_3F);
+        stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
         Color set = Color.white();
         FormColorBlend.blend(set, this.form.color.get());
 
         consumers.setSubstitute(BBSRendering.getColorConsumer(set));
         consumers.setUI(true);
-        renderItem(this.form.stack.get(), this.form.modelTransform.get(), stack, consumers, MinecraftClient.getInstance().world, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, OverlayTexture.DEFAULT_UV);
+        renderItem(this.form.stack.get(), this.form.modelTransform.get(), stack, consumers, Minecraft.getInstance().level, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY);
         consumers.draw();
         consumers.setUI(false);
         consumers.setSubstitute(null);
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override
@@ -94,7 +94,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
         int light = context.light;
 
-        context.stack.push();
+        context.stack.pushPose();
 
         if (context.isPicking())
         {
@@ -105,11 +105,11 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
 
             FormRenderCapture.begin();
 
-            Map<RenderLayer, List<FormRenderCapture.Captured>> captured;
+            Map<RenderType, List<FormRenderCapture.Captured>> captured;
 
             try
             {
-                World pickWorld = context.entity == null ? null : context.entity.getWorld();
+                Level pickWorld = context.entity == null ? null : context.entity.getWorld();
 
                 renderItem(this.form.stack.get(), this.form.modelTransform.get(), context.stack, consumers, pickWorld, 0, context.overlay);
                 consumers.draw();
@@ -121,7 +121,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
 
             PickingReplay.draw(captured);
 
-            context.stack.pop();
+            context.stack.popPose();
 
             return;
         }
@@ -137,7 +137,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
          * deferred sorted pass (see CustomVertexConsumerProvider#draw(RenderLayer)). */
         if (!context.isPicking())
         {
-            Vector3f origin = context.stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+            Vector3f origin = context.stack.last().pose().getTranslation(new Vector3f());
 
             FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
         }
@@ -146,7 +146,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
 
         /* 1.21.1 called renderItem(stack, modelTransform, light, overlay, context.stack, consumers,
          * entity world, 0). Same faithful command-queue replacement as renderInUI. */
-        World world = context.entity == null ? null : context.entity.getWorld();
+        Level world = context.entity == null ? null : context.entity.getWorld();
 
         renderItem(this.form.stack.get(), this.form.modelTransform.get(), context.stack, consumers, world, light, context.overlay);
         consumers.draw();
@@ -155,7 +155,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
 
         CustomVertexConsumerProvider.clearRunnables();
 
-        context.stack.pop();
+        context.stack.popPose();
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed in 1.21.5; depth testing is
          * now encoded per RenderLayer via DepthTestFunction on its pipeline. */
@@ -182,7 +182,7 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
      * <p>Also the shared held-item renderer: {@code ModelFormRenderer.renderItems} draws the items a form
      * holds on its bones through here (the 1.21.1 high-level renderItem it used is gone the same way).
      */
-    public static void renderItem(ItemStack stack, ItemDisplayContext displayContext, MatrixStack matrices, CustomVertexConsumerProvider consumers, World world, int light, int overlay)
+    public static void renderItem(ItemStack stack, ItemDisplayContext displayContext, PoseStack matrices, CustomVertexConsumerProvider consumers, Level world, int light, int overlay)
     {
         renderItem(stack, displayContext, matrices, consumers, world, light, overlay, null);
     }
@@ -193,34 +193,34 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
      * {@link net.minecraft.util.HeldItemContext} of the resolve, which {@link LivingEntity}
      * implements - the seed is vanilla's own from {@code ItemModelManager.updateForLivingEntity}.
      */
-    public static void renderItem(ItemStack stack, ItemDisplayContext displayContext, MatrixStack matrices, CustomVertexConsumerProvider consumers, World world, int light, int overlay, LivingEntity holder)
+    public static void renderItem(ItemStack stack, ItemDisplayContext displayContext, PoseStack matrices, CustomVertexConsumerProvider consumers, Level world, int light, int overlay, LivingEntity holder)
     {
         if (stack == null || stack.isEmpty())
         {
             return;
         }
 
-        ItemModelManager modelManager = MinecraftClient.getInstance().getItemModelManager();
+        ItemModelResolver modelManager = Minecraft.getInstance().getItemModelResolver();
 
         /* Resolve the item into baked per-layer geometry (replaces 1.21.1's implicit model resolution inside
          * the old renderItem). Without a holder this is what updateForNonLivingEntity passes for a
          * free-standing item: no HeldItemContext and seed 0. */
-        modelManager.clearAndUpdate(renderState, stack, displayContext, world, holder, holder == null ? 0 : holder.getId() + displayContext.ordinal());
+        modelManager.updateForTopItem(renderState, stack, displayContext, world, holder, holder == null ? 0 : holder.getId() + displayContext.ordinal());
 
-        OrderedRenderCommandQueueImpl queue = new OrderedRenderCommandQueueImpl();
+        SubmitNodeStorage queue = new SubmitNodeStorage();
 
         /* light/overlay/outlineColor: outlineColor=0 (no glow outline). render() enqueues one ItemCommand per
          * layer into the queue's batching queues. */
-        renderState.render(matrices, queue, light, overlay, 0);
+        renderState.submit(matrices, queue, light, overlay, 0);
 
-        for (BatchingRenderCommandQueue batch : queue.getBatchingQueues().values())
+        for (SubmitNodeCollection batch : queue.getSubmitsPerOrder().values())
         {
-            for (OrderedRenderCommandQueueImpl.ItemCommand command : batch.getItemCommands())
+            for (SubmitNodeStorage.ItemSubmit command : batch.getItemSubmits())
             {
                 /* Replay faithfully (see ItemCommandRenderer#render): push a copy of the captured entry, draw,
                  * pop. The VertexConsumerProvider is the BBS recolor/picking-substituting `consumers`. */
-                matrices.push();
-                matrices.peek().copy(command.positionMatrix());
+                matrices.pushPose();
+                matrices.last().set(command.positionMatrix());
                 ItemRenderer.renderItem(
                     command.displayContext(),
                     matrices,
@@ -232,18 +232,18 @@ public class ItemFormRenderer extends FormRenderer<ItemForm>
                     command.renderLayer(),
                     command.glintType()
                 );
-                matrices.pop();
+                matrices.popPose();
             }
 
             /* BBS special-model items (model block, gun) land in the queue as CUSTOM commands —
              * FormRenderCapture.submitForm captures the form's immediate draws and re-emits them via
              * submitCustom. ItemCommand replay alone would silently drop exactly the mod's own items
              * (field opened by bbs.accesswidener; vanilla's CustomCommandRenderer reads it the same way). */
-            for (Map.Entry<RenderLayer, List<OrderedRenderCommandQueueImpl.CustomCommand>> entry : batch.getCustomCommands().customCommands.entrySet())
+            for (Map.Entry<RenderType, List<SubmitNodeStorage.CustomGeometrySubmit>> entry : batch.getCustomGeometrySubmits().customGeometrySubmits.entrySet())
             {
                 VertexConsumer buffer = consumers.getBuffer(entry.getKey());
 
-                for (OrderedRenderCommandQueueImpl.CustomCommand command : entry.getValue())
+                for (SubmitNodeStorage.CustomGeometrySubmit command : entry.getValue())
                 {
                     command.customRenderer().render(command.matricesEntry(), buffer);
                 }

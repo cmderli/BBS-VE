@@ -2,7 +2,7 @@ package mchorse.bbs_mod.mixin.client;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import mchorse.bbs_mod.client.PixelArt;
-import net.minecraft.client.gui.render.state.GlyphGuiElementRenderState;
+import net.minecraft.client.gui.render.state.GlyphRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * that composite ({@code GuiRenderer}), so there is nothing earlier to mark, which is why
  * {@link PixelArt#getTextPipeline} judges by the open screen rather than by a flag.</p>
  */
-@Mixin(GlyphGuiElementRenderState.class)
+@Mixin(GlyphRenderState.class)
 public class GlyphGuiElementRenderStateMixin
 {
     @Inject(method = "pipeline", at = @At("RETURN"), cancellable = true)

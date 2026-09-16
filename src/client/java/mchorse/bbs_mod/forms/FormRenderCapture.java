@@ -9,14 +9,14 @@ import mchorse.bbs_mod.forms.renderers.FormRenderType;
 import mchorse.bbs_mod.forms.renderers.FormRenderingContext;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import com.mojang.blaze3d.vertex.PoseStack;
 import mchorse.bbs_mod.client.BBSRendering;
-import net.minecraft.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemDisplayContext;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.slf4j.Logger;
@@ -58,13 +58,13 @@ public class FormRenderCapture
 {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    private static Map<RenderLayer, List<Captured>> active;
+    private static Map<RenderType, List<Captured>> active;
     private static int depth;
 
     /** Draw-mode pairs already complained about, so the per-frame path logs each one once. */
     private static final Set<String> reported = new HashSet<>();
 
-    public record Captured(BuiltBuffer.DrawParameters params, ByteBuffer data)
+    public record Captured(MeshData.DrawState params, ByteBuffer data)
     {}
 
     public static boolean isActive()
@@ -81,7 +81,7 @@ public class FormRenderCapture
     }
 
     /** Returns the captured layers when this call closes the outermost session, null otherwise. */
-    public static Map<RenderLayer, List<Captured>> end()
+    public static Map<RenderType, List<Captured>> end()
     {
         if (depth == 0)
         {
@@ -90,7 +90,7 @@ public class FormRenderCapture
 
         if (--depth == 0)
         {
-            Map<RenderLayer, List<Captured>> result = active;
+            Map<RenderType, List<Captured>> result = active;
 
             active = null;
 
@@ -129,7 +129,7 @@ public class FormRenderCapture
     }
 
     /** A capture session set aside by {@link #suspend()}. */
-    public record Suspended(Map<RenderLayer, List<Captured>> active, int depth)
+    public record Suspended(Map<RenderType, List<Captured>> active, int depth)
     {}
 
     /**
@@ -138,7 +138,7 @@ public class FormRenderCapture
      * draw is cancelled the capture must close it instead — otherwise the allocator slice leaks
      * ("Clearing BufferBuilder with unused batches").
      */
-    public static void capture(RenderLayer layer, BuiltBuffer buffer)
+    public static void capture(RenderType layer, MeshData buffer)
     {
         if (active == null)
         {
@@ -158,14 +158,14 @@ public class FormRenderCapture
      * <p>Does not close the buffer: the item path cancels its draw and closes it, the deferred path
      * draws it immediately and lets the draw close it.
      */
-    public static Captured copy(BuiltBuffer buffer)
+    public static Captured copy(MeshData buffer)
     {
-        BuiltBuffer.DrawParameters params = buffer.getDrawParameters();
+        MeshData.DrawState params = buffer.drawState();
         /* ByteBuffer.duplicate() does NOT inherit byte order — the duplicate is always BIG_ENDIAN,
          * while BufferBuilder wrote the vertex data in native (little-endian) order. Reading floats
          * through a big-endian view turns 1.0f into 4.6e-41: every position collapses to ~0 and the
          * whole capture rasterises to nothing. Restore native order explicitly on every view. */
-        ByteBuffer source = buffer.getBuffer().duplicate().order(ByteOrder.nativeOrder());
+        ByteBuffer source = buffer.vertexBuffer().duplicate().order(ByteOrder.nativeOrder());
 
         source.limit(Math.min(source.limit(), params.vertexCount() * params.format().getVertexSize()));
 
@@ -182,20 +182,20 @@ public class FormRenderCapture
      * captured layer to the queue. Applies the same transform the 1.21.1 dynamic item renderer
      * used (item origin at the block corner + the BBS transform of the display context).
      */
-    public static void submitForm(Form form, Transform transform, IEntity formEntity, ItemDisplayContext displayContext, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, int overlay)
+    public static void submitForm(Form form, Transform transform, IEntity formEntity, ItemDisplayContext displayContext, PoseStack matrices, SubmitNodeCollector queue, int light, int overlay)
     {
         if (form == null)
         {
             return;
         }
 
-        matrices.push();
+        matrices.pushPose();
         matrices.translate(0.5F, 0F, 0.5F);
         MatrixStackUtils.applyTransform(matrices, transform);
 
         begin();
 
-        Map<RenderLayer, List<Captured>> captured;
+        Map<RenderType, List<Captured>> captured;
 
         /* An item form held in the world is a world draw, so it opens the span too — otherwise it takes
          * the shared pipeline, the pack has no program assigned to that, and the item renders ghosted
@@ -213,8 +213,8 @@ public class FormRenderCapture
         try
         {
             FormUtilsClient.render(form, new FormRenderingContext()
-                .set(FormRenderType.fromModelMode(displayContext), formEntity, matrices, light, overlay, MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false))
-                .camera(MinecraftClient.getInstance().gameRenderer.getCamera()));
+                .set(FormRenderType.fromModelMode(displayContext), formEntity, matrices, light, overlay, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false))
+                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
         }
         finally
         {
@@ -223,7 +223,7 @@ public class FormRenderCapture
                 BBSRendering.endWorldForms(prevWorldForms);
             }
 
-            matrices.pop();
+            matrices.popPose();
 
             /* end() must run even when the form render throws an Error past FormUtilsClient's
              * catch — a session left armed swallows every RenderLayer draw in the process. */
@@ -236,13 +236,13 @@ public class FormRenderCapture
             return;
         }
 
-        for (Map.Entry<RenderLayer, List<Captured>> entry : captured.entrySet())
+        for (Map.Entry<RenderType, List<Captured>> entry : captured.entrySet())
         {
-            RenderLayer layer = entry.getKey();
+            RenderType layer = entry.getKey();
 
             for (Captured single : entry.getValue())
             {
-                queue.submitCustom(matrices, layer, (matricesEntry, consumer) -> emit(single, layer.getDrawMode(), consumer));
+                queue.submitParticleGroup(matrices, layer, (matricesEntry, consumer) -> emit(single, layer.mode(), consumer));
             }
         }
     }
@@ -260,10 +260,10 @@ public class FormRenderCapture
      * assuming: a triangle becomes a quad with a doubled last vertex (the second, degenerate
      * triangle rasterises to nothing), a quad becomes its two triangles.
      */
-    public static void emit(Captured captured, VertexFormat.DrawMode target, VertexConsumer consumer)
+    public static void emit(Captured captured, VertexFormat.Mode target, VertexConsumer consumer)
     {
-        BuiltBuffer.DrawParameters params = captured.params();
-        VertexFormat.DrawMode source = params.mode();
+        MeshData.DrawState params = captured.params();
+        VertexFormat.Mode source = params.mode();
         int count = params.vertexCount();
 
         if (source == target)
@@ -322,24 +322,24 @@ public class FormRenderCapture
 
             switch (element.usage())
             {
-                case POSITION -> consumer.vertex(data.getFloat(offset), data.getFloat(offset + 4), data.getFloat(offset + 8));
-                case COLOR -> consumer.color(data.get(offset) & 0xFF, data.get(offset + 1) & 0xFF, data.get(offset + 2) & 0xFF, data.get(offset + 3) & 0xFF);
+                case POSITION -> consumer.addVertex(data.getFloat(offset), data.getFloat(offset + 4), data.getFloat(offset + 8));
+                case COLOR -> consumer.setColor(data.get(offset) & 0xFF, data.get(offset + 1) & 0xFF, data.get(offset + 2) & 0xFF, data.get(offset + 3) & 0xFF);
                 case UV ->
                 {
                     if (element.index() == 0)
                     {
-                        consumer.texture(data.getFloat(offset), data.getFloat(offset + 4));
+                        consumer.setUv(data.getFloat(offset), data.getFloat(offset + 4));
                     }
                     else if (element.index() == 1)
                     {
-                        consumer.overlay(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
+                        consumer.setUv1(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
                     }
                     else if (element.index() == 2)
                     {
-                        consumer.light(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
+                        consumer.setUv2(Short.toUnsignedInt(data.getShort(offset)), Short.toUnsignedInt(data.getShort(offset + 2)));
                     }
                 }
-                case NORMAL -> consumer.normal(data.get(offset) / 127F, data.get(offset + 1) / 127F, data.get(offset + 2) / 127F);
+                case NORMAL -> consumer.setNormal(data.get(offset) / 127F, data.get(offset + 1) / 127F, data.get(offset + 2) / 127F);
                 default ->
                 {}
             }

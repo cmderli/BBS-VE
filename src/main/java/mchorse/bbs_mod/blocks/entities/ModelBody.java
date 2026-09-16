@@ -6,9 +6,9 @@ import mchorse.bbs_mod.data.IMapSerializable;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.shape.VoxelShapes;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.phys.shapes.Shapes;
 import org.joml.Vector3f;
 
 /**
@@ -115,7 +115,7 @@ public class ModelBody implements IMapSerializable
 
     public void setLightLevel(int lightLevel)
     {
-        this.lightLevel = MathHelper.clamp(lightLevel, 0, 15);
+        this.lightLevel = Mth.clamp(lightLevel, 0, 15);
     }
 
     public ModelBlockSound getSound()
@@ -165,7 +165,7 @@ public class ModelBody implements IMapSerializable
             );
         }
 
-        return VoxelShapes.fullCube();
+        return Shapes.block();
     }
 
     private static VoxelShape buildBox(float x1, float y1, float z1, float x2, float y2, float z2)
@@ -174,13 +174,13 @@ public class ModelBody implements IMapSerializable
         float[] y = orderAndClamp(y1, y2);
         float[] z = orderAndClamp(z1, z2);
 
-        return VoxelShapes.cuboidUnchecked(x[0], y[0], z[0], x[1], y[1], z[1]);
+        return Shapes.create(x[0], y[0], z[0], x[1], y[1], z[1]);
     }
 
     private static float[] orderAndClamp(float a, float b)
     {
-        float min = MathHelper.clamp(Math.min(a, b), -SHAPE_LIMIT, 1F + SHAPE_LIMIT);
-        float max = MathHelper.clamp(Math.max(a, b), -SHAPE_LIMIT, 1F + SHAPE_LIMIT);
+        float min = Mth.clamp(Math.min(a, b), -SHAPE_LIMIT, 1F + SHAPE_LIMIT);
+        float max = Mth.clamp(Math.max(a, b), -SHAPE_LIMIT, 1F + SHAPE_LIMIT);
 
         if (max - min < MIN_SIZE)
         {

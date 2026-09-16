@@ -4,7 +4,7 @@ import mchorse.bbs_mod.camera.clips.misc.ImageClip;
 import mchorse.bbs_mod.camera.clips.misc.SubtitleClip;
 import mchorse.bbs_mod.ui.framework.elements.utils.Batcher2D;
 import mchorse.bbs_mod.utils.clips.ClipContext;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ public class FrameOverlays
         RENDERERS.add(renderer);
     }
 
-    public static void render(MatrixStack stack, Batcher2D batcher, ClipContext context)
+    public static void render(PoseStack stack, Batcher2D batcher, ClipContext context)
     {
         for (IFrameOverlayRenderer renderer : RENDERERS)
         {
@@ -51,6 +51,6 @@ public class FrameOverlays
 
     public static interface IFrameOverlayRenderer
     {
-        public void render(MatrixStack stack, Batcher2D batcher, ClipContext context);
+        public void render(PoseStack stack, Batcher2D batcher, ClipContext context);
     }
 }

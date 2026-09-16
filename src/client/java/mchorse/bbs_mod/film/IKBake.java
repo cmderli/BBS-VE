@@ -31,8 +31,8 @@ import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
@@ -86,7 +86,7 @@ public class IKBake
      */
     public static boolean bake(Film film, Replay replay, Collection<String> tips, int start, int end, int step, boolean disable)
     {
-        World world = MinecraftClient.getInstance().world;
+        Level world = Minecraft.getInstance().level;
 
         if (film == null || replay == null || world == null || tips == null || tips.isEmpty()
             || !(replay.form.get() instanceof ModelForm form))
@@ -405,7 +405,7 @@ public class IKBake
         }
 
         /** Null when the replay has no entity to sample — disabled, or its form has no model renderer. */
-        static Sampler create(Film film, Replay replay, World world)
+        static Sampler create(Film film, Replay replay, Level world)
         {
             Sampler sampler = new Sampler(film, replay);
 

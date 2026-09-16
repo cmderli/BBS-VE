@@ -21,21 +21,21 @@ import mchorse.bbs_mod.utils.PlayerUtils;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.RenderPipelines;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.Box;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector4f;
@@ -67,20 +67,20 @@ public class Recorder extends WorldFilmController
      * 1.21.5 removed RenderSystem.setShader(GameRenderer::getPositionColorProgram) +
      * BufferRenderer.drawWithGlobalProgram(); finished BufferBuilders go through a RenderLayer. */
     private static final RenderPipeline POSITION_COLOR_TRIS = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(net.minecraft.util.Identifier.of(BBSMod.MOD_ID, "pipeline/recorder_camera_preview"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(net.minecraft.util.Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/recorder_camera_preview"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withBlend(BlendFunction.TRANSLUCENT)
             .build()
     );
 
-    private static RenderLayer cameraPreviewLayer;
+    private static RenderType cameraPreviewLayer;
 
-    private static RenderLayer getCameraPreviewLayer()
+    private static RenderType getCameraPreviewLayer()
     {
         if (cameraPreviewLayer == null)
         {
-            cameraPreviewLayer = RenderLayer.of(BBSMod.MOD_ID + "_recorder_camera_preview", RenderSetup.builder(POSITION_COLOR_TRIS).translucent().build());
+            cameraPreviewLayer = RenderType.create(BBSMod.MOD_ID + "_recorder_camera_preview", RenderSetup.builder(POSITION_COLOR_TRIS).sortOnUpload().createRenderSetup());
         }
 
         return cameraPreviewLayer;
@@ -107,7 +107,7 @@ public class Recorder extends WorldFilmController
     /** How many ticks the take may be held waiting for the teleport to land. */
     private static final int MARK_TIMEOUT = 20;
 
-    public static void renderCameraPreview(Position position, Camera camera, MatrixStack stack)
+    public static void renderCameraPreview(Position position, Camera camera, PoseStack stack)
     {
         if (!BBSSettings.recordingOverlays.get())
         {
@@ -130,7 +130,7 @@ public class Recorder extends WorldFilmController
             .rotateX(MathUtils.toRad(-position.angle.pitch));
 
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         transformFrustum(vector, matrix, 1F, 1F);
         Draw.fillBoxTo(builder, stack, x, y, z, x + vector.x, y + vector.y, z + vector.z, thickness, 1F, 1F, 1F, 1F);
@@ -147,7 +147,7 @@ public class Recorder extends WorldFilmController
         transformFrustum(vector, matrix, 0F, 0F);
         Draw.fillBoxTo(builder, stack, x, y, z, x + vector.x, y + vector.y, z + vector.z, thickness, 0F, 0.5F, 1F, 1F);
 
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -221,15 +221,15 @@ public class Recorder extends WorldFilmController
             return;
         }
 
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
 
         if (this.lastPosition == null)
         {
             this.lastPosition = new Vector3d(player.getX(), player.getY(), player.getZ());
-            this.lastRotation = new Vector4f(player.getYaw(), player.getPitch(), player.getHeadYaw(), player.getBodyYaw());
+            this.lastRotation = new Vector4f(player.getViewYRot(), player.getViewXRot(), player.getHeadYaw(), player.getBodyYaw());
 
             this.hp = player.getHealth();
-            this.hunger = player.getHungerManager().getFoodLevel();
+            this.hunger = player.getFoodData().getFoodLevel();
             this.xpLevel = player.experienceLevel;
             this.xpProgress = player.experienceProgress;
 
@@ -285,7 +285,7 @@ public class Recorder extends WorldFilmController
 
     private double distanceToMark()
     {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
 
         return player == null ? Double.MAX_VALUE : this.mark.distance(player.getX(), player.getY(), player.getZ());
     }
@@ -294,7 +294,7 @@ public class Recorder extends WorldFilmController
      * Snapshot every living entity (except the recording player) within
      * {@link Film#mobRecordingRadius} into {@link #mobs}. A radius of {@code 0} disables it.
      */
-    private void captureMobs(ClientPlayerEntity player)
+    private void captureMobs(LocalPlayer player)
     {
         float radius = this.film.mobRecordingRadius.get();
 
@@ -303,10 +303,10 @@ public class Recorder extends WorldFilmController
             return;
         }
 
-        Box box = player.getBoundingBox().expand(radius);
+        AABB box = player.getBoundingBox().inflate(radius);
         double radiusSq = radius * radius;
 
-        for (LivingEntity entity : player.getEntityWorld().getEntitiesByClass(LivingEntity.class, box, (e) -> e != player && e.isAlive() && e.squaredDistanceTo(player) <= radiusSq))
+        for (LivingEntity entity : player.getEntityWorld().getEntitiesOfClass(LivingEntity.class, box, (e) -> e != player && e.isAlive() && e.distanceToSqr(player) <= radiusSq))
         {
             MobForm form = Morph.createMobForm(entity);
 
@@ -349,7 +349,7 @@ public class Recorder extends WorldFilmController
     {
         super.render(context);
 
-        renderCameraPreview(this.position, MinecraftClient.getInstance().gameRenderer.getCamera(), context.matrices());
+        renderCameraPreview(this.position, Minecraft.getInstance().gameRenderer.getMainCamera(), context.matrices());
     }
 
     @Override

@@ -1,18 +1,18 @@
 package mchorse.bbs_mod.forms.renderers.utils;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.BlockRenderView;
-import net.minecraft.world.LightType;
-import net.minecraft.world.biome.ColorResolver;
-import net.minecraft.world.chunk.light.LightingProvider;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.ColorResolver;
+import net.minecraft.world.level.lighting.LevelLightEngine;
 
 /**
  * A world of exactly one block, sitting at {@link BlockPos#ORIGIN} with air all around it.
@@ -28,13 +28,13 @@ import net.minecraft.world.chunk.light.LightingProvider;
  * {@code pos.getX() & 15}, chunk local coordinates, so only a position at a section corner
  * puts the block into 0..1.</p>
  */
-public class SingleBlockRenderView implements BlockRenderView
+public class SingleBlockRenderView implements BlockAndTintGetter
 {
     /** Water tint of the plains biome — the fallback when there is no world to sample. */
     private static final int DEFAULT_TINT = 0x3F76E4;
 
-    private BlockState state = Blocks.AIR.getDefaultState();
-    private FluidState fluidState = Fluids.EMPTY.getDefaultState();
+    private BlockState state = Blocks.AIR.defaultBlockState();
+    private FluidState fluidState = Fluids.EMPTY.defaultFluidState();
     private int light;
 
     public SingleBlockRenderView set(BlockState state, int light)
@@ -49,13 +49,13 @@ public class SingleBlockRenderView implements BlockRenderView
     @Override
     public BlockState getBlockState(BlockPos pos)
     {
-        return pos.equals(BlockPos.ORIGIN) ? this.state : Blocks.AIR.getDefaultState();
+        return pos.equals(BlockPos.ZERO) ? this.state : Blocks.AIR.defaultBlockState();
     }
 
     @Override
     public FluidState getFluidState(BlockPos pos)
     {
-        return pos.equals(BlockPos.ORIGIN) ? this.fluidState : Fluids.EMPTY.getDefaultState();
+        return pos.equals(BlockPos.ZERO) ? this.fluidState : Fluids.EMPTY.defaultFluidState();
     }
 
     @Override
@@ -65,7 +65,7 @@ public class SingleBlockRenderView implements BlockRenderView
     }
 
     @Override
-    public float getBrightness(Direction direction, boolean shaded)
+    public float getShade(Direction direction, boolean shaded)
     {
         if (!shaded)
         {
@@ -82,7 +82,7 @@ public class SingleBlockRenderView implements BlockRenderView
     }
 
     @Override
-    public LightingProvider getLightingProvider()
+    public LevelLightEngine getLightEngine()
     {
         /* Never reached: both light lookups below are overridden, and they are the only
          * things that would go through a lighting provider. */
@@ -90,27 +90,27 @@ public class SingleBlockRenderView implements BlockRenderView
     }
 
     @Override
-    public int getLightLevel(LightType type, BlockPos pos)
+    public int getBrightness(LightLayer type, BlockPos pos)
     {
-        return type == LightType.SKY ? (this.light >> 20) & 0xF : (this.light >> 4) & 0xF;
+        return type == LightLayer.SKY ? (this.light >> 20) & 0xF : (this.light >> 4) & 0xF;
     }
 
     @Override
-    public int getBaseLightLevel(BlockPos pos, int ambientDarkness)
+    public int getRawBrightness(BlockPos pos, int ambientDarkness)
     {
-        return Math.max(this.getLightLevel(LightType.SKY, pos) - ambientDarkness, this.getLightLevel(LightType.BLOCK, pos));
+        return Math.max(this.getLightLevel(LightLayer.SKY, pos) - ambientDarkness, this.getLightLevel(LightLayer.BLOCK, pos));
     }
 
     @Override
-    public int getColor(BlockPos pos, ColorResolver colorResolver)
+    public int getBlockTint(BlockPos pos, ColorResolver colorResolver)
     {
-        ClientWorld world = MinecraftClient.getInstance().world;
+        ClientLevel world = Minecraft.getInstance().level;
 
         if (world != null)
         {
             /* The form has no place in the world of its own — biome tint comes from where
              * the camera is, so a water form matches the water it stands next to. */
-            return world.getColor(BlockPos.ofFloored(MinecraftClient.getInstance().gameRenderer.getCamera().getCameraPos()), colorResolver);
+            return world.getColor(BlockPos.containing(Minecraft.getInstance().gameRenderer.getMainCamera().getCameraPos()), colorResolver);
         }
 
         return DEFAULT_TINT;

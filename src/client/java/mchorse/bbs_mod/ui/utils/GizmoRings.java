@@ -5,11 +5,11 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.graphics.Draw;
 import mchorse.bbs_mod.utils.Axis;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.BufferAllocator;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -78,7 +78,7 @@ public class GizmoRings
     /* Backing store for {@link #tessellate}: a full 64x12 torus is 4608 POSITION_COLOR vertices of
      * 16 bytes, sized for two so a rebuild never grows it. Lives as long as the gizmo does, which
      * is the app's lifetime — there is no dispose path to hang a close on. */
-    private final BufferAllocator scratchAllocator = new BufferAllocator(4608 * 16 * 2);
+    private final ByteBufferBuilder scratchAllocator = new ByteBufferBuilder(4608 * 16 * 2);
 
     private static class ArcSlot
     {
@@ -106,13 +106,13 @@ public class GizmoRings
 
             BufferBuilder builder = tessellate();
 
-            Draw.arc3D(builder, new MatrixStack(), Axis.Y, radius, thicknessRing, 1F, 1F, 1F, 0F, 360F);
+            Draw.arc3D(builder, new PoseStack(), Axis.Y, radius, thicknessRing, 1F, 1F, 1F, 0F, 360F);
 
             this.ringGeometry = capture(builder);
 
             builder = tessellate();
 
-            Draw.sphere(builder, new MatrixStack(), radius, 24, 24, 1F, 1F, 1F, 1F);
+            Draw.sphere(builder, new PoseStack(), radius, 24, 24, 1F, 1F, 1F, 1F);
 
             this.sphereGeometry = capture(builder);
 
@@ -133,7 +133,7 @@ public class GizmoRings
      */
     private BufferBuilder tessellate()
     {
-        return new BufferBuilder(this.scratchAllocator, VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        return new BufferBuilder(this.scratchAllocator, VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
     /**
@@ -144,7 +144,7 @@ public class GizmoRings
      */
     private static float[] capture(BufferBuilder builder)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built == null)
         {
@@ -154,8 +154,8 @@ public class GizmoRings
         try
         {
             /* duplicate() resets byte order to BIG_ENDIAN — same note as FormRenderCapture#capture. */
-            ByteBuffer bytes = built.getBuffer().duplicate().order(ByteOrder.nativeOrder());
-            int stride = VertexFormats.POSITION_COLOR.getVertexSize();
+            ByteBuffer bytes = built.vertexBuffer().duplicate().order(ByteOrder.nativeOrder());
+            int stride = DefaultVertexFormat.POSITION_COLOR.getVertexSize();
             int base = bytes.position();
             int count = bytes.remaining() / stride;
             float[] out = new float[count * 3];
@@ -191,7 +191,7 @@ public class GizmoRings
             vertex.set(geometry[i], geometry[i + 1], geometry[i + 2], 1F);
             matrix.transform(vertex);
 
-            builder.vertex(vertex.x, vertex.y, vertex.z).color(r, g, b, a);
+            builder.vertex(vertex.x, vertex.y, vertex.z).setColor(r, g, b, a);
         }
     }
 
@@ -215,7 +215,7 @@ public class GizmoRings
      * the pass's opacity while the ring supplied only its hue; with the shader colour gone it is an
      * argument like the rest.</p>
      */
-    public void writeOccluded(BufferBuilder builder, MatrixStack stack, Axis axis, float radius, float thickness, float r, float g, float b, float a)
+    public void writeOccluded(BufferBuilder builder, PoseStack stack, Axis axis, float radius, float thickness, float r, float g, float b, float a)
     {
         this.update();
 
@@ -247,7 +247,7 @@ public class GizmoRings
             slot.sweep = arc.y;
         }
 
-        Matrix4f matrix = new Matrix4f(stack.peek().getPositionMatrix());
+        Matrix4f matrix = new Matrix4f(stack.last().pose());
 
         if (axis == Axis.X) matrix.rotateZ(MathUtils.PI / 2F);
         else if (axis == Axis.Z) matrix.rotateX(MathUtils.PI / 2F);
@@ -256,16 +256,16 @@ public class GizmoRings
     }
 
     /** A shared identity stack for tessellating cached geometry in local space. */
-    private static final MatrixStack IDENTITY = new MatrixStack();
+    private static final PoseStack IDENTITY = new PoseStack();
 
     /** Writes the cached ring turned to face the camera — the view (screen-space) rotation ring. */
-    public void writeBillboard(BufferBuilder builder, MatrixStack stack, float r, float g, float b, float a)
+    public void writeBillboard(BufferBuilder builder, PoseStack stack, float r, float g, float b, float a)
     {
         this.update();
 
-        stack.push();
+        stack.pushPose();
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         Vector3f toCamera = matrix.getTranslation(new Vector3f()).negate();
         Matrix3f basis = matrix.get3x3(new Matrix3f());
 
@@ -277,14 +277,14 @@ public class GizmoRings
         if (toCamera.lengthSquared() > 1.0E-8F)
         {
             toCamera.normalize();
-            stack.multiply(new Quaternionf().rotationTo(0F, 1F, 0F, toCamera.x, toCamera.y, toCamera.z));
+            stack.rotateAround(new Quaternionf().rotationTo(0F, 1F, 0F, toCamera.x, toCamera.y, toCamera.z));
         }
 
         stack.scale(VIEW_RING_SCALE, VIEW_RING_SCALE, VIEW_RING_SCALE);
 
-        this.emit(builder, this.ringGeometry, stack.peek().getPositionMatrix(), r, g, b, a);
+        this.emit(builder, this.ringGeometry, stack.last().pose(), r, g, b, a);
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -294,9 +294,9 @@ public class GizmoRings
      * edge-on ring returns roughly half. Writes the result into {@code out}; returns
      * {@code false} only in the degenerate case where the whole ring is hidden.
      */
-    private boolean visibleArc(MatrixStack stack, Axis axis, Vector2f out)
+    private boolean visibleArc(PoseStack stack, Axis axis, Vector2f out)
     {
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
 
         /* Camera position expressed in the gizmo's local frame (the inverse of
          * the model-view applied to the view-space origin), as the billboard

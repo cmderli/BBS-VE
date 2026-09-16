@@ -7,13 +7,13 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
-import net.minecraft.client.gl.Defines;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gl.UniformType;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.renderer.ShaderDefines;
+import net.minecraft.client.renderer.RenderPipelines;
+import com.mojang.blaze3d.shaders.UniformType;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.resources.Identifier;
 
 /**
  * Custom shader/render foundation for BBS, migrated from the 1.21.1 ShaderProgram + JSON
@@ -189,7 +189,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (HighlightColor vec4, Target int).
      */
     private static final RenderPipeline PICKER_PREVIEW = registerPicker(
-        "picker_preview", VertexFormats.POSITION_TEXTURE_COLOR
+        "picker_preview", DefaultVertexFormat.POSITION_TEX_COLOR
     );
 
     /* ---- picker_billboard ----
@@ -198,7 +198,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (Target int).
      */
     private static final RenderPipeline PICKER_BILLBOARD = registerPicker(
-        "picker_billboard", VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
+        "picker_billboard", DefaultVertexFormat.NEW_ENTITY
     );
 
     /* ---- picker_billboard_no_shading ----
@@ -207,7 +207,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (Target int).
      */
     private static final RenderPipeline PICKER_BILLBOARD_NO_SHADING = registerPicker(
-        "picker_billboard_no_shading", VertexFormats.POSITION_TEXTURE_LIGHT_COLOR
+        "picker_billboard_no_shading", DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR
     );
 
     /* ---- picker_particles ----
@@ -217,7 +217,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (Target int).
      */
     private static final RenderPipeline PICKER_PARTICLES = registerPicker(
-        "picker_particles", VertexFormats.POSITION_COLOR_TEXTURE_LIGHT
+        "picker_particles", DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP
     );
 
     /* ---- picker_models ----
@@ -226,7 +226,7 @@ public class BBSShaders
      * Custom std140 UBO: BBSPicker (Target int); per-vertex sub-index added from UV2.x in the shader.
      */
     private static final RenderPipeline PICKER_MODELS = registerPicker(
-        "picker_models", VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
+        "picker_models", DefaultVertexFormat.NEW_ENTITY
     );
 
     /* ---- particles ----
@@ -284,12 +284,12 @@ public class BBSShaders
      * picker_billboard_no_shading effects are dispatched by BBSPickerRenderer's manual render pass
      * instead — a RenderLayer binds only the engine builtins and so can never carry the BBSPicker UBO
      * those shaders read (see PICKER_UNIFORM). */
-    private static RenderLayer billboardLayer;
-    private static RenderLayer pickerBillboardLayer;
-    private static RenderLayer pickerParticlesLayer;
-    private static RenderLayer particlesLayer;
-    private static RenderLayer particlesOpaqueLayer;
-    private static RenderLayer particlesWorldLayer;
+    private static RenderType billboardLayer;
+    private static RenderType pickerBillboardLayer;
+    private static RenderType pickerParticlesLayer;
+    private static RenderType particlesLayer;
+    private static RenderType particlesOpaqueLayer;
+    private static RenderType particlesWorldLayer;
 
     /**
      * Kept for API compatibility with the old {@code BBSShaders.setup()} callsite
@@ -399,7 +399,7 @@ public class BBSShaders
     private record ModelLayerKey(ModelVariant variant, net.minecraft.util.Identifier texture, boolean world)
     {}
 
-    private static final java.util.Map<ModelLayerKey, RenderLayer> texturedModelLayers = new java.util.HashMap<>();
+    private static final java.util.Map<ModelLayerKey, RenderType> texturedModelLayers = new java.util.HashMap<>();
 
     /**
      * The model layer for {@code variant}, bound to {@code texture} (null = no texture bound). Inside
@@ -407,23 +407,23 @@ public class BBSShaders
      * one assigned to the pack's entity program (see {@link PipelineKey}); everywhere else, and always
      * without a pack, the shared copy with BBS's own shader.
      */
-    public static RenderLayer getModelLayer(ModelVariant variant, net.minecraft.util.Identifier texture)
+    public static RenderType getModelLayer(ModelVariant variant, net.minecraft.util.Identifier texture)
     {
         return texturedModelLayers.computeIfAbsent(new ModelLayerKey(variant, texture, BBSRendering.isIrisWorldForms()), (key) ->
         {
-            RenderSetup.Builder setup = RenderSetup.builder(modelPipeline(key.variant(), key.world()))
-                .expectedBufferSize(RenderLayer.field_64008)
-                .translucent()
+            RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(modelPipeline(key.variant(), key.world()))
+                .bufferSize(RenderType.BIG_BUFFER_SIZE)
+                .sortOnUpload()
                 .useLightmap()
                 .useOverlay();
 
             if (key.texture() != null)
             {
-                setup.texture("Sampler0", key.texture());
+                setup.withTexture("Sampler0", key.texture());
             }
 
-            return RenderLayer.of(BBSMod.MOD_ID + "_model" + key.variant().suffix() + (key.world() ? "_world" : "")
-                + (key.texture() == null ? "" : "_" + key.texture().getPath()), setup.build());
+            return RenderType.create(BBSMod.MOD_ID + "_model" + key.variant().suffix() + (key.world() ? "_world" : "")
+                + (key.texture() == null ? "" : "_" + key.texture().getPath()), setup.createRenderSetup());
         });
     }
 
@@ -432,19 +432,19 @@ public class BBSShaders
      * own texture manager — which is how the immediate model path has always chosen its texture. Resolving
      * it into a real TextureSetup is what keeps Sampler0 on that texture's own sampler.
      */
-    public static RenderLayer getBoundModelLayer(ModelVariant variant)
+    public static RenderType getBoundModelLayer(ModelVariant variant)
     {
         mchorse.bbs_mod.graphics.texture.Texture bound = mchorse.bbs_mod.BBSModClient.getTextures().getLastBound();
 
         return getModelLayer(variant, bound == null ? null : mchorse.bbs_mod.graphics.texture.AdoptedTexture.identifier(bound));
     }
 
-    public static RenderLayer getModelLayer(net.minecraft.util.Identifier texture)
+    public static RenderType getModelLayer(net.minecraft.util.Identifier texture)
     {
         return getModelLayer(ModelVariant.SINGLE, texture);
     }
 
-    public static RenderLayer getBoundModelLayer()
+    public static RenderType getBoundModelLayer()
     {
         return getBoundModelLayer(ModelVariant.SINGLE);
     }
@@ -453,13 +453,13 @@ public class BBSShaders
      * The backface-culled single-pass model layer: for geometry that emits front AND back faces itself and
      * expects the GPU to keep only the one facing the viewer (see MODEL_CULLED).
      */
-    public static RenderLayer getBoundCulledModelLayer()
+    public static RenderType getBoundCulledModelLayer()
     {
         return getBoundModelLayer(ModelVariant.SINGLE.withCull(true));
     }
 
     /** Unlit billboard layers keyed by texture, mirroring {@link #getModelLayer(net.minecraft.util.Identifier)}. */
-    private static final java.util.Map<net.minecraft.util.Identifier, RenderLayer> texturedBillboardLayers = new java.util.HashMap<>();
+    private static final java.util.Map<net.minecraft.util.Identifier, RenderType> texturedBillboardLayers = new java.util.HashMap<>();
 
     /**
      * The unlit (no-shading) billboard layer bound to the last texture the BBS texture manager bound —
@@ -467,7 +467,7 @@ public class BBSShaders
      * position_tex_color applies neither directional light nor the lightmap, which is exactly how the
      * 1.21.1 no-shading billboard drew.
      */
-    public static RenderLayer getBoundBillboardLayer()
+    public static RenderType getBoundBillboardLayer()
     {
         mchorse.bbs_mod.graphics.texture.Texture bound = mchorse.bbs_mod.BBSModClient.getTextures().getLastBound();
 
@@ -479,37 +479,37 @@ public class BBSShaders
      * the BBS texture manager's bind — the framebuffer form's picture, which lives in a device texture and
      * reaches the layers only by its adopted id.
      */
-    public static RenderLayer getBillboardLayer(net.minecraft.util.Identifier id)
+    public static RenderType getBillboardLayer(net.minecraft.util.Identifier id)
     {
         if (id == null)
         {
             if (billboardLayer == null)
             {
-                billboardLayer = RenderLayer.of(BBSMod.MOD_ID + "_billboard", RenderSetup.builder(BILLBOARD)
-                    .expectedBufferSize(RenderLayer.field_64008)
-                    .translucent()
-                    .build());
+                billboardLayer = RenderType.create(BBSMod.MOD_ID + "_billboard", RenderSetup.builder(BILLBOARD)
+                    .bufferSize(RenderType.BIG_BUFFER_SIZE)
+                    .sortOnUpload()
+                    .createRenderSetup());
             }
 
             return billboardLayer;
         }
 
-        return texturedBillboardLayers.computeIfAbsent(id, (key) -> RenderLayer.of(
+        return texturedBillboardLayers.computeIfAbsent(id, (key) -> RenderType.create(
             BBSMod.MOD_ID + "_billboard_" + key.getPath(),
             RenderSetup.builder(BILLBOARD)
-                .expectedBufferSize(RenderLayer.field_64008)
-                .translucent()
-                .texture("Sampler0", key)
-                .build()));
+                .bufferSize(RenderType.BIG_BUFFER_SIZE)
+                .sortOnUpload()
+                .withTexture("Sampler0", key)
+                .createRenderSetup()));
     }
 
     /** The untextured single-pass model layer (Sampler0 left to the driver — see {@link #getModelLayer(ModelVariant, net.minecraft.util.Identifier)}). */
-    public static RenderLayer getModelLayer()
+    public static RenderType getModelLayer()
     {
         return getModelLayer(ModelVariant.SINGLE, null);
     }
 
-    public static RenderLayer getPickerBillboardLayer()
+    public static RenderType getPickerBillboardLayer()
     {
         if (pickerBillboardLayer == null)
         {
@@ -519,7 +519,7 @@ public class BBSShaders
         return pickerBillboardLayer;
     }
 
-    public static RenderLayer getPickerParticlesLayer()
+    public static RenderType getPickerParticlesLayer()
     {
         if (pickerParticlesLayer == null)
         {
@@ -535,7 +535,7 @@ public class BBSShaders
      * call useOverlay(). Sampler0 (the per-emitter texture) is fed via the global texture binding
      * ParticleEmitter.render performs before the draw, same as BillboardFormRenderer.
      */
-    public static RenderLayer getParticlesLayer()
+    public static RenderType getParticlesLayer()
     {
         if (BBSRendering.isIrisWorldForms())
         {
@@ -546,11 +546,11 @@ public class BBSShaders
                     particlesWorld = registerParticles(true);
                 }
 
-                particlesWorldLayer = RenderLayer.of(BBSMod.MOD_ID + "_particles_world", RenderSetup.builder(particlesWorld)
-                    .expectedBufferSize(RenderLayer.field_64008)
-                    .translucent()
+                particlesWorldLayer = RenderType.create(BBSMod.MOD_ID + "_particles_world", RenderSetup.builder(particlesWorld)
+                    .bufferSize(RenderType.BIG_BUFFER_SIZE)
+                    .sortOnUpload()
                     .useLightmap()
-                    .build());
+                    .createRenderSetup());
             }
 
             return particlesWorldLayer;
@@ -558,12 +558,12 @@ public class BBSShaders
 
         if (particlesLayer == null)
         {
-            RenderSetup.Builder setup = RenderSetup.builder(PARTICLES)
-                .expectedBufferSize(RenderLayer.field_64008)
-                .translucent()
+            RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(PARTICLES)
+                .bufferSize(RenderType.BIG_BUFFER_SIZE)
+                .sortOnUpload()
                 .useLightmap();
 
-            particlesLayer = RenderLayer.of(BBSMod.MOD_ID + "_particles", setup.build());
+            particlesLayer = RenderType.create(BBSMod.MOD_ID + "_particles", setup.createRenderSetup());
         }
 
         return particlesLayer;
@@ -577,7 +577,7 @@ public class BBSShaders
      * Iris as the pack's PARTICLES program, and a second world pipeline would have nothing to be
      * assigned to. Picking never reaches here: the picker pipelines have blending off already.
      */
-    public static RenderLayer getParticlesLayer(boolean blend)
+    public static RenderType getParticlesLayer(boolean blend)
     {
         if (blend || BBSRendering.isIrisWorldForms())
         {
@@ -586,12 +586,12 @@ public class BBSShaders
 
         if (particlesOpaqueLayer == null)
         {
-            RenderSetup.Builder setup = RenderSetup.builder(PARTICLES_OPAQUE)
-                .expectedBufferSize(RenderLayer.field_64008)
-                .translucent()
+            RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(PARTICLES_OPAQUE)
+                .bufferSize(RenderType.BIG_BUFFER_SIZE)
+                .sortOnUpload()
                 .useLightmap();
 
-            particlesOpaqueLayer = RenderLayer.of(BBSMod.MOD_ID + "_particles_opaque", setup.build());
+            particlesOpaqueLayer = RenderType.create(BBSMod.MOD_ID + "_particles_opaque", setup.createRenderSetup());
         }
 
         return particlesOpaqueLayer;
@@ -623,13 +623,13 @@ public class BBSShaders
             return existing;
         }
 
-        Identifier shader = Identifier.of(BBSMod.MOD_ID, "core/model");
+        Identifier shader = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/model");
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/model" + variant.suffix() + (world ? "_world" : "")))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/model" + variant.suffix() + (world ? "_world" : "")))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.NEW_ENTITY, VertexFormat.DrawMode.QUADS)
             .withBlend(BLEND)
             .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
             .withDepthWrite(variant.depthWrite())
@@ -695,13 +695,13 @@ public class BBSShaders
      */
     private static RenderPipeline registerBillboard()
     {
-        Identifier shader = Identifier.of("minecraft", "core/position_tex_color");
+        Identifier shader = Identifier.fromNamespaceAndPath("minecraft", "core/position_tex_color");
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/billboard"))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/billboard"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withBlend(BLEND)
             .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
             .withCull(true)
@@ -728,13 +728,13 @@ public class BBSShaders
 
     private static RenderPipeline registerParticles(boolean world, boolean blend)
     {
-        Identifier shader = Identifier.of(BBSMod.MOD_ID, "core/particles");
+        Identifier shader = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/particles");
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/particles" + (world ? "_world" : "") + (blend ? "" : "_opaque")))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/particles" + (world ? "_world" : "") + (blend ? "" : "_opaque")))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR_LIGHT, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.PARTICLE, VertexFormat.DrawMode.QUADS)
             .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
             .withCull(false)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
@@ -776,13 +776,13 @@ public class BBSShaders
      */
     private static RenderPipeline registerMultilink()
     {
-        Identifier shader = Identifier.of(BBSMod.MOD_ID, "core/multilink");
+        Identifier shader = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/multilink");
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/multilink"))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/multilink"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.QUADS)
             .withBlend(BLEND)
             .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
             .withCull(false)
@@ -813,13 +813,13 @@ public class BBSShaders
      */
     private static RenderPipeline registerSelection()
     {
-        Identifier shader = Identifier.of(BBSMod.MOD_ID, "core/selection");
+        Identifier shader = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/selection");
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/selection"))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/selection"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.QUADS)
             .withoutBlend()
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
@@ -843,9 +843,9 @@ public class BBSShaders
     private static RenderPipeline pixelArtPipeline(RenderPipeline prototype, String name)
     {
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/" + name))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/" + name))
             .withVertexShader(prototype.getVertexShader())
-            .withFragmentShader(Identifier.of(BBSMod.MOD_ID, "core/" + name))
+            .withFragmentShader(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/" + name))
             .withVertexFormat(prototype.getVertexFormat(), prototype.getVertexFormatMode())
             .withDepthTestFunction(prototype.getDepthTestFunction())
             .withPolygonMode(prototype.getPolygonMode())
@@ -867,7 +867,7 @@ public class BBSShaders
             builder.withUniform(uniform.name(), uniform.type());
         }
 
-        Defines defines = prototype.getShaderDefines();
+        ShaderDefines defines = prototype.getShaderDefines();
 
         for (String flag : defines.flags())
         {
@@ -887,13 +887,13 @@ public class BBSShaders
 
     private static RenderPipeline registerSubtitles()
     {
-        Identifier shader = Identifier.of(BBSMod.MOD_ID, "core/subtitles");
+        Identifier shader = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/subtitles");
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/subtitles"))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/subtitles"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.QUADS)
             .withBlend(BLEND)
             .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
             .withCull(false)
@@ -914,10 +914,10 @@ public class BBSShaders
      */
     private static RenderPipeline registerPicker(String name, VertexFormat format)
     {
-        Identifier shader = Identifier.of(BBSMod.MOD_ID, "core/" + name);
+        Identifier shader = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/" + name);
 
         RenderPipeline.Builder builder = RenderPipeline.builder()
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/" + name))
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/" + name))
             .withVertexShader(shader)
             .withFragmentShader(shader)
             .withVertexFormat(format, VertexFormat.DrawMode.QUADS)
@@ -942,17 +942,17 @@ public class BBSShaders
      * Wrap a pipeline in a RenderLayer. The expected buffer size mirrors the vanilla entity-layer
      * default; affectsOutline/translucent are passed through to RenderSetup.
      */
-    private static RenderLayer layer(String name, RenderPipeline pipeline, boolean useLightmapOverlay)
+    private static RenderType layer(String name, RenderPipeline pipeline, boolean useLightmapOverlay)
     {
-        RenderSetup.Builder setup = RenderSetup.builder(pipeline)
-            .expectedBufferSize(RenderLayer.field_64008)
-            .translucent();
+        RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(pipeline)
+            .bufferSize(RenderType.BIG_BUFFER_SIZE)
+            .sortOnUpload();
 
         if (useLightmapOverlay)
         {
             setup.useLightmap().useOverlay();
         }
 
-        return RenderLayer.of(BBSMod.MOD_ID + "_" + name, setup.build());
+        return RenderType.create(BBSMod.MOD_ID + "_" + name, setup.createRenderSetup());
     }
 }

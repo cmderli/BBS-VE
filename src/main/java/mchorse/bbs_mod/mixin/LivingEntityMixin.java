@@ -4,17 +4,17 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.types.AttackActionClip;
 import mchorse.bbs_mod.actions.types.item.ReleaseUseItemActionClip;
 import mchorse.bbs_mod.morphing.MorphHitbox;
-import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.item.RangedWeaponItem;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.Hand;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ProjectileWeaponItem;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -25,13 +25,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class LivingEntityMixin
 {
     @Inject(method = "applyDamage", at = @At("HEAD"))
-    public void onApplyDamage(ServerWorld world, DamageSource source, float amount, CallbackInfo info)
+    public void onApplyDamage(ServerLevel world, DamageSource source, float amount, CallbackInfo info)
     {
-        Entity attacker = source.getAttacker();
+        Entity attacker = source.getEntity();
 
-        if (source.isDirect() && attacker != null && attacker.getClass() == ServerPlayerEntity.class)
+        if (source.isDirect() && attacker != null && attacker.getClass() == ServerPlayer.class)
         {
-            BBSMod.getActions().addAction((ServerPlayerEntity) attacker, () ->
+            BBSMod.getActions().addAction((ServerPlayer) attacker, () ->
             {
                 AttackActionClip clip = new AttackActionClip();
 
@@ -62,24 +62,24 @@ public class LivingEntityMixin
     @Inject(method = "stopUsingItem", at = @At("HEAD"))
     public void onStopUsingItem(CallbackInfo info)
     {
-        if ((Object) this instanceof ServerPlayerEntity player && player.getClass() == ServerPlayerEntity.class)
+        if ((Object) this instanceof ServerPlayer player && player.getClass() == ServerPlayer.class)
         {
-            ItemStack active = player.getActiveItem();
+            ItemStack active = player.getUseItem();
 
             if (active.isEmpty())
             {
                 return;
             }
 
-            boolean mainHand = player.getActiveHand() == Hand.MAIN_HAND;
-            int charge = active.getMaxUseTime(player) - player.getItemUseTimeLeft();
-            ItemStack stack = active.copy();
-            ItemStack recordedProjectile = player.getProjectileType(active).copy();
+            boolean mainHand = player.getUsedItemHand() == InteractionHand.MAIN_HAND;
+            int charge = active.getUseDuration(player) - player.getUseItemRemainingTicks();
+            ItemStack stack = active.copyFrom();
+            ItemStack recordedProjectile = player.getProjectileType(active).copyFrom();
 
             /* Creative players shoot without ammo and vanilla substitutes a
              * plain arrow, but the fake player has no creative mode - so the
              * substitute is baked into the clip instead */
-            if (recordedProjectile.isEmpty() && stack.getItem() instanceof RangedWeaponItem && player.getAbilities().creativeMode)
+            if (recordedProjectile.isEmpty() && stack.getItem() instanceof ProjectileWeaponItem && player.getAbilities().instabuild)
             {
                 recordedProjectile = new ItemStack(Items.ARROW);
             }
@@ -90,7 +90,7 @@ public class LivingEntityMixin
              * asks the WORLD, not the item: a riptide trident released in water
              * or rain launches its owner and is never thrown. The playback fake
              * player always stands dry, so the answer has to be recorded. */
-            boolean riptide = charge >= 10 && EnchantmentHelper.getTridentSpinAttackStrength(active, player) > 0F && player.isTouchingWaterOrRain();
+            boolean riptide = charge >= 10 && EnchantmentHelper.getTridentSpinAttackStrength(active, player) > 0F && player.isInWaterOrRain();
 
             BBSMod.getActions().addAction(player, () ->
             {

@@ -3,8 +3,8 @@ package mchorse.bbs_mod.client;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.forms.QueueDispatch;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.gui.render.state.GuiRenderState;
 
@@ -32,9 +32,9 @@ public class ImmediateGui
     private static GuiRenderer renderer;
 
     /** Begin recording; draw into the returned context, then call {@link #end()}. */
-    public static DrawContext begin()
+    public static GuiGraphics begin()
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         if (renderer == null)
         {
@@ -42,14 +42,14 @@ public class ImmediateGui
             renderer = new GuiRenderer(state, FormUtilsClient.getProvider(), QueueDispatch.queue(), QueueDispatch.dispatcher(), List.of());
         }
 
-        return new DrawContext(mc, state, mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
+        return new GuiGraphics(mc, state, mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
     }
 
     /** Render everything recorded since {@link #begin()} right now. */
     public static void end()
     {
-        renderer.incrementFrame();
-        renderer.render(RenderSystem.getShaderFog());
-        state.clear();
+        renderer.incrementFrameNumber();
+        renderer.executeDrawRange(RenderSystem.getShaderFog());
+        state.reset();
     }
 }

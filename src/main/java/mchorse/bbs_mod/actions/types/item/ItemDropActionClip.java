@@ -7,8 +7,8 @@ import mchorse.bbs_mod.settings.values.numeric.ValueBoolean;
 import mchorse.bbs_mod.settings.values.numeric.ValueDouble;
 import mchorse.bbs_mod.settings.values.numeric.ValueFloat;
 import mchorse.bbs_mod.utils.clips.Clip;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.LivingEntity;
 
 public class ItemDropActionClip extends ItemActionClip
 {
@@ -49,13 +49,13 @@ public class ItemDropActionClip extends ItemActionClip
         double y = this.relative.get() ? this.posY.get() + player.getEntityPos().y : this.posY.get();
         double z = this.relative.get() ? this.posZ.get() + player.getEntityPos().z : this.posZ.get();
         ItemEntity entity = new ItemEntity(
-            player.getEntityWorld(),
-            x, y, z, this.itemStack.get().copy(),
+            player.level(),
+            x, y, z, this.itemStack.get().copyFrom(),
             this.velocityX.get(), this.velocityY.get(), this.velocityZ.get()
         );
 
-        entity.setToDefaultPickupDelay();
-        player.getEntityWorld().spawnEntity(entity);
+        entity.setDefaultPickUpDelay();
+        player.level().spawnEntity(entity);
     }
 
     @Override

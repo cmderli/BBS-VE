@@ -10,8 +10,8 @@ import mchorse.bbs_mod.network.ClientNetwork;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.WorldExportWindowSession;
 import mchorse.bbs_mod.utils.clips.Clips;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.Window;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.Window;
 
 import java.io.File;
 import java.util.List;
@@ -50,7 +50,7 @@ public class WorldVideoExportSession extends VideoExportSession
             return false;
         }
 
-        Window window = MinecraftClient.getInstance().getWindow();
+        Window window = Minecraft.getInstance().getWindow();
         VideoSize size = this.getVideoSize(window);
 
         this.applyWindowSize(size);
@@ -220,7 +220,7 @@ public class WorldVideoExportSession extends VideoExportSession
             return new VideoSize(even(BBSSettings.videoWidth.get()), even(BBSSettings.videoHeight.get()));
         }
 
-        return new VideoSize(even(window.getWidth()), even(window.getHeight()));
+        return new VideoSize(even(window.getScreenWidth()), even(window.getScreenHeight()));
     }
 
     private static int even(int value)

@@ -8,9 +8,9 @@ import mchorse.bbs_mod.film.replays.ReplayKeyframes;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.factories.KeyframeFactories;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,7 +87,7 @@ public class FilmLegacy
 
             if (!stack.isEmpty())
             {
-                keyframes.hotbar.get(i).insert(0, stack.copy());
+                keyframes.hotbar.get(i).insert(0, stack.copyFrom());
             }
         }
 
@@ -106,9 +106,9 @@ public class FilmLegacy
             int slot = keyframes.getSelectedSlot(tick);
             ItemStack stack = hand.interpolate(tick, ItemStack.EMPTY);
 
-            if (!ItemStack.areEqual(hotbar[slot], stack))
+            if (!ItemStack.matches(hotbar[slot], stack))
             {
-                keyframes.hotbar.get(slot).insert(tick, stack.copy());
+                keyframes.hotbar.get(slot).insert(tick, stack.copyFrom());
 
                 hotbar[slot] = stack;
             }
@@ -137,12 +137,12 @@ public class FilmLegacy
                 continue;
             }
 
-            int index = slot == EquipmentSlot.OFFHAND ? PlayerInventory.OFF_HAND_SLOT : PlayerInventory.MAIN_SIZE + slot.getEntitySlotId();
+            int index = slot == EquipmentSlot.OFFHAND ? Inventory.SLOT_OFFHAND : Inventory.INVENTORY_SIZE + slot.getIndex();
             ItemStack stack = index < inventory.size() ? inventory.get(index) : ItemStack.EMPTY;
 
             if (!stack.isEmpty())
             {
-                channel.insert(0, stack.copy());
+                channel.insert(0, stack.copyFrom());
             }
         }
     }

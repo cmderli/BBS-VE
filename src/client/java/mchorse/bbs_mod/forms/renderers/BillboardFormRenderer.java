@@ -21,15 +21,15 @@ import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.Quad;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
@@ -58,7 +58,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
     }
 
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         /* The base renderer pre-translated the stack to the cell (centre, 0.85*height down) + scale(f,f,-f);
          * apply the rest of the original getUIMatrix framing here, then the original billboard post-ops + draw
@@ -67,14 +67,14 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
 
         this.applyTransforms(uiMatrix, transition);
 
-        stack.push();
+        stack.pushPose();
 
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.translate(0F, 1F, 0F);
         stack.scale(1.5F, 1.5F, 1.5F);
         stack.scale(this.form.uiScale.get(), this.form.uiScale.get(), this.form.uiScale.get());
 
-        VertexFormat format = VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL;
+        VertexFormat format = DefaultVertexFormat.NEW_ENTITY;
 
         /* The shading (POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) path uses the culled BBS model
          * layer (formerly GameRenderer::getRenderTypeEntityTranslucentProgram, drawn with the global
@@ -83,11 +83,11 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
          * turned towards the viewer. */
         this.renderModel(format, BBSShaders::getBoundCulledModelLayer, null, false,
             stack,
-            OverlayTexture.DEFAULT_UV, LightmapTextureManager.MAX_LIGHT_COORDINATE, Colors.WHITE,
+            OverlayTexture.NO_OVERLAY, LightTexture.FULL_BRIGHT, Colors.WHITE,
             transition
         );
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override
@@ -123,7 +123,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
              * moved onto vanilla's position_tex_color, the picker shader still declares it. */
             this.setupTarget(context);
 
-            VertexFormat pickFormat = shading ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL : VertexFormats.POSITION_TEXTURE_LIGHT_COLOR;
+            VertexFormat pickFormat = shading ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR;
             RenderPipeline picker = shading ? BBSShaders.getPickerBillboardProgram() : BBSShaders.getPickerBillboardNoShadingProgram();
 
             this.renderModel(pickFormat, null, picker, false, context.stack, context.overlay, context.light, context.color, context.getTransition());
@@ -131,8 +131,8 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
             return;
         }
 
-        VertexFormat format = shading ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL : VertexFormats.POSITION_TEXTURE_COLOR;
-        Supplier<RenderLayer> layer = shading ? BBSShaders::getBoundCulledModelLayer : BBSShaders::getBoundBillboardLayer;
+        VertexFormat format = shading ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
+        Supplier<RenderType> layer = shading ? BBSShaders::getBoundCulledModelLayer : BBSShaders::getBoundBillboardLayer;
 
         this.renderModel(format, layer, null, shading, context.stack, context.overlay, context.light, context.color, context.getTransition());
     }
@@ -148,7 +148,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         return t == null ? null : BBSModClient.getTextures().getTexture(t);
     }
 
-    private void renderModel(VertexFormat format, Supplier<RenderLayer> shader, RenderPipeline picker, boolean deferrable, MatrixStack matrices, int overlay, int light, int overlayColor, float transition)
+    private void renderModel(VertexFormat format, Supplier<RenderType> shader, RenderPipeline picker, boolean deferrable, PoseStack matrices, int overlay, int light, int overlayColor, float transition)
     {
         Texture texture = this.getTexture();
 
@@ -222,11 +222,11 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         this.renderQuad(format, texture, shader, picker, deferrable, matrices, overlay, light, overlayColor, transition);
     }
 
-    private void renderQuad(VertexFormat format, Texture texture, Supplier<RenderLayer> shader, RenderPipeline picker, boolean deferrable, MatrixStack matrices, int overlay, int light, int overlayColor, float transition)
+    private void renderQuad(VertexFormat format, Texture texture, Supplier<RenderType> shader, RenderPipeline picker, boolean deferrable, PoseStack matrices, int overlay, int light, int overlayColor, float transition)
     {
         Color color = new Color().set(overlayColor, true);
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
-        MatrixStack.Entry entry = matrices.peek();
+        Matrix4f matrix = matrices.last().pose();
+        PoseStack.Pose entry = matrices.last();
 
         FormColorBlend.blend(color, this.form.color.get());
 
@@ -263,8 +263,8 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
          * draws ids, not colours. */
         Color formOverlay = this.form.overlayColor.get();
         boolean tinted = picker == null
-            && format == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL
-            && overlay == OverlayTexture.DEFAULT_UV
+            && format == DefaultVertexFormat.NEW_ENTITY
+            && overlay == OverlayTexture.NO_OVERLAY
             && OverlayBlend.isActive(formOverlay);
 
         if (tinted)
@@ -272,7 +272,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
             FormOverlay.swatch(formOverlay);
         }
 
-        RenderLayer layer = picker == null ? FormOverlay.withOverlay(shader.get(), tinted) : null;
+        RenderType layer = picker == null ? FormOverlay.withOverlay(shader.get(), tinted) : null;
 
         if (picker != null)
         {
@@ -282,13 +282,13 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         if (FramebufferDebug.inside())
         {
             FramebufferDebug.log("billboard", "layer=" + layer
-                + " shaded=" + (format == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL)
+                + " shaded=" + (format == DefaultVertexFormat.NEW_ENTITY)
                 + " texture=" + texture.id + "/translucent=" + texture.hasTranslucency() + " alpha=" + color.a
                 + " light=" + light + " overlayActive=" + tinted + " defer=" + deferrable
                 + " | " + FramebufferDebug.bindings());
         }
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
 
         /* Front */
         this.fill(format, builder, matrix, quad.p3.x, quad.p3.y, color, uvQuad.p3.x, uvQuad.p3.y, overlay, light, entry, 1F);
@@ -311,7 +311,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         /* Was: defaultBlendFunc + enableBlend + BufferRenderer.drawWithGlobalProgram. Blend is now
          * encoded in the layer's pipeline; submit the built buffer through the layer, which carries
          * this billboard's texture in its own Sampler0 (resolved after the bind above). */
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -362,19 +362,19 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
         texture.setFilterMipmap(false, false);
     }
 
-    private VertexConsumer fill(VertexFormat format, VertexConsumer consumer, Matrix4f matrix, float x, float y, Color color, float u, float v, int overlay, int light, MatrixStack.Entry entry, float nz)
+    private VertexConsumer fill(VertexFormat format, VertexConsumer consumer, Matrix4f matrix, float x, float y, Color color, float u, float v, int overlay, int light, PoseStack.Pose entry, float nz)
     {
-        if (format == VertexFormats.POSITION_TEXTURE_COLOR)
+        if (format == DefaultVertexFormat.POSITION_TEX_COLOR)
         {
             /* The unlit path: vanilla position_tex_color reads exactly Position/UV0/Color. */
-            return consumer.vertex(matrix, x, y, 0F).texture(u, v).color(color.r, color.g, color.b, color.a);
+            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setColor(color.r, color.g, color.b, color.a);
         }
 
-        if (format == VertexFormats.POSITION_TEXTURE_LIGHT_COLOR)
+        if (format == DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR)
         {
-            return consumer.vertex(matrix, x, y, 0F).texture(u, v).light(light).color(color.r, color.g, color.b, color.a);
+            return consumer.addVertex(matrix, x, y, 0F).setUv(u, v).setUv2(light).setColor(color.r, color.g, color.b, color.a);
         }
 
-        return consumer.vertex(matrix, x, y, 0F).color(color.r, color.g, color.b, color.a).texture(u, v).overlay(overlay).light(light).normal(entry, 0F, 0F, nz);
+        return consumer.addVertex(matrix, x, y, 0F).setColor(color.r, color.g, color.b, color.a).setUv(u, v).setUv1(overlay).setUv2(light).setNormal(entry, 0F, 0F, nz);
     }
 }

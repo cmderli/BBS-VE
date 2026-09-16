@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.forms.structure;
 
-import net.minecraft.client.texture.Sprite;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -30,7 +30,7 @@ public class SodiumSpriteHook
         {
             Class<?> util = Class.forName("me.jellysquid.mods.sodium.client.render.texture.SpriteUtil");
 
-            markSpriteActive = lookup.findStatic(util, "markSpriteActive", MethodType.methodType(void.class, Sprite.class));
+            markSpriteActive = lookup.findStatic(util, "markSpriteActive", MethodType.methodType(void.class, TextureAtlasSprite.class));
 
             return;
         }
@@ -43,13 +43,13 @@ public class SodiumSpriteHook
             Class<?> util = Class.forName("net.caffeinemc.mods.sodium.api.texture.SpriteUtil");
 
             instance = util.getField("INSTANCE").get(null);
-            markSpriteActive = lookup.findVirtual(util, "markSpriteActive", MethodType.methodType(void.class, Sprite.class));
+            markSpriteActive = lookup.findVirtual(util, "markSpriteActive", MethodType.methodType(void.class, TextureAtlasSprite.class));
         }
         catch (Throwable ignored)
         {}
     }
 
-    public static void markActive(Iterable<Sprite> sprites)
+    public static void markActive(Iterable<TextureAtlasSprite> sprites)
     {
         if (!resolved)
         {
@@ -65,14 +65,14 @@ public class SodiumSpriteHook
         {
             if (instance == null)
             {
-                for (Sprite sprite : sprites)
+                for (TextureAtlasSprite sprite : sprites)
                 {
                     markSpriteActive.invoke(sprite);
                 }
             }
             else
             {
-                for (Sprite sprite : sprites)
+                for (TextureAtlasSprite sprite : sprites)
                 {
                     markSpriteActive.invoke(instance, sprite);
                 }

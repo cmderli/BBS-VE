@@ -2,14 +2,14 @@ package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.client.renderer.IRenderStateEntityHolder;
 import mchorse.bbs_mod.client.renderer.MorphRenderer;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
-import net.minecraft.client.render.state.CameraRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -37,7 +37,7 @@ public abstract class LivingEntityRendererMorphMixin
         at = @At("HEAD"),
         cancellable = true
     )
-    private void bbs$onRenderMorph(LivingEntityRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue, CameraRenderState cameraState, CallbackInfo info)
+    private void bbs$onRenderMorph(LivingEntityRenderState state, PoseStack matrices, SubmitNodeCollector queue, CameraRenderState cameraState, CallbackInfo info)
     {
         if (!(state instanceof IRenderStateEntityHolder holder))
         {
@@ -53,11 +53,11 @@ public abstract class LivingEntityRendererMorphMixin
 
         float tickDelta = holder.bbs$getRenderedTickDelta();
 
-        if (entity instanceof AbstractClientPlayerEntity player)
+        if (entity instanceof AbstractClientPlayer player)
         {
-            int overlay = LivingEntityRenderer.getOverlay(state, 0F);
+            int overlay = LivingEntityRenderer.getOverlayCoords(state, 0F);
 
-            if (MorphRenderer.collectPlayer(player, matrices, state.light, overlay, tickDelta, state))
+            if (MorphRenderer.collectPlayer(player, matrices, state.lightCoords, overlay, tickDelta, state))
             {
                 info.cancel();
             }
@@ -65,9 +65,9 @@ public abstract class LivingEntityRendererMorphMixin
         else if (entity instanceof LivingEntity living)
         {
             float counter = ((LivingEntityRendererInvoker) (Object) this).bbs$getAnimationCounter(state);
-            int overlay = LivingEntityRenderer.getOverlay(state, counter);
+            int overlay = LivingEntityRenderer.getOverlayCoords(state, counter);
 
-            if (MorphRenderer.collectLivingEntity(living, matrices, state.light, overlay, tickDelta, state))
+            if (MorphRenderer.collectLivingEntity(living, matrices, state.lightCoords, overlay, tickDelta, state))
             {
                 info.cancel();
             }

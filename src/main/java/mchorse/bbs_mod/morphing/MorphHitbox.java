@@ -1,8 +1,8 @@
 package mchorse.bbs_mod.morphing;
 
 import mchorse.bbs_mod.forms.forms.Form;
-import net.minecraft.entity.EntityDimensions;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * The hitbox a morphed entity gets from its form, for the mixins that intercept
@@ -38,10 +38,10 @@ public class MorphHitbox
         }
 
         float width = form.hitboxWidth.get();
-        float height = form.hitboxHeight.get() * (entity.isSneaking() ? form.hitboxSneakMultiplier.get() : 1F);
+        float height = form.hitboxHeight.get() * (entity.isShiftKeyDown() ? form.hitboxSneakMultiplier.get() : 1F);
 
         return dimensions.fixed()
             ? EntityDimensions.fixed(width, height)
-            : EntityDimensions.changing(width, height);
+            : EntityDimensions.scalable(width, height);
     }
 }

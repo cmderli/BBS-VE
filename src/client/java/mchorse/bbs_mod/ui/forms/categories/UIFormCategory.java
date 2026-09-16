@@ -41,8 +41,8 @@ import mchorse.bbs_mod.ui.utils.context.ContextMenuManager;
 import mchorse.bbs_mod.ui.utils.context.MenuVerb;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -226,7 +226,7 @@ public class UIFormCategory extends UIItemGrid<Form>
             {
                 MapType data = FormUtils.toData(form);
                 DataStringifier stringifier = new DataStringifier();
-                String name = MinecraftClient.getInstance().player.getGameProfile().name();
+                String name = Minecraft.getInstance().player.getGameProfile().name();
 
                 stringifier.jsonLike();
                 stringifier.indent = "";
@@ -234,7 +234,7 @@ public class UIFormCategory extends UIItemGrid<Form>
                 Window.setClipboard("/bbs morph " + name + " " + stringifier.toString(data));
             });
 
-            Collection<PlayerListEntry> playerList = MinecraftClient.getInstance().getNetworkHandler().getPlayerList();
+            Collection<PlayerInfo> playerList = Minecraft.getInstance().getConnection().getOnlinePlayers();
 
             if (playerList.size() > 1)
             {
@@ -242,9 +242,9 @@ public class UIFormCategory extends UIItemGrid<Form>
                 {
                     this.getContext().replaceContextMenu((newMenu) ->
                     {
-                        for (PlayerListEntry entry : playerList)
+                        for (PlayerInfo entry : playerList)
                         {
-                            if (entry.getProfile().id().equals(MinecraftClient.getInstance().player.getGameProfile().id()))
+                            if (entry.getProfile().id().equals(Minecraft.getInstance().player.getGameProfile().id()))
                             {
                                 continue;
                             }

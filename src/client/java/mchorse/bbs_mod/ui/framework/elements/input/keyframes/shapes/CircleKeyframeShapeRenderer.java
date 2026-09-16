@@ -5,7 +5,7 @@ import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.utils.icons.Icon;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
-import net.minecraft.client.render.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix3x2fc;
 
 public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
@@ -49,10 +49,10 @@ public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
             float outerX2 = x;
             float outerY2 = y;
 
-            builder.vertex(matrix, innerX1, innerY1).color(c);
-            builder.vertex(matrix, outerX1, outerY1).color(c);
-            builder.vertex(matrix, outerX2, outerY2).color(c);
-            builder.vertex(matrix, innerX2, innerY2).color(c);
+            builder.addVertex(matrix, innerX1, innerY1).setColor(c);
+            builder.addVertex(matrix, outerX1, outerY1).setColor(c);
+            builder.addVertex(matrix, outerX2, outerY2).setColor(c);
+            builder.addVertex(matrix, innerX2, innerY2).setColor(c);
         }
     }
 
@@ -62,9 +62,9 @@ public class CircleKeyframeShapeRenderer implements IKeyframeShapeRenderer
         float centerSize = offset * 0.2f;
         float half = centerSize * 2;
 
-        builder.vertex(matrix, x - half, y - half).color(c);
-        builder.vertex(matrix, x - half, y + half).color(c);
-        builder.vertex(matrix, x + half, y + half).color(c);
-        builder.vertex(matrix, x + half, y - half).color(c);
+        builder.addVertex(matrix, x - half, y - half).setColor(c);
+        builder.addVertex(matrix, x - half, y + half).setColor(c);
+        builder.addVertex(matrix, x + half, y + half).setColor(c);
+        builder.addVertex(matrix, x + half, y - half).setColor(c);
     }
 }

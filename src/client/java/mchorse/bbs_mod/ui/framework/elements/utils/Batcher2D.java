@@ -13,13 +13,13 @@ import mchorse.bbs_mod.ui.utils.icons.Icon;
 import mchorse.bbs_mod.utils.Direction;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.ScreenRect;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.texture.TextureSetup;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.gui.render.TextureSetup;
+import net.minecraft.resources.Identifier;
 import org.joml.Matrix3x2fc;
 
 import java.util.List;
@@ -70,12 +70,12 @@ public class Batcher2D
 
     private static FontRenderer fontRenderer = new FontRenderer();
 
-    private DrawContext context;
+    private GuiGraphics context;
     private FontRenderer font;
 
     public static FontRenderer getDefaultTextRenderer()
     {
-        fontRenderer.setRenderer(MinecraftClient.getInstance().textRenderer);
+        fontRenderer.setRenderer(Minecraft.getInstance().font);
 
         return fontRenderer;
     }
@@ -110,13 +110,13 @@ public class Batcher2D
     public void endBatch()
     {}
 
-    public Batcher2D(DrawContext context)
+    public Batcher2D(GuiGraphics context)
     {
         this.context = context;
         this.font = getDefaultTextRenderer();
     }
 
-    public DrawContext getContext()
+    public GuiGraphics getContext()
     {
         return this.context;
     }
@@ -127,7 +127,7 @@ public class Batcher2D
      * to the {@code DrawContext} it passes into {@code Screen.render}. The batcher must therefore draw
      * into that exact context each frame (set by {@code UIScreen.render}) or nothing is composited.
      */
-    public void setContext(DrawContext context)
+    public void setContext(GuiGraphics context)
     {
         this.context = context;
     }
@@ -148,16 +148,16 @@ public class Batcher2D
 
         /* Read the live GUI scissor directly (same as LineBuilder) so the mesh clips in lock-step with
          * context.fill, without a separate mirror to keep in sync. */
-        ScreenRect scissor = this.context.scissorStack.peekLast();
-        ScreenRect bounds = mesh.computeBounds(scissor);
+        ScreenRectangle scissor = this.context.scissorStack.peek();
+        ScreenRectangle bounds = mesh.computeBounds(scissor);
 
         if (bounds == null)
         {
             return;
         }
 
-        this.context.state.addSimpleElement(new GuiQuadMesh.State(
-            RenderPipelines.GUI, TextureSetup.empty(),
+        this.context.guiRenderState.addSimpleElement(new GuiQuadMesh.State(
+            RenderPipelines.GUI, TextureSetup.noTexture(),
             mesh.xs(), mesh.ys(), mesh.colors(), mesh.count(),
             scissor, bounds));
     }
@@ -176,7 +176,7 @@ public class Batcher2D
      */
     public void newRootLayer()
     {
-        this.context.createNewRootLayer();
+        this.context.nextStratum();
     }
 
     /**
@@ -186,7 +186,7 @@ public class Batcher2D
      */
     public void applyBlur()
     {
-        this.context.applyBlur();
+        this.context.blurBeforeThisStratum();
     }
 
     public FontRenderer getFont()
@@ -196,7 +196,7 @@ public class Batcher2D
 
     private Matrix3x2fc matrix()
     {
-        return this.context.getMatrices();
+        return this.context.pose();
     }
 
     /**
@@ -256,7 +256,7 @@ public class Batcher2D
      */
     public void clip(int x, int y, int w, int h, int sw, int sh)
     {
-        org.joml.Matrix3x2fStack matrices = this.context.getMatrices();
+        org.joml.Matrix3x2fStack matrices = this.context.pose();
 
         matrices.pushMatrix();
         matrices.identity();
@@ -306,7 +306,7 @@ public class Batcher2D
         if (color1 == color2 && color1 == color3 && color1 == color4)
         {
             /* Solid fill - composites correctly through the two-phase GUI (GuiRenderState). */
-            this.context.fill(x1, y1, x2, y2, color1);
+            this.context.submitColoredRectangle(x1, y1, x2, y2, color1);
         }
         else if (color1 == color2 && color3 == color4)
         {
@@ -341,15 +341,15 @@ public class Batcher2D
         Matrix3x2fc matrix = this.matrix();
         GuiQuadMesh mesh = new GuiQuadMesh();
 
-        mesh.vertex(matrix, x1, y1).color(topLeft);
-        mesh.vertex(matrix, x1, y2).color(topLeft);
-        mesh.vertex(matrix, x2, y1).color(topLeft);
-        mesh.vertex(matrix, x2, y1).color(topLeft);
+        mesh.addVertex(matrix, x1, y1).setColor(topLeft);
+        mesh.addVertex(matrix, x1, y2).setColor(topLeft);
+        mesh.addVertex(matrix, x2, y1).setColor(topLeft);
+        mesh.addVertex(matrix, x2, y1).setColor(topLeft);
 
-        mesh.vertex(matrix, x2, y1).color(bottomRight);
-        mesh.vertex(matrix, x1, y2).color(bottomRight);
-        mesh.vertex(matrix, x2, y2).color(bottomRight);
-        mesh.vertex(matrix, x2, y2).color(bottomRight);
+        mesh.addVertex(matrix, x2, y1).setColor(bottomRight);
+        mesh.addVertex(matrix, x1, y2).setColor(bottomRight);
+        mesh.addVertex(matrix, x2, y2).setColor(bottomRight);
+        mesh.addVertex(matrix, x2, y2).setColor(bottomRight);
 
         this.drawQuadMesh(mesh);
     }
@@ -358,10 +358,10 @@ public class Batcher2D
         /* c1 ---- c2
          * |        |
          * c3 ---- c4 */
-        builder.vertex(matrix, x, y).color(color1);
-        builder.vertex(matrix, x, y + h).color(color3);
-        builder.vertex(matrix, x + w, y + h).color(color4);
-        builder.vertex(matrix, x + w, y).color(color2);
+        builder.addVertex(matrix, x, y).setColor(color1);
+        builder.addVertex(matrix, x, y + h).setColor(color3);
+        builder.addVertex(matrix, x + w, y + h).setColor(color4);
+        builder.addVertex(matrix, x + w, y).setColor(color2);
     }
 
     public void surfaceBox(int x1, int y1, int x2, int y2, int fill, boolean shadow, boolean border)
@@ -497,10 +497,10 @@ public class Batcher2D
             float x2 = (float) (x - Math.cos(a2) * radius);
             float y2 = (float) (y + Math.sin(a2) * radius);
 
-            mesh.vertex(matrix, x, y).color(opaque);
-            mesh.vertex(matrix, x1, y1).color(shadow);
-            mesh.vertex(matrix, x2, y2).color(shadow);
-            mesh.vertex(matrix, x2, y2).color(shadow);
+            mesh.addVertex(matrix, x, y).setColor(opaque);
+            mesh.addVertex(matrix, x1, y1).setColor(shadow);
+            mesh.addVertex(matrix, x2, y2).setColor(shadow);
+            mesh.addVertex(matrix, x2, y2).setColor(shadow);
         }
 
         this.drawQuadMesh(mesh);
@@ -528,10 +528,10 @@ public class Batcher2D
             float ix2 = (float) (x - Math.cos(a2) * offset);
             float iy2 = (float) (y + Math.sin(a2) * offset);
 
-            mesh.vertex(matrix, x, y).color(opaque);
-            mesh.vertex(matrix, ix1, iy1).color(opaque);
-            mesh.vertex(matrix, ix2, iy2).color(opaque);
-            mesh.vertex(matrix, ix2, iy2).color(opaque);
+            mesh.addVertex(matrix, x, y).setColor(opaque);
+            mesh.addVertex(matrix, ix1, iy1).setColor(opaque);
+            mesh.addVertex(matrix, ix2, iy2).setColor(opaque);
+            mesh.addVertex(matrix, ix2, iy2).setColor(opaque);
         }
 
         for (int i = 0; i < segments; i++)
@@ -547,10 +547,10 @@ public class Batcher2D
             float ox2 = (float) (x - Math.cos(a2) * radius);
             float oy2 = (float) (y + Math.sin(a2) * radius);
 
-            mesh.vertex(matrix, ix1, iy1).color(opaque);
-            mesh.vertex(matrix, ox1, oy1).color(shadow);
-            mesh.vertex(matrix, ox2, oy2).color(shadow);
-            mesh.vertex(matrix, ix2, iy2).color(opaque);
+            mesh.addVertex(matrix, ix1, iy1).setColor(opaque);
+            mesh.addVertex(matrix, ox1, oy1).setColor(shadow);
+            mesh.addVertex(matrix, ox2, oy2).setColor(shadow);
+            mesh.addVertex(matrix, ix2, iy2).setColor(opaque);
         }
 
         this.drawQuadMesh(mesh);
@@ -718,7 +718,7 @@ public class Batcher2D
         /* drawTexture(pipeline, id, x, y, u, v, width, height, regionW, regionH, texW, texH, color):
          * vanilla computes u1=u/texW, u2=(u+regionW)/texW, v1=v/texH, v2=(v+regionH)/texH, so the
          * region sizes are the sampled span in texels (signed - negative flips the axis). */
-        this.context.drawTexture(texturedPipeline(texture), id,
+        this.context.blit(texturedPipeline(texture), id,
             (int) x, (int) y, u1, v1, (int) w, (int) h,
             (int) (u2 - u1), (int) (v2 - v1), textureW, textureH, color);
     }
@@ -804,7 +804,7 @@ public class Batcher2D
             color = Colors.opaque(color);
         }
 
-        this.context.drawTexture(pipeline, id,
+        this.context.blit(pipeline, id,
             (int) x, (int) y, u1, v1, (int) w, (int) h,
             (int) (u2 - u1), (int) (v2 - v1), textureW, textureH, color);
     }
@@ -876,7 +876,7 @@ public class Batcher2D
         }
 
         BBSProfiler.count(BBSProfiler.Section.UI_DRAW_CALLS);
-        this.context.drawText(this.font.getRenderer(), label, (int) x, (int) y, color, shadow);
+        this.context.drawString(this.font.getRenderer(), label, (int) x, (int) y, color, shadow);
     }
 
     /* Text helpers */

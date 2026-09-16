@@ -2,7 +2,7 @@ package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.particles.vanilla.VanillaParticleScene;
 import net.minecraft.client.particle.Particle;
-import net.minecraft.client.render.LightmapTextureManager;
+import net.minecraft.client.renderer.LightTexture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,7 +23,7 @@ public class ParticleMixin
     {
         if (VanillaParticleScene.isRendering())
         {
-            cir.setReturnValue(LightmapTextureManager.MAX_LIGHT_COORDINATE);
+            cir.setReturnValue(LightTexture.FULL_BRIGHT);
         }
     }
 }

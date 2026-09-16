@@ -21,7 +21,7 @@ import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
 import mchorse.bbs_mod.utils.keyframes.factories.IKeyframeFactory;
-import net.minecraft.client.render.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix3x2fc;
 
 import java.util.Collections;
@@ -514,7 +514,7 @@ public class UIKeyframeGraph implements IUIKeyframeGraph
     @SuppressWarnings({"rawtypes", "IntegerDivisionInFloatingPointContext"})
     protected void renderGraph(UIContext context)
     {
-        Matrix3x2fc matrix = context.batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = context.batcher.getContext().pose();
 
         UIKeyframeSheet sheet = this.sheet;
         List keyframes = sheet.channel.getKeyframes();
@@ -725,7 +725,7 @@ public class UIKeyframeGraph implements IUIKeyframeGraph
     public void renderTopmostKeyframes(UIContext context)
     {
         Area area = this.keyframes.graphArea;
-        Matrix3x2fc matrix = context.batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = context.batcher.getContext().pose();
         List keyframes = this.sheet.channel.getKeyframes();
 
         context.batcher.clip(area, context);

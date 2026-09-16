@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.api.client.compat;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 
 /**
  * The client half of {@link mchorse.bbs_mod.api.compat.VanillaAccess}.
@@ -15,13 +15,13 @@ public final class ClientVanillaAccess
     private ClientVanillaAccess()
     {}
 
-    public static Framebuffer getFramebuffer(MinecraftClient client)
+    public static RenderTarget getFramebuffer(Minecraft client)
     {
-        return client.framebuffer;
+        return client.mainRenderTarget;
     }
 
-    public static void setFramebuffer(MinecraftClient client, Framebuffer framebuffer)
+    public static void setFramebuffer(Minecraft client, RenderTarget framebuffer)
     {
-        client.framebuffer = framebuffer;
+        client.mainRenderTarget = framebuffer;
     }
 }

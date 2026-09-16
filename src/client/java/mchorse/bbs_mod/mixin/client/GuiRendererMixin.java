@@ -5,14 +5,14 @@ import com.mojang.blaze3d.systems.RenderPass;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.render.special.BbsFormGuiElementRenderer;
 import mchorse.bbs_mod.ui.utils.InterfaceBlur;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.ScreenRect;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.render.GuiRenderer;
-import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.ProjectionMatrix2;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.Window;
+import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.CachedOrthoProjectionMatrixBuffer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.platform.Window;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -36,12 +36,12 @@ import java.util.List;
 public class GuiRendererMixin
 {
     @ModifyVariable(method = "<init>", at = @At("HEAD"), argsOnly = true)
-    private static List<SpecialGuiElementRenderer<?>> bbs$addBbsRenderers(List<SpecialGuiElementRenderer<?>> original)
+    private static List<PictureInPictureRenderer<?>> bbs$addBbsRenderers(List<PictureInPictureRenderer<?>> original)
     {
-        VertexConsumerProvider.Immediate immediate =
-            MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers();
+        MultiBufferSource.BufferSource immediate =
+            Minecraft.getInstance().renderBuffers().bufferSource();
 
-        List<SpecialGuiElementRenderer<?>> list = new ArrayList<>(original);
+        List<PictureInPictureRenderer<?>> list = new ArrayList<>(original);
 
         list.add(new BbsFormGuiElementRenderer(immediate));
 
@@ -68,18 +68,18 @@ public class GuiRendererMixin
         method = "renderPreparedDraws",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/ProjectionMatrix2;set(FF)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;")
     )
-    private GpuBufferSlice bbs$guiProjection(ProjectionMatrix2 matrix, float width, float height)
+    private GpuBufferSlice bbs$guiProjection(CachedOrthoProjectionMatrixBuffer matrix, float width, float height)
     {
         float scale = bbs$scale();
 
         if (scale <= 0F)
         {
-            return matrix.set(width, height);
+            return matrix.getBuffer(width, height);
         }
 
-        Window window = MinecraftClient.getInstance().getWindow();
+        Window window = Minecraft.getInstance().getWindow();
 
-        return matrix.set(window.getFramebufferWidth() / scale, window.getFramebufferHeight() / scale);
+        return matrix.getBuffer(window.getWidth() / scale, window.getHeight() / scale);
     }
 
     /**
@@ -94,12 +94,12 @@ public class GuiRendererMixin
     {
         if (!InterfaceBlur.render())
         {
-            renderer.renderBlur();
+            renderer.processBlurEffect();
         }
     }
 
     @Inject(method = "enableScissor", at = @At("HEAD"), cancellable = true)
-    private void bbs$fractionalScissor(ScreenRect rect, RenderPass pass, CallbackInfo info)
+    private void bbs$fractionalScissor(ScreenRectangle rect, RenderPass pass, CallbackInfo info)
     {
         float scale = bbs$scale();
 
@@ -108,8 +108,8 @@ public class GuiRendererMixin
             return;
         }
 
-        Window window = MinecraftClient.getInstance().getWindow();
-        int height = window.getFramebufferHeight();
+        Window window = Minecraft.getInstance().getWindow();
+        int height = window.getHeight();
 
         /* Vanilla's own arithmetic with a float scale: bottom-left origin, and a rect that rounds down
          * to nothing still clamps to zero rather than going negative. */

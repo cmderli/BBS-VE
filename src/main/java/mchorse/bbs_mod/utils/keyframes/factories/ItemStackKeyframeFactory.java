@@ -7,8 +7,8 @@ import mchorse.bbs_mod.data.GameRegistries;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.utils.interps.IInterp;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtElement;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.Tag;
 
 import java.util.Optional;
 
@@ -22,8 +22,8 @@ public class ItemStackKeyframeFactory implements IKeyframeFactory<ItemStack>
     @Override
     public ItemStack fromData(BaseType data)
     {
-        DataResult<Pair<ItemStack, NbtElement>> decode = ItemStack.CODEC.decode(GameRegistries.nbtOps(), DataStorageUtils.toNbt(data));
-        Optional<Pair<ItemStack, NbtElement>> result = decode.result();
+        DataResult<Pair<ItemStack, Tag>> decode = ItemStack.CODEC.decode(GameRegistries.nbtOps(), DataStorageUtils.toNbt(data));
+        Optional<Pair<ItemStack, Tag>> result = decode.result();
 
         return result.map(Pair::getFirst).orElse(ItemStack.EMPTY);
     }
@@ -31,8 +31,8 @@ public class ItemStackKeyframeFactory implements IKeyframeFactory<ItemStack>
     @Override
     public BaseType toData(ItemStack value)
     {
-        DataResult<NbtElement> encoded = ItemStack.CODEC.encodeStart(GameRegistries.nbtOps(), value);
-        Optional<NbtElement> result = encoded.result();
+        DataResult<Tag> encoded = ItemStack.CODEC.encodeStart(GameRegistries.nbtOps(), value);
+        Optional<Tag> result = encoded.result();
 
         if (result.isEmpty() && !value.isEmpty() && errorLog++ % 200 == 0)
         {
@@ -54,7 +54,7 @@ public class ItemStackKeyframeFactory implements IKeyframeFactory<ItemStack>
     {
         if (a instanceof ItemStack itemA && b instanceof ItemStack itemB)
         {
-            return ItemStack.areEqual(itemA, itemB);
+            return ItemStack.matches(itemA, itemB);
         }
 
         return false;
@@ -69,7 +69,7 @@ public class ItemStackKeyframeFactory implements IKeyframeFactory<ItemStack>
     @Override
     public ItemStack copy(ItemStack value)
     {
-        return value.copy();
+        return value.copyFrom();
     }
 
     @Override

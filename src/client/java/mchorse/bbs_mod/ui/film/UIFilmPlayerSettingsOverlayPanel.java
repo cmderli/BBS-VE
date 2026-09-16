@@ -13,8 +13,8 @@ import mchorse.bbs_mod.ui.framework.elements.input.UITrackpad;
 import mchorse.bbs_mod.ui.framework.elements.overlay.UIMessageBarOverlayPanel;
 import mchorse.bbs_mod.ui.utils.UIConstants;
 import mchorse.bbs_mod.ui.utils.UI;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Player;
 
 public class UIFilmPlayerSettingsOverlayPanel extends UIMessageBarOverlayPanel
 {
@@ -63,10 +63,10 @@ public class UIFilmPlayerSettingsOverlayPanel extends UIMessageBarOverlayPanel
 
         this.recordHotbar = new UIButton(UIKeys.FILM_RECORD_HOTBAR, (b) -> this.recordHotbar());
         this.recordHotbar.tooltip(UIKeys.FILM_RECORD_HOTBAR_TOOLTIP);
-        this.recordHotbar.setEnabled(MinecraftClient.getInstance().player != null && film.getFirstPersonReplay() != null);
+        this.recordHotbar.setEnabled(Minecraft.getInstance().player != null && film.getFirstPersonReplay() != null);
 
         this.applyToPlayer = new UIButton(UIKeys.FILM_APPLY_PLAYER_SETTINGS_TO_PLAYER, (b) -> ClientNetwork.sendApplyFilmPlayerSettingsToPlayer(this.film, this.tick));
-        this.applyToPlayer.setEnabled(MinecraftClient.getInstance().player != null);
+        this.applyToPlayer.setEnabled(Minecraft.getInstance().player != null);
 
         this.editor = UI.scrollView(3, 6,
             UI.labelRow(UIKeys.FILM_PLAYER_SETTINGS_HP, this.hp),
@@ -89,7 +89,7 @@ public class UIFilmPlayerSettingsOverlayPanel extends UIMessageBarOverlayPanel
     private void recordHotbar()
     {
         Replay replay = this.film.getFirstPersonReplay();
-        PlayerEntity player = MinecraftClient.getInstance().player;
+        Player player = Minecraft.getInstance().player;
 
         if (replay == null || player == null)
         {
@@ -100,7 +100,7 @@ public class UIFilmPlayerSettingsOverlayPanel extends UIMessageBarOverlayPanel
         {
             for (int i = 0; i < ReplayKeyframes.HOTBAR_SIZE; i++)
             {
-                keyframes.hotbar.get(i).insert(this.tick, player.getInventory().getStack(i).copy());
+                keyframes.hotbar.get(i).insert(this.tick, player.getInventory().getStack(i).copyFrom());
             }
 
             keyframes.selectedSlot.insert(this.tick, player.getInventory().getSelectedSlot());

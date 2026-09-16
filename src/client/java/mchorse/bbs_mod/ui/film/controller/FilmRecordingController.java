@@ -15,7 +15,7 @@ import mchorse.bbs_mod.ui.framework.elements.overlay.UIOverlay;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.camera.controller.RunnerCameraController;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.joml.Vector2i;
 
 import java.util.Arrays;
@@ -69,7 +69,7 @@ public class FilmRecordingController
     {
         if (groups != null && groups.contains("outside"))
         {
-            MinecraftClient.getInstance().setScreen(null);
+            Minecraft.getInstance().setScreen(null);
 
             Replay replay = this.controller.panel.replayEditor.getReplay();
             int index = this.controller.panel.getData().replays.getList().indexOf(replay);

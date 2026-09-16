@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.ui.film.controller;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.systems.VertexSorter;
+import com.mojang.blaze3d.vertex.VertexSorting;
 import mchorse.bbs_mod.graphics.InverseView;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.client.BBSRendering;
@@ -25,8 +25,8 @@ import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
@@ -109,13 +109,13 @@ public class FilmStencilPicker
         InverseView.set(new Matrix3f(this.controller.panel.lastView).invert());
 
         /* Render the stencil */
-        MatrixStack worldStack = this.controller.worldRenderContext().matrices();
+        PoseStack worldStack = this.controller.worldRenderContext().matrices();
 
-        worldStack.push();
-        worldStack.loadIdentity();
+        worldStack.pushPose();
+        worldStack.setIdentity();
         MatrixStackUtils.multiply(worldStack, this.controller.panel.lastView);
         this.renderStencil(this.controller.worldRenderContext(), this.controller.getContext(), altPressed);
-        worldStack.pop();
+        worldStack.popPose();
 
         /* Return back to orthographic projection */
         MatrixStackUtils.restoreMatrices();
@@ -253,7 +253,7 @@ public class FilmStencilPicker
 
                 FilmControllerContext filmContext = FilmControllerContext.instance
                     .setup(this.controller.getEntities(), replayEntity, replay, renderContext)
-                    .transition(isPlaying ? MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false) : 0)
+                    .transition(isPlaying ? Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false) : 0)
                     .stencil(this.stencilMap)
                     .relative(replay.relative.get());
 
@@ -283,7 +283,7 @@ public class FilmStencilPicker
 
             FilmEntityRenderer.renderEntity(FilmControllerContext.instance
                 .setup(this.controller.getEntities(), entity, replay, renderContext)
-                .transition(isPlaying ? MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false) : 0)
+                .transition(isPlaying ? Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false) : 0)
                 .stencil(this.stencilMap)
                 .relative(replay.relative.get())
                 .gizmoTarget(this.controller.getEditTarget())

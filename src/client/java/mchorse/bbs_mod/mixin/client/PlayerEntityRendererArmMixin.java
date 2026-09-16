@@ -5,13 +5,13 @@ import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.renderers.FormRenderer;
 import mchorse.bbs_mod.morphing.Morph;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.resources.Identifier;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -34,31 +34,31 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * unless the model defines a first-person slot for that hand — and a false answer leaves the vanilla
  * arm alone.
  */
-@Mixin(PlayerEntityRenderer.class)
+@Mixin(AvatarRenderer.class)
 public class PlayerEntityRendererArmMixin
 {
     @Inject(method = "renderRightArm", at = @At("HEAD"), cancellable = true)
-    private void bbs$onRenderRightArm(MatrixStack matrices, OrderedRenderCommandQueue queue, int light, Identifier skinTexture, boolean sleeveVisible, CallbackInfo info)
+    private void bbs$onRenderRightArm(PoseStack matrices, SubmitNodeCollector queue, int light, Identifier skinTexture, boolean sleeveVisible, CallbackInfo info)
     {
-        if (bbs$renderMorphArm(matrices, light, Hand.MAIN_HAND))
+        if (bbs$renderMorphArm(matrices, light, InteractionHand.MAIN_HAND))
         {
             info.cancel();
         }
     }
 
     @Inject(method = "renderLeftArm", at = @At("HEAD"), cancellable = true)
-    private void bbs$onRenderLeftArm(MatrixStack matrices, OrderedRenderCommandQueue queue, int light, Identifier skinTexture, boolean sleeveVisible, CallbackInfo info)
+    private void bbs$onRenderLeftArm(PoseStack matrices, SubmitNodeCollector queue, int light, Identifier skinTexture, boolean sleeveVisible, CallbackInfo info)
     {
-        if (bbs$renderMorphArm(matrices, light, Hand.OFF_HAND))
+        if (bbs$renderMorphArm(matrices, light, InteractionHand.OFF_HAND))
         {
             info.cancel();
         }
     }
 
     @Unique
-    private static boolean bbs$renderMorphArm(MatrixStack matrices, int light, Hand hand)
+    private static boolean bbs$renderMorphArm(PoseStack matrices, int light, InteractionHand hand)
     {
-        AbstractClientPlayerEntity player = MinecraftClient.getInstance().player;
+        AbstractClientPlayer player = Minecraft.getInstance().player;
 
         if (player == null)
         {

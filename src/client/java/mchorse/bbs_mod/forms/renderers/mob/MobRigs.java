@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.forms.renderers.mob;
 
-import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.model.EntityModel;
 
 import java.util.Map;
 import java.util.WeakHashMap;

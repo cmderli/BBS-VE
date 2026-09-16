@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.forms.renderers.mob;
 
-import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.model.geom.ModelPart;
 
 import java.util.Map;
 

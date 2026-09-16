@@ -4,7 +4,7 @@ import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.ProjectionType;
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
@@ -12,15 +12,15 @@ import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
 import mchorse.bbs_mod.forms.renderers.FormRenderer;
 import mchorse.bbs_mod.graphics.ModelPreviewRenderer;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.gui.render.state.GuiRenderState;
-import net.minecraft.client.gui.render.state.TexturedQuadGuiElementRenderState;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.ProjectionMatrix2;
-import net.minecraft.client.render.VertexConsumerProvider.Immediate;
-import net.minecraft.client.texture.TextureSetup;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.gui.render.state.BlitRenderState;
+import com.mojang.blaze3d.platform.Lighting;
+import net.minecraft.client.renderer.CachedOrthoProjectionMatrixBuffer;
+import net.minecraft.client.renderer.MultiBufferSource$BufferSource;
+import net.minecraft.client.gui.render.TextureSetup;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 
@@ -43,12 +43,12 @@ import java.util.Map;
  * last-rendered model. So we keep a per-form texture pool: each cell renders into its own persistent texture
  * and its composite quad samples that — otherwise the framing/draw mirrors the base exactly.</p>
  */
-public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsFormGuiElementRenderState>
+public class BbsFormGuiElementRenderer extends PictureInPictureRenderer<BbsFormGuiElementRenderState>
 {
     /* TODO(strip): throttled diagnostic so a failing renderUIPreview is visible in the log instead of silent. */
     private static int errorLog;
 
-    private final ProjectionMatrix2 projection = new ProjectionMatrix2("PIP - bbs form", -1000.0F, 1000.0F, true);
+    private final CachedOrthoProjectionMatrixBuffer projection = new CachedOrthoProjectionMatrixBuffer("PIP - bbs form", -1000.0F, 1000.0F, true);
 
     /* Per-form (and per-size) persistent off-screen targets. Keyed by renderer identity + dimensions so the
      * same form shown at two sizes (e.g. toolbar 40x40 and grid 60x80) doesn't thrash one texture. The deferred
@@ -62,19 +62,19 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
     private GpuBuffer lightsBuffer;
     private GpuBufferSlice lights;
 
-    public BbsFormGuiElementRenderer(Immediate vertexConsumers)
+    public BbsFormGuiElementRenderer(BufferSource vertexConsumers)
     {
         super(vertexConsumers);
     }
 
     @Override
-    public Class<BbsFormGuiElementRenderState> getElementClass()
+    public Class<BbsFormGuiElementRenderState> getRenderStateClass()
     {
         return BbsFormGuiElementRenderState.class;
     }
 
     @Override
-    public void render(BbsFormGuiElementRenderState state, GuiRenderState guiState, int windowScaleFactor)
+    public void prepare(BbsFormGuiElementRenderState state, GuiRenderState guiState, int windowScaleFactor)
     {
         int w = (state.x2() - state.x1()) * windowScaleFactor;
         int h = (state.y2() - state.y1()) * windowScaleFactor;
@@ -89,9 +89,9 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
         RenderSystem.outputColorTextureOverride = target.colorView;
         RenderSystem.outputDepthTextureOverride = target.depthView;
         RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(target.color, 0, target.depth, 1.0);
-        RenderSystem.setProjectionMatrix(this.projection.set(w, h), ProjectionType.ORTHOGRAPHIC);
+        RenderSystem.setProjectionMatrix(this.projection.getBuffer(w, h), ProjectionType.ORTHOGRAPHIC);
 
-        MatrixStack matrices = new MatrixStack();
+        PoseStack matrices = new PoseStack();
 
         matrices.translate(w / 2.0F, this.getYOffset(h, windowScaleFactor), 0.0F);
 
@@ -100,7 +100,7 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
         matrices.scale(f, f, -f);
 
         this.render(state, matrices);
-        this.vertexConsumers.draw();
+        this.bufferSource.endBatch();
 
         RenderSystem.outputColorTextureOverride = null;
         RenderSystem.outputDepthTextureOverride = null;
@@ -108,9 +108,9 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
         /* Composite THIS form's texture into the cell (V-flipped 0,1,1,0 + premultiplied alpha, exactly like
          * the base's renderElement). The pose carries the list's scroll translate. addSimpleElementToCurrentLayer
          * adds directly to the current layer. */
-        guiState.addSimpleElementToCurrentLayer(new TexturedQuadGuiElementRenderState(
+        guiState.submitBlitToCurrentLayer(new BlitRenderState(
             RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
-            TextureSetup.of(target.colorView, RenderSystem.getSamplerCache().getRepeated(FilterMode.NEAREST)),
+            TextureSetup.doubleTexture(target.colorView, RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)),
             state.pose(),
             state.x1(), state.y1(), state.x2(), state.y2(),
             0.0F, 1.0F, 1.0F, 0.0F,
@@ -119,7 +119,7 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
     }
 
     @Override
-    protected void render(BbsFormGuiElementRenderState state, MatrixStack matrices)
+    protected void prepare(BbsFormGuiElementRenderState state, PoseStack matrices)
     {
         /* 1:1 with the original: bind the same two diffuse-light directions setupLevelDiffuseLighting used,
          * NOT the vanilla ENTITY_IN_UI (inventory) preset which lights from below. Snapshot + restore: the
@@ -174,14 +174,14 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
 
             try (MemoryStack stack = MemoryStack.stackPush())
             {
-                ByteBuffer data = Std140Builder.onStack(stack, DiffuseLighting.UBO_SIZE)
+                ByteBuffer data = Std140Builder.onStack(stack, Lighting.UBO_SIZE)
                     .putVec3(lightA)
                     .putVec3(lightB)
                     .get();
 
                 /* usage 136 = UNIFORM | COPY_DST, mirroring DiffuseLighting's own Lighting UBO. */
                 this.lightsBuffer = RenderSystem.getDevice().createBuffer(() -> "BBS form preview lights UBO", 136, data);
-                this.lights = this.lightsBuffer.slice(0, DiffuseLighting.UBO_SIZE);
+                this.lights = this.lightsBuffer.slice(0, Lighting.UBO_SIZE);
             }
         }
 
@@ -213,7 +213,7 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
     }
 
     @Override
-    protected float getYOffset(int height, int windowScaleFactor)
+    protected float getTranslateY(int height, int windowScaleFactor)
     {
         /* Anchor the model ~85% down the cell (feet near the bottom), matching the original getUIMatrix
          * vertical placement (y1 + 0.85*(y2-y1)). */
@@ -221,7 +221,7 @@ public class BbsFormGuiElementRenderer extends SpecialGuiElementRenderer<BbsForm
     }
 
     @Override
-    protected String getName()
+    protected String getTextureLabel()
     {
         return "bbs form";
     }

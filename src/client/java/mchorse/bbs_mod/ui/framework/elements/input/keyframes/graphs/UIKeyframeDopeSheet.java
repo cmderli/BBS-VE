@@ -28,9 +28,9 @@ import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeShape;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.RotationAxis;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -1018,7 +1018,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         Area area = this.keyframes.graphArea;
         int rulerBottom = TimelineRulerRenderer.getRulerBottom(area);
-        Matrix3x2fc matrix = context.batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = context.batcher.getContext().pose();
         VertexConsumer builder = null;
 
         context.batcher.clipBox(area.x, rulerBottom, area.ex(), area.ey(), context);
@@ -1426,7 +1426,7 @@ public class UIKeyframeDopeSheet implements IUIKeyframeGraph
 
         Area area = this.keyframes.graphArea;
         int rulerBottom = TimelineRulerRenderer.getRulerBottom(area);
-        Matrix3x2fc matrix = context.batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = context.batcher.getContext().pose();
 
         context.batcher.clipBox(area.x, rulerBottom, area.ex(), area.ey(), context);
         VertexConsumer builder = beginShapes();

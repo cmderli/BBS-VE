@@ -9,8 +9,8 @@ import mchorse.bbs_mod.client.render.ScreenQuadPass;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.AbstractTexture;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import mchorse.bbs_mod.graphics.window.Window;
 import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.framework.UIContext;
@@ -252,10 +252,10 @@ public class UIMultiLinkEditor extends UICanvasEditor
                     OffscreenTarget target = this.filterTarget(filterIndex++);
                     GpuTextureView view = target.ensure(area.w, area.h);
 
-                    AbstractTexture adopted = MinecraftClient.getInstance().getTextureManager()
+                    AbstractTexture adopted = Minecraft.getInstance().getTextureManager()
                         .getTexture(AdoptedTexture.identifier(texture));
                     Texture atlas = context.render.getTextures().getTexture(Icons.ATLAS);
-                    AbstractTexture adoptedAtlas = MinecraftClient.getInstance().getTextureManager()
+                    AbstractTexture adoptedAtlas = Minecraft.getInstance().getTextureManager()
                         .getTexture(AdoptedTexture.identifier(atlas));
 
                     final int finalOw = ow;
@@ -268,8 +268,8 @@ public class UIMultiLinkEditor extends UICanvasEditor
                     boolean drawn = ScreenQuadPass.draw("bbs:multilink_filter", new ScreenQuadPass.Quad(BBSShaders.getMultilinkProgram(), view, area.w, area.h)
                         .rect(0, 0, area.w, area.h)
                         .uv(0F, 0F, 1F, 1F)
-                        .texture(adopted.getGlTextureView(), ScreenQuadPass.nearest())
-                        .texture3("Sampler3", adoptedAtlas.getGlTextureView(), ScreenQuadPass.nearest())
+                        .texture(adopted.getTextureView(), ScreenQuadPass.nearest())
+                        .texture3("Sampler3", adoptedAtlas.getTextureView(), ScreenQuadPass.nearest())
                         .ubo("MultilinkInfo", info)
                         .clear());
 

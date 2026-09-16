@@ -15,11 +15,11 @@ import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -303,18 +303,18 @@ public class BOBJModelVAO
      * <p>{@code cull} carries the model's own culling flag ({@code ModelInstance.isCulling()}); on
      * 1.21.1 it toggled the global GL cull around the draw, now it picks the layer variant.
      */
-    public void render(MatrixStack stack, float r, float g, float b, float a, StencilMap stencilMap, int light, int overlay, boolean cull)
+    public void render(PoseStack stack, float r, float g, float b, float a, StencilMap stencilMap, int light, int overlay, boolean cull)
     {
         this.render(stack, r, g, b, a, stencilMap, light, overlay, cull, null);
     }
 
     /** The same draw with a colour overlay on it (null = none); see {@code FormOverlay}. */
-    public void render(MatrixStack stack, float r, float g, float b, float a, StencilMap stencilMap, int light, int overlay, boolean cull, Color tint)
+    public void render(PoseStack stack, float r, float g, float b, float a, StencilMap stencilMap, int light, int overlay, boolean cull, Color tint)
     {
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
 
-        Matrix4f position = stack.peek().getPositionMatrix();
-        Matrix3f normalMatrix = stack.peek().getNormalMatrix();
+        Matrix4f position = stack.last().pose();
+        Matrix3f normalMatrix = stack.last().normal();
 
         float[] vertices = this.tmpVertices;
         float[] normals = this.tmpNormals;
@@ -350,15 +350,15 @@ public class BOBJModelVAO
                 }
 
                 builder.vertex(vertex.x, vertex.y, vertex.z)
-                    .color(r, g, b, a)
-                    .texture(texData[i * 2], texData[i * 2 + 1])
-                    .overlay(overlay)
-                    .light(u, v)
-                    .normal(normal.x, normal.y, normal.z);
+                    .setColor(r, g, b, a)
+                    .setUv(texData[i * 2], texData[i * 2 + 1])
+                    .setUv1(overlay)
+                    .setUv2(u, v)
+                    .setNormal(normal.x, normal.y, normal.z);
             }
         }
 
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {

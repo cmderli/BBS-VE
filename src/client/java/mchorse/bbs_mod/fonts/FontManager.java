@@ -5,18 +5,18 @@ import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.utils.watchdog.IWatchDogListener;
 import mchorse.bbs_mod.utils.watchdog.WatchDogEvent;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.Font;
-import net.minecraft.client.font.FontFilterType;
-import net.minecraft.client.font.FreeTypeUtil;
-import net.minecraft.client.font.EffectGlyph;
-import net.minecraft.client.font.FontStorage;
-import net.minecraft.client.font.GlyphBaker;
-import net.minecraft.client.font.GlyphProvider;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.font.TrueTypeFont;
-import net.minecraft.text.StyleSpriteSource;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.font.GlyphProvider;
+import net.minecraft.client.gui.font.FontOption;
+import net.minecraft.client.gui.font.providers.FreeTypeUtil;
+import net.minecraft.client.gui.font.glyphs.EffectGlyph;
+import net.minecraft.client.gui.font.FontSet;
+import net.minecraft.client.gui.font.GlyphStitcher;
+import net.minecraft.client.gui.GlyphSource;
+import net.minecraft.client.gui.Font;
+import com.mojang.blaze3d.font.TrueTypeGlyphProvider;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.util.freetype.FT_Face;
 import org.lwjgl.util.freetype.FreeType;
 import org.lwjgl.PointerBuffer;
@@ -217,13 +217,13 @@ public class FontManager implements IWatchDogListener
 
             /* Since 1.21.1 the game rasterizes with FreeType, not stb: the face is built the
              * same way vanilla's own TrueTypeFontLoader builds it, under FreeType's lock. */
-            synchronized (FreeTypeUtil.LOCK)
+            synchronized (FreeTypeUtil.LIBRARY_LOCK)
             {
                 try (MemoryStack stack = MemoryStack.stackPush())
                 {
                     PointerBuffer pointer = stack.mallocPointer(1);
 
-                    FreeTypeUtil.checkFatalError(FreeType.FT_New_Memory_Face(FreeTypeUtil.initialize(), buffer, 0L, pointer), "Initializing font face");
+                    FreeTypeUtil.assertError(FreeType.FT_New_Memory_Face(FreeTypeUtil.getLibrary(), buffer, 0L, pointer), "Initializing font face");
 
                     face = FT_Face.create(pointer.get());
                 }
@@ -233,20 +233,20 @@ public class FontManager implements IWatchDogListener
                     throw new IllegalArgumentException("Not a TrueType font: " + key.link);
                 }
 
-                FreeTypeUtil.checkFatalError(FreeType.FT_Select_Charmap(face, FreeType.FT_ENCODING_UNICODE), "Find unicode charmap");
+                FreeTypeUtil.assertError(FreeType.FT_Select_Charmap(face, FreeType.FT_ENCODING_UNICODE), "Find unicode charmap");
             }
 
             FontMetrics metrics = FontMetrics.read(face, key.size);
-            TrueTypeFont ttf = new TrueTypeFont(buffer, face, key.size, key.oversample, 0F, 0F, "");
+            TrueTypeGlyphProvider ttf = new TrueTypeGlyphProvider(buffer, face, key.size, key.oversample, 0F, 0F, "");
 
             adopted = true;
 
             /* 1.21.11 split the atlas baking out of the storage: the texture manager and the storage's
              * own identifier now belong to a GlyphBaker, which the storage closes along with itself —
              * so the FontEntry still owns everything through the one storage it holds. */
-            FontStorage storage = new FontStorage(new GlyphBaker(MinecraftClient.getInstance().getTextureManager(), this.getStorageId(key)));
+            FontSet storage = new FontSet(new GlyphStitcher(Minecraft.getInstance().getTextureManager(), this.getStorageId(key)));
 
-            storage.setFonts(Collections.singletonList(new Font.FontFilterPair(ttf, FontFilterType.FilterMap.NO_FILTER)), Collections.emptySet());
+            storage.reload(Collections.singletonList(new GlyphProvider.Conditional(ttf, FontOption.FilterMap.ALWAYS_PASS)), Collections.emptySet());
 
             FontRenderer font = new FontRenderer();
 
@@ -256,18 +256,18 @@ public class FontManager implements IWatchDogListener
              * The (Function<Identifier, FontStorage>, validateAdvance) pair the constructor used to
              * take is a GlyphsProvider now, and the flag moved onto getGlyphs — false being the
              * plain renderer, as before (vanilla's advance-validating one passes true). */
-            font.setRenderer(new TextRenderer(new TextRenderer.GlyphsProvider()
+            font.setRenderer(new Font(new Font.Provider()
             {
                 @Override
-                public GlyphProvider getGlyphs(StyleSpriteSource source)
+                public GlyphSource getGlyphs(FontDescription source)
                 {
-                    return storage.getGlyphs(false);
+                    return storage.source(false);
                 }
 
                 @Override
                 public EffectGlyph getRectangleGlyph()
                 {
-                    return storage.getRectangleBakedGlyph();
+                    return storage.whiteGlyph();
                 }
             }), metrics.height, metrics.lineHeight);
 
@@ -281,7 +281,7 @@ public class FontManager implements IWatchDogListener
             {
                 if (face != null)
                 {
-                    synchronized (FreeTypeUtil.LOCK)
+                    synchronized (FreeTypeUtil.LIBRARY_LOCK)
                     {
                         FreeType.FT_Done_Face(face);
                     }
@@ -309,7 +309,7 @@ public class FontManager implements IWatchDogListener
             builder.append(valid ? c : '_');
         }
 
-        return Identifier.of(BBSMod.MOD_ID, builder.append('_').append(key.size).append('x').append(key.oversample).toString());
+        return Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, builder.append('_').append(key.size).append('x').append(key.oversample).toString());
     }
 
     /**
@@ -385,11 +385,11 @@ public class FontManager implements IWatchDogListener
         /** null when the file is missing or isn't a font. */
         public final FontRenderer font;
 
-        private final FontStorage storage;
+        private final FontSet storage;
 
         public long lastUsed;
 
-        public FontEntry(FontRenderer font, FontStorage storage)
+        public FontEntry(FontRenderer font, FontSet storage)
         {
             this.font = font;
             this.storage = storage;

@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.client.renderer;
 
-import net.minecraft.entity.Entity;
+import net.minecraft.world.entity.Entity;
 
 /**
  * Duck interface implemented on {@link net.minecraft.client.render.entity.state.EntityRenderState}

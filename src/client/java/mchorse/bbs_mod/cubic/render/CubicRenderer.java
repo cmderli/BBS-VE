@@ -3,8 +3,8 @@ package mchorse.bbs_mod.cubic.render;
 import mchorse.bbs_mod.cubic.data.model.Model;
 import mchorse.bbs_mod.cubic.data.model.ModelGroup;
 import mchorse.bbs_mod.utils.joml.Matrices;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -23,7 +23,7 @@ public class CubicRenderer
      * applies given render processor. Processor may return true from its
      * sole method which means that iteration should be halted.
      */
-    public static boolean processRenderModel(ICubicRenderer renderProcessor, BufferBuilder builder, MatrixStack stack, Model model)
+    public static boolean processRenderModel(ICubicRenderer renderProcessor, BufferBuilder builder, PoseStack stack, Model model)
     {
         for (ModelGroup group : model.topGroups)
         {
@@ -39,16 +39,16 @@ public class CubicRenderer
     /**
      * Apply the render processor, recursively
      */
-    private static boolean processRenderRecursively(ICubicRenderer renderProcessor, BufferBuilder builder, MatrixStack stack, Model model, ModelGroup group)
+    private static boolean processRenderRecursively(ICubicRenderer renderProcessor, BufferBuilder builder, PoseStack stack, Model model, ModelGroup group)
     {
-        stack.push();
+        stack.pushPose();
         renderProcessor.applyGroupTransformations(stack, group);
 
         if (group.isVisible())
         {
             if (renderProcessor.renderGroup(builder, stack, group, model))
             {
-                stack.pop();
+                stack.popPose();
 
                 return true;
             }
@@ -58,13 +58,13 @@ public class CubicRenderer
         {
             if (processRenderRecursively(renderProcessor, builder, stack, model, childGroup))
             {
-                stack.pop();
+                stack.popPose();
 
                 return true;
             }
         }
 
-        stack.pop();
+        stack.popPose();
 
         return false;
     }
@@ -106,7 +106,7 @@ public class CubicRenderer
             return;
         }
 
-        MatrixStack stack = new MatrixStack();
+        PoseStack stack = new PoseStack();
 
         if (baseTransform != null)
         {
@@ -122,7 +122,7 @@ public class CubicRenderer
             Vector3f t = baseTransform.getTranslation(new Vector3f());
             Quaternionf r = baseTransform.getUnnormalizedRotation(new Quaternionf());
             Matrix4f rigid = new Matrix4f().rotation(r).setTranslation(t);
-            stack.peek().getPositionMatrix().set(rigid);
+            stack.last().pose().set(rigid);
         }
 
         for (ModelGroup group : model.topGroups)
@@ -131,9 +131,9 @@ public class CubicRenderer
         }
     }
 
-    private static void collectPivotFramesRec(MatrixStack stack, ModelGroup group, Set<String> wanted, Map<String, PivotFrame> out, boolean applyStretch)
+    private static void collectPivotFramesRec(PoseStack stack, ModelGroup group, Set<String> wanted, Map<String, PivotFrame> out, boolean applyStretch)
     {
-        stack.push();
+        stack.pushPose();
 
         if (applyStretch)
         {
@@ -152,7 +152,7 @@ public class CubicRenderer
         {
             /* Unnormalized for the same reason as the base frame above: scaleGroup runs before the children
              * recurse, so any scaled ancestor bone leaves its scale on this stack. */
-            Matrix4f mat = stack.peek().getPositionMatrix();
+            Matrix4f mat = stack.last().pose();
             pos = mat.getTranslation(new Vector3f());
             parentRot = mat.getUnnormalizedRotation(new Quaternionf());
             scale = mat.getScale(new Vector3f());
@@ -168,7 +168,7 @@ public class CubicRenderer
 
         if (store)
         {
-            Matrix4f mat = stack.peek().getPositionMatrix();
+            Matrix4f mat = stack.last().pose();
             Quaternionf worldRot = mat.getUnnormalizedRotation(new Quaternionf());
             out.put(group.id, new PivotFrame(pos, parentRot, worldRot, scale));
         }
@@ -181,7 +181,7 @@ public class CubicRenderer
             collectPivotFramesRec(stack, child, wanted, out, applyStretch);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**

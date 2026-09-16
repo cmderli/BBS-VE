@@ -2,7 +2,7 @@ package mchorse.bbs_mod.utils.iris;
 
 import com.mojang.blaze3d.textures.GpuTexture;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
-import net.minecraft.client.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 
 /**
  * A PBR map BBS hands to Iris, over one of its own raw GL textures.
@@ -22,17 +22,17 @@ public abstract class IrisPbrTexture extends AbstractTexture
     private int adopted = -1;
 
     @Override
-    public GpuTexture getGlTexture()
+    public GpuTexture getTexture()
     {
         int id = this.glId();
 
         if (id != this.adopted)
         {
             this.adopted = id;
-            this.glTexture = id < 0 ? null : AdoptedTexture.adopt(id, "bbs_pbr_" + id, this.width(), this.height());
+            this.texture = id < 0 ? null : AdoptedTexture.adopt(id, "bbs_pbr_" + id, this.width(), this.height());
         }
 
-        return this.glTexture;
+        return this.texture;
     }
 
     /** The GL name this map stands for right now, or -1 when there is nothing to hand over. */

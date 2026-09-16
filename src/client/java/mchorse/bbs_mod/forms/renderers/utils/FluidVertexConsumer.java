@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.forms.renderers.utils;
 
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -29,75 +29,75 @@ public class FluidVertexConsumer implements VertexConsumer
 
     private final Vector3f temporary = new Vector3f();
 
-    public FluidVertexConsumer(VertexConsumer consumer, MatrixStack.Entry entry, int overlay)
+    public FluidVertexConsumer(VertexConsumer consumer, PoseStack.Pose entry, int overlay)
     {
         this.consumer = consumer;
-        this.position = entry.getPositionMatrix();
-        this.normal = entry.getNormalMatrix();
+        this.position = entry.pose();
+        this.normal = entry.normal();
         this.overlay = overlay;
     }
 
     @Override
-    public VertexConsumer vertex(float x, float y, float z)
+    public VertexConsumer addVertex(float x, float y, float z)
     {
         this.position.transformPosition(x, y, z, this.temporary);
-        this.consumer.vertex(this.temporary.x, this.temporary.y, this.temporary.z);
+        this.consumer.addVertex(this.temporary.x, this.temporary.y, this.temporary.z);
 
         return this;
     }
 
     @Override
-    public VertexConsumer color(int red, int green, int blue, int alpha)
+    public VertexConsumer setColor(int red, int green, int blue, int alpha)
     {
-        this.consumer.color(red, green, blue, alpha);
+        this.consumer.setColor(red, green, blue, alpha);
 
         return this;
     }
 
     @Override
-    public VertexConsumer color(int argb)
+    public VertexConsumer setColor(int argb)
     {
-        this.consumer.color(argb);
+        this.consumer.setColor(argb);
 
         return this;
     }
 
     @Override
-    public VertexConsumer texture(float u, float v)
+    public VertexConsumer setUv(float u, float v)
     {
-        this.consumer.texture(u, v);
-        this.consumer.overlay(this.overlay & 0xFFFF, this.overlay >> 16 & 0xFFFF);
+        this.consumer.setUv(u, v);
+        this.consumer.setUv1(this.overlay & 0xFFFF, this.overlay >> 16 & 0xFFFF);
 
         return this;
     }
 
     @Override
-    public VertexConsumer overlay(int u, int v)
+    public VertexConsumer setUv1(int u, int v)
     {
         return this;
     }
 
     @Override
-    public VertexConsumer light(int u, int v)
+    public VertexConsumer setUv2(int u, int v)
     {
-        this.consumer.light(u, v);
+        this.consumer.setUv2(u, v);
 
         return this;
     }
 
     @Override
-    public VertexConsumer normal(float x, float y, float z)
+    public VertexConsumer setNormal(float x, float y, float z)
     {
         this.normal.transform(x, y, z, this.temporary);
-        this.consumer.normal(this.temporary.x, this.temporary.y, this.temporary.z);
+        this.consumer.setNormal(this.temporary.x, this.temporary.y, this.temporary.z);
 
         return this;
     }
 
     @Override
-    public VertexConsumer lineWidth(float width)
+    public VertexConsumer setLineWidth(float width)
     {
-        this.consumer.lineWidth(width);
+        this.consumer.setLineWidth(width);
 
         return this;
     }

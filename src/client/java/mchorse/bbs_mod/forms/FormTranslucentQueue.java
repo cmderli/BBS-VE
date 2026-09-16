@@ -8,10 +8,10 @@ import mchorse.bbs_mod.forms.renderers.utils.FormOverlay;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.Tessellator;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.Tesselator;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -169,7 +169,7 @@ public class FormTranslucentQueue
      *
      * @param origin camera-space origin used as the far-to-near sort key
      */
-    public static void submit(BuiltBuffer built, ModelVariant variant, Texture texture, float alpha, StencilMap stencilMap, Vector3f origin)
+    public static void submit(MeshData built, ModelVariant variant, Texture texture, float alpha, StencilMap stencilMap, Vector3f origin)
     {
         submit(built, variant, texture, alpha, stencilMap, origin, false);
     }
@@ -179,7 +179,7 @@ public class FormTranslucentQueue
      * colour overlay on: the layers resolve to their overlay twins, and a deferred command takes a
      * copy of the swatch — by flush time it holds whatever was drawn last.
      */
-    public static void submit(BuiltBuffer built, ModelVariant variant, Texture texture, float alpha, StencilMap stencilMap, Vector3f origin, boolean tinted)
+    public static void submit(MeshData built, ModelVariant variant, Texture texture, float alpha, StencilMap stencilMap, Vector3f origin, boolean tinted)
     {
         if (built == null)
         {
@@ -194,14 +194,14 @@ public class FormTranslucentQueue
              * The layer must be resolved HERE, while this form's texture is still the bound one — at
              * flush time the binding belongs to whoever drew last. */
             FormRenderCapture.Captured captured = FormRenderCapture.copy(built);
-            RenderLayer deferred = layer(variant.withPass(PASS_TRANSLUCENT), tinted);
+            RenderType deferred = layer(variant.withPass(PASS_TRANSLUCENT), tinted);
 
             /* The opaque half always writes depth, even for a flat form whose deferred half does not:
              * writing depth is the entire point of drawing it now — it is what lets the solid part of
              * the texture occlude properly instead of waiting for the sort. On 1.21.1 this fell out of
              * the global depth mask being on during the immediate draw; the flag only ever applied to
              * the replay. */
-            RenderLayer opaque = layer(variant.withPass(PASS_OPAQUE).withDepthWrite(true), tinted);
+            RenderType opaque = layer(variant.withPass(PASS_OPAQUE).withDepthWrite(true), tinted);
 
             opaque.draw(built);
             add(new BufferCommand(deferred, captured, origin).overlay(overlay));
@@ -236,7 +236,7 @@ public class FormTranslucentQueue
         }
         else
         {
-            RenderLayer layer = layer(variant, tinted);
+            RenderType layer = layer(variant, tinted);
 
             layer.draw(built);
         }
@@ -246,9 +246,9 @@ public class FormTranslucentQueue
      * The layer for this pass, drawing through the colour overlay when the form has one — its twin
      * with BBS's swatch as the overlay texture (see {@code FormOverlay}).
      */
-    private static RenderLayer layer(ModelVariant variant, boolean tinted)
+    private static RenderType layer(ModelVariant variant, boolean tinted)
     {
-        RenderLayer layer = BBSShaders.getBoundModelLayer(variant);
+        RenderType layer = BBSShaders.getBoundModelLayer(variant);
 
         return tinted ? FormOverlay.withOverlay(layer) : layer;
     }
@@ -401,10 +401,10 @@ public class FormTranslucentQueue
      */
     public static class BufferCommand extends DrawCommand
     {
-        private final RenderLayer layer;
+        private final RenderType layer;
         private final FormRenderCapture.Captured captured;
 
-        public BufferCommand(RenderLayer layer, FormRenderCapture.Captured captured, Vector3f cameraSpaceOrigin)
+        public BufferCommand(RenderType layer, FormRenderCapture.Captured captured, Vector3f cameraSpaceOrigin)
         {
             super(cameraSpaceOrigin);
 
@@ -417,13 +417,13 @@ public class FormTranslucentQueue
         {
             this.applyOverlay();
 
-            BufferBuilder builder = Tessellator.getInstance().begin(this.captured.params().mode(), this.captured.params().format());
+            BufferBuilder builder = Tesselator.getInstance().begin(this.captured.params().mode(), this.captured.params().format());
 
             /* Same mode in and out, so emit() copies the vertices straight through; it is shared with
              * the item path, which does need the rewrite. */
             FormRenderCapture.emit(this.captured, this.captured.params().mode(), builder);
 
-            BuiltBuffer built = builder.endNullable();
+            MeshData built = builder.build();
 
             if (built != null)
             {

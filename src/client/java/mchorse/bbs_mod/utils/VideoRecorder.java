@@ -9,7 +9,7 @@ import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.logging.LogUtils;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
@@ -331,7 +331,7 @@ public class VideoRecorder
         if (BBSSettings.videoOpenFolderAfterExport.get())
         {
             File folder = BBSRendering.getVideoFolder();
-            MinecraftClient.getInstance().execute(() -> UIUtils.openFolder(folder));
+            Minecraft.getInstance().execute(() -> UIUtils.openFolder(folder));
         }
     }
 

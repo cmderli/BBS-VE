@@ -5,12 +5,12 @@ import mchorse.bbs_mod.forms.renderers.mob.MobRig;
 import mchorse.bbs_mod.forms.renderers.mob.MobRigs;
 import mchorse.bbs_mod.forms.renderers.mob.MobStandIn;
 import mchorse.bbs_mod.forms.renderers.mob.VanillaPose;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.model.ModelTransform;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.geom.PartPose;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 
 /**
  * The vanilla stage of a CEM model: the game's own model of the entity, posed for the frame by the
@@ -61,7 +61,7 @@ public class CemVanillaStage implements ICemVanillaStage
         {
             this.last = entity;
 
-            if (this.baby && entity instanceof MobEntity mob)
+            if (this.baby && entity instanceof Mob mob)
             {
                 mob.setBaby(true);
             }
@@ -116,9 +116,9 @@ public class CemVanillaStage implements ICemVanillaStage
             return;
         }
 
-        float ax = ox + part.originX;
-        float ay = oy + part.originY;
-        float az = oz + part.originZ;
+        float ax = ox + part.x;
+        float ay = oy + part.y;
+        float az = oz + part.z;
         String optifine = this.names.optifine(name);
 
         this.fill(this.seed.part(optifine), part, ax, ay, az);
@@ -136,15 +136,15 @@ public class CemVanillaStage implements ICemVanillaStage
 
     private void fill(CemVanillaSeed.Part slot, ModelPart part, float ax, float ay, float az)
     {
-        slot.tx = part.originX;
-        slot.ty = part.originY;
-        slot.tz = part.originZ;
+        slot.tx = part.x;
+        slot.ty = part.y;
+        slot.tz = part.z;
         slot.ax = ax;
         slot.ay = ay;
         slot.az = az;
-        slot.rx = part.pitch;
-        slot.ry = part.yaw;
-        slot.rz = part.roll;
+        slot.rx = part.xRot;
+        slot.ry = part.yRot;
+        slot.rz = part.zRot;
         slot.sx = part.xScale;
         slot.sy = part.yScale;
         slot.sz = part.zScale;

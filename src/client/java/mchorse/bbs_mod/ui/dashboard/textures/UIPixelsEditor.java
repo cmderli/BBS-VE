@@ -8,8 +8,8 @@ import mchorse.bbs_mod.client.render.ScreenQuadPass;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.graphics.window.ImageClipboard;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.AbstractTexture;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import mchorse.bbs_mod.graphics.window.Window;
 import mchorse.bbs_mod.l10n.keys.IKey;
 import mchorse.bbs_mod.ui.Keys;
@@ -1384,7 +1384,7 @@ public class UIPixelsEditor extends UICanvasEditor
          * target is composited back via the recorded blit — same pattern as the stencil highlight. */
         GpuTextureView target = this.selectionTarget.ensure(aw, ah);
 
-        AbstractTexture mask = MinecraftClient.getInstance().getTextureManager()
+        AbstractTexture mask = Minecraft.getInstance().getTextureManager()
             .getTexture(AdoptedTexture.identifier(this.selectionMaskTexture));
 
         GpuBufferSlice info = ScreenQuadPass.writeUbo((builder) -> builder
@@ -1396,7 +1396,7 @@ public class UIPixelsEditor extends UICanvasEditor
         boolean drawn = ScreenQuadPass.draw("bbs:selection_ants", new ScreenQuadPass.Quad(BBSShaders.getSelectionProgram(), target, aw, ah)
             .rect(0, 0, aw, ah)
             .uv(0F, 0F, 1F, 1F)
-            .texture(mask.getGlTextureView(), ScreenQuadPass.nearest())
+            .texture(mask.getTextureView(), ScreenQuadPass.nearest())
             .ubo("SelectionInfo", info)
             .clear());
 

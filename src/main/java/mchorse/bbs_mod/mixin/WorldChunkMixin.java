@@ -4,18 +4,18 @@ import com.llamalad7.mixinextras.sugar.Share;
 import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.ActionManager;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.chunk.WorldChunk;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(WorldChunk.class)
+@Mixin(LevelChunk.class)
 public class WorldChunkMixin
 {
     /* Every World.setBlockState overload funnels into this single, non-overloaded chunk method, so it is the
@@ -31,11 +31,11 @@ public class WorldChunkMixin
     private static final String SET_BLOCK_STATE = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Lnet/minecraft/block/BlockState;";
 
     @Inject(method = SET_BLOCK_STATE, at = @At("HEAD"))
-    private void captureReplacedBlockEntity(BlockPos pos, BlockState state, int moved, CallbackInfoReturnable<BlockState> info, @Share("replaced") LocalRef<NbtCompound> replaced)
+    private void captureReplacedBlockEntity(BlockPos pos, BlockState state, int moved, CallbackInfoReturnable<BlockState> info, @Share("replaced") LocalRef<CompoundTag> replaced)
     {
-        WorldChunk chunk = (WorldChunk) (Object) this;
+        LevelChunk chunk = (LevelChunk) (Object) this;
 
-        if (chunk.getWorld() instanceof ServerWorld world)
+        if (chunk.getLevel() instanceof ServerLevel world)
         {
             /* Asked before the block entity is looked up, not after: this runs on every block
              * change on the server, and looking it up and serializing it to NBT was being paid
@@ -49,18 +49,18 @@ public class WorldChunkMixin
 
             if (blockEntity != null)
             {
-                replaced.set(blockEntity.createNbtWithIdentifyingData(world.getRegistryManager()));
+                replaced.set(blockEntity.saveWithFullMetadata(world.getRegistryManager()));
             }
         }
     }
 
     @Inject(method = SET_BLOCK_STATE, at = @At("RETURN"))
-    private void recordChangedBlock(BlockPos pos, BlockState state, int moved, CallbackInfoReturnable<BlockState> info, @Share("replaced") LocalRef<NbtCompound> replaced)
+    private void recordChangedBlock(BlockPos pos, BlockState state, int moved, CallbackInfoReturnable<BlockState> info, @Share("replaced") LocalRef<CompoundTag> replaced)
     {
         BlockState previous = info.getReturnValue();
-        WorldChunk chunk = (WorldChunk) (Object) this;
+        LevelChunk chunk = (LevelChunk) (Object) this;
 
-        if (previous != null && isTracking() && chunk.getWorld() instanceof ServerWorld)
+        if (previous != null && isTracking() && chunk.getLevel() instanceof ServerLevel)
         {
             BBSMod.getActions().changedBlock(pos, previous, replaced.get());
         }

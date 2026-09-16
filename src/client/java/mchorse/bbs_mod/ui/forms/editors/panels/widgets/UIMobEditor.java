@@ -10,11 +10,11 @@ import mchorse.bbs_mod.ui.framework.elements.utils.FontRenderer;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.entity.EntityType;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.SpawnEggItem;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 
 import java.util.function.BiConsumer;
 
@@ -98,8 +98,8 @@ public class UIMobEditor extends UIElement
     {
         try
         {
-            EntityType<?> type = Registries.ENTITY_TYPE.get(Identifier.of(this.mobID));
-            SpawnEggItem egg = SpawnEggItem.forEntity(type);
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(Identifier.fromNamespaceAndPath(this.mobID));
+            SpawnEggItem egg = SpawnEggItem.byId(type);
 
             return egg == null ? ItemStack.EMPTY : new ItemStack(egg);
         }
@@ -129,12 +129,12 @@ public class UIMobEditor extends UIElement
 
         if (!stack.isEmpty())
         {
-            org.joml.Matrix3x2fStack matrices = context.batcher.getContext().getMatrices();
+            org.joml.Matrix3x2fStack matrices = context.batcher.getContext().pose();
             CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
 
             matrices.pushMatrix();
             consumers.setUI(true);
-            context.batcher.getContext().drawItem(stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().renderItem(stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
             consumers.setUI(false);
             matrices.popMatrix();
         }

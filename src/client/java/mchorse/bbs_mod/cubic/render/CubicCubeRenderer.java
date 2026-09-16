@@ -12,9 +12,9 @@ import mchorse.bbs_mod.obj.shapes.ShapeKeys;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.renderer.LightTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -139,12 +139,12 @@ public class CubicCubeRenderer implements ICubicRenderer
         private final Vector3f[] cornerDisp = {new Vector3f(), new Vector3f(), new Vector3f(), new Vector3f()};
     }
 
-    public static void moveToPivot(MatrixStack stack, Vector3f pivot)
+    public static void moveToPivot(PoseStack stack, Vector3f pivot)
     {
         stack.translate(pivot.x / 16F, pivot.y / 16F, pivot.z / 16F);
     }
 
-    public static void rotate(MatrixStack stack, Vector3f rotation)
+    public static void rotate(PoseStack stack, Vector3f rotation)
     {
         if (rotation.x == 0 && rotation.y == 0 && rotation.z == 0)
         {
@@ -174,11 +174,11 @@ public class CubicCubeRenderer implements ICubicRenderer
         matrix3f.identity().rotateX(MathUtils.toRad(rotation.x));
         normalM.mul(matrix3f);
 
-        stack.peek().getPositionMatrix().mul(modelM);
-        stack.peek().getNormalMatrix().mul(normalM);
+        stack.last().pose().mul(modelM);
+        stack.last().normal().mul(normalM);
     }
 
-    public static void moveBackFromPivot(MatrixStack stack, Vector3f pivot)
+    public static void moveBackFromPivot(PoseStack stack, Vector3f pivot)
     {
         stack.translate(-pivot.x / 16F, -pivot.y / 16F, -pivot.z / 16F);
     }
@@ -241,7 +241,7 @@ public class CubicCubeRenderer implements ICubicRenderer
     }
 
     @Override
-    public boolean renderGroup(BufferBuilder builder, MatrixStack stack, ModelGroup group, Model model)
+    public boolean renderGroup(BufferBuilder builder, PoseStack stack, ModelGroup group, Model model)
     {
         this.groupOverlay = this.overlayPalette == null ? this.overlay : this.overlayPalette.applyAsInt(group);
 
@@ -269,7 +269,7 @@ public class CubicCubeRenderer implements ICubicRenderer
         return false;
     }
 
-    protected void renderCube(BufferBuilder builder, MatrixStack stack, ModelGroup group, ModelCube cube)
+    protected void renderCube(BufferBuilder builder, PoseStack stack, ModelGroup group, ModelCube cube)
     {
         if (this.captureOnly)
         {
@@ -283,7 +283,7 @@ public class CubicCubeRenderer implements ICubicRenderer
             return;
         }
 
-        stack.push();
+        stack.pushPose();
         moveToPivot(stack, cube.pivot);
         rotate(stack, cube.rotate);
         moveBackFromPivot(stack, cube.pivot);
@@ -321,7 +321,7 @@ public class CubicCubeRenderer implements ICubicRenderer
             }
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -388,7 +388,7 @@ public class CubicCubeRenderer implements ICubicRenderer
         return false;
     }
 
-    protected void renderMesh(BufferBuilder builder, MatrixStack stack, Model model, ModelGroup group, ModelMesh mesh)
+    protected void renderMesh(BufferBuilder builder, PoseStack stack, Model model, ModelGroup group, ModelMesh mesh)
     {
         if (this.captureOnly)
         {
@@ -405,7 +405,7 @@ public class CubicCubeRenderer implements ICubicRenderer
         this.sourceLayers.clear();
         this.snapCount = 0;
 
-        stack.push();
+        stack.pushPose();
         moveToPivot(stack, mesh.origin);
         rotate(stack, mesh.rotate);
         moveBackFromPivot(stack, mesh.origin);
@@ -451,17 +451,17 @@ public class CubicCubeRenderer implements ICubicRenderer
 
             /* Write vertices */
             this.normal.set(n1.x, n1.y, n1.z);
-            stack.peek().getNormalMatrix().transform(this.normal);
+            stack.last().normal().transform(this.normal);
             this.modelVertex.set(v1, u1, model);
             this.writeVertex(builder, stack, group, this.modelVertex, this.normal);
 
             this.normal.set(n2.x, n2.y, n2.z);
-            stack.peek().getNormalMatrix().transform(this.normal);
+            stack.last().normal().transform(this.normal);
             this.modelVertex.set(v2, u2, model);
             this.writeVertex(builder, stack, group, this.modelVertex, this.normal);
 
             this.normal.set(n3.x, n3.y, n3.z);
-            stack.peek().getNormalMatrix().transform(this.normal);
+            stack.last().normal().transform(this.normal);
             this.modelVertex.set(v3, u3, model);
             this.writeVertex(builder, stack, group, this.modelVertex, this.normal);
 
@@ -469,7 +469,7 @@ public class CubicCubeRenderer implements ICubicRenderer
             this.writeVertex(builder, stack, group, this.modelVertex, this.normal);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     private void relativeShift(Vector3f temp, Vector3f initial, Vector3f current, float x)
@@ -507,18 +507,18 @@ public class CubicCubeRenderer implements ICubicRenderer
     }
 
     /** Write a cube vertex with its own normal, transformed per vertex. */
-    protected void writeVertex(BufferBuilder builder, MatrixStack stack, ModelGroup group, ModelVertex vertex)
+    protected void writeVertex(BufferBuilder builder, PoseStack stack, ModelGroup group, ModelVertex vertex)
     {
         this.normal.set(vertex.normal.x, vertex.normal.y, vertex.normal.z);
-        stack.peek().getNormalMatrix().transform(this.normal);
+        stack.last().normal().transform(this.normal);
 
         this.writeVertex(builder, stack, group, vertex, this.normal);
     }
 
-    protected void writeVertex(BufferBuilder builder, MatrixStack stack, ModelGroup group, ModelVertex vertex, Vector3f normal)
+    protected void writeVertex(BufferBuilder builder, PoseStack stack, ModelGroup group, ModelVertex vertex, Vector3f normal)
     {
         this.vertex.set(vertex.vertex.x, vertex.vertex.y, vertex.vertex.z, 1);
-        stack.peek().getPositionMatrix().transform(this.vertex);
+        stack.last().pose().transform(this.vertex);
 
         this.snapWeldCorner(vertex.vertex);
 
@@ -529,9 +529,9 @@ public class CubicCubeRenderer implements ICubicRenderer
     private void emit(BufferBuilder builder, ModelGroup group, float x, float y, float z, float u, float v, Vector3f normal)
     {
         builder.vertex(x, y, z)
-            .color(this.r * group.color.r, this.g * group.color.g, this.b * group.color.b, this.a * group.color.a)
-            .texture(u, v)
-            .overlay(this.cpuOverlayActive ? 0 : this.groupOverlay);
+            .setColor(this.r * group.color.r, this.g * group.color.g, this.b * group.color.b, this.a * group.color.a)
+            .setUv(u, v)
+            .setUv1(this.cpuOverlayActive ? 0 : this.groupOverlay);
 
         if (this.stencilMap != null)
         {
@@ -539,7 +539,7 @@ public class CubicCubeRenderer implements ICubicRenderer
         }
         else
         {
-            int lu = (int) Lerps.lerp(this.light & '\uffff', LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, MathUtils.clamp(group.lighting, 0F, 1F));
+            int lu = (int) Lerps.lerp(this.light & '\uffff', LightTexture.FULL_BLOCK, MathUtils.clamp(group.lighting, 0F, 1F));
             int lv = this.light >> 16 & '\uffff';
 
             builder.light(lu, lv);
@@ -561,10 +561,10 @@ public class CubicCubeRenderer implements ICubicRenderer
      * ({@link #resolveGridNormals}), so the sheared band is lit as the curve it draws, not as the flat face
      * it came from.
      */
-    private void renderQuadSubdivided(MatrixStack stack, ModelGroup group, ModelQuad quad)
+    private void renderQuadSubdivided(PoseStack stack, ModelGroup group, ModelQuad quad)
     {
-        Matrix4f matrix = stack.peek().getPositionMatrix();
-        Matrix3f normalMatrix = stack.peek().getNormalMatrix();
+        Matrix4f matrix = stack.last().pose();
+        Matrix3f normalMatrix = stack.last().normal();
         int count = quad.vertices.size();
 
         for (int i = 0; i < 4; i++)
@@ -906,7 +906,7 @@ public class CubicCubeRenderer implements ICubicRenderer
      * as a fold). Only welded cubes do any transform work; every other cube returns at once, so the capture is a
      * light matrix walk over the tree, not a full per-vertex pass.
      */
-    private void captureCube(MatrixStack stack, ModelCube cube)
+    private void captureCube(PoseStack stack, ModelCube cube)
     {
         this.pickWelds(cube);
 
@@ -915,14 +915,14 @@ public class CubicCubeRenderer implements ICubicRenderer
             return;
         }
 
-        Matrix4f bone = stack.peek().getPositionMatrix();
+        Matrix4f bone = stack.last().pose();
 
-        stack.push();
+        stack.pushPose();
         moveToPivot(stack, cube.pivot);
         rotate(stack, cube.rotate);
         moveBackFromPivot(stack, cube.pivot);
 
-        Matrix4f cubeMatrix = stack.peek().getPositionMatrix();
+        Matrix4f cubeMatrix = stack.last().pose();
 
         for (WeldBinding.Layer layer : this.targetLayers)
         {
@@ -957,7 +957,7 @@ public class CubicCubeRenderer implements ICubicRenderer
             layer.sourceCaptured = true;
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**

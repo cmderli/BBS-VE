@@ -35,17 +35,17 @@ import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.api.client.events.FilmEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.render.Frustum;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.culling.Frustum;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -107,7 +107,7 @@ public abstract class BaseFilmController
         {
             if (replay.enabled.get())
             {
-                World world = MinecraftClient.getInstance().world;
+                Level world = Minecraft.getInstance().level;
                 IEntity entity = new StubEntity(world);
                 int ticks = replay.getTick(this.getTick());
 
@@ -185,7 +185,7 @@ public abstract class BaseFilmController
 
                     if (entityId != null)
                     {
-                        Entity anEntity = MinecraftClient.getInstance().world.getEntityById(entityId);
+                        Entity anEntity = Minecraft.getInstance().level.getEntityById(entityId);
 
                         if (anEntity instanceof ActorEntity actor)
                         {
@@ -193,10 +193,10 @@ public abstract class BaseFilmController
                             float yaw = replay.keyframes.yaw.interpolate(replayTicks).floatValue();
                             float pitch = replay.keyframes.pitch.interpolate(replayTicks).floatValue();
 
-                            actor.setYaw(yaw);
+                            actor.setYRot(yaw);
                             actor.setHeadYaw(replay.keyframes.headYaw.interpolate(replayTicks).floatValue());
                             actor.setBodyYaw(replay.keyframes.bodyYaw.interpolate(replayTicks).floatValue());
-                            actor.setPitch(pitch);
+                            actor.setXRot(pitch);
 
                             /* And its position, for the same reason the angles are forced: the body
                              * is drawn from these keyframes, while the entity's own position comes
@@ -208,8 +208,8 @@ public abstract class BaseFilmController
                             double y = replay.keyframes.y.interpolate(replayTicks);
                             double z = replay.keyframes.z.interpolate(replayTicks);
 
-                            actor.updateTrackedPositionAndAngles(new Vec3d(x, y, z), yaw, pitch);
-                            actor.setPosition(x, y, z);
+                            actor.moveOrInterpolateTo(new Vec3(x, y, z), yaw, pitch);
+                            actor.setPos(x, y, z);
 
                             /* The blow itself lands on the entity, but the body that shows it is the
                              * replay's, so the flash has to be carried across. */
@@ -217,7 +217,7 @@ public abstract class BaseFilmController
 
                             replay.applyClientActions(replayTicks, new MCEntity(anEntity), this.film);
                         }
-                        else if (anEntity instanceof PlayerEntity player)
+                        else if (anEntity instanceof Player player)
                         {
                             double x = replay.keyframes.x.interpolate(replayTicks);
                             double y = replay.keyframes.y.interpolate(replayTicks);
@@ -226,7 +226,7 @@ public abstract class BaseFilmController
                             double prevY = replay.keyframes.y.interpolate(replayTicks - 1);
                             double prevZ = replay.keyframes.z.interpolate(replayTicks - 1);
 
-                            player.setVelocity(x - prevX, y - prevY, z - prevZ);
+                            player.setDeltaMovement(x - prevX, y - prevY, z - prevZ);
                         }
                     }
                 }
@@ -267,9 +267,9 @@ public abstract class BaseFilmController
 
                     if (entityId != null)
                     {
-                        Entity anEntity = MinecraftClient.getInstance().world.getEntityById(entityId);
+                        Entity anEntity = Minecraft.getInstance().level.getEntityById(entityId);
 
-                        if (anEntity instanceof PlayerEntity player)
+                        if (anEntity instanceof Player player)
                         {
                             double x = replay.keyframes.x.interpolate(replayTicks);
                             double y = replay.keyframes.y.interpolate(replayTicks);
@@ -279,16 +279,16 @@ public abstract class BaseFilmController
                             boolean swimming = EntityState.isOn(replay.keyframes.state(EntityState.SWIMMING).interpolate(replayTicks));
                             boolean gliding = EntityState.isOn(replay.keyframes.state(EntityState.GLIDING).interpolate(replayTicks));
 
-                            Vec3d pos = player.getEntityPos();
+                            Vec3 pos = player.getEntityPos();
 
                             /* Probe downwards so vanilla's collision registers the floor - see
                              * ReplayKeyframes#GRAVITY_PROBE. */
                             double dY = y - pos.y - (grounded ? ReplayKeyframes.GRAVITY_PROBE : 0D);
 
-                            player.move(MovementType.SELF, new Vec3d(x - pos.x, dY, z - pos.z));
-                            player.setPosition(x, y, z);
+                            player.move(MoverType.SELF, new Vec3(x - pos.x, dY, z - pos.z));
+                            player.setPos(x, y, z);
 
-                            player.setSneaking(sneaking);
+                            player.setShiftKeyDown(sneaking);
                             player.setOnGround(grounded);
 
                             /* The player's own tick overwrites this from the input every tick, but
@@ -315,12 +315,12 @@ public abstract class BaseFilmController
                                 accessor.bbs$setIsSneakingPose(sneaking);
                             }
 
-                            if (player instanceof ClientPlayerEntity playerEntity)
+                            if (player instanceof LocalPlayer playerEntity)
                             {
                                 /* 1.21.11: Input holds a PlayerInput record, not loose booleans. */
-                                net.minecraft.util.PlayerInput held = playerEntity.input.playerInput;
+                                net.minecraft.util.Input held = playerEntity.input.keyPresses;
 
-                                playerEntity.input.playerInput = new net.minecraft.util.PlayerInput(
+                                playerEntity.input.playerInput = new net.minecraft.util.Input(
                                     held.forward(), held.backward(), held.left(), held.right(), held.jump(), sneaking, held.sprint());
                             }
 
@@ -388,7 +388,7 @@ public abstract class BaseFilmController
 
                 if (entityId != null)
                 {
-                    Entity anEntity = MinecraftClient.getInstance().world.getEntityById(entityId);
+                    Entity anEntity = Minecraft.getInstance().level.getEntityById(entityId);
 
                     ThirdPersonItemUse.set(anEntity, use, offUse);
 
@@ -396,7 +396,7 @@ public abstract class BaseFilmController
                     {
                         this.applyTracks(replay, actor.getForm(), tick + delta, delta);
                     }
-                    else if (anEntity instanceof PlayerEntity player)
+                    else if (anEntity instanceof Player player)
                     {
                         /* The first person hand is vanilla's, and it asks the
                          * live player what it is using - the film has to say */
@@ -413,9 +413,9 @@ public abstract class BaseFilmController
                         float yawBody = replay.keyframes.bodyYaw.interpolate(tick + delta).floatValue();
                         float pitch = replay.keyframes.pitch.interpolate(tick + delta).floatValue();
 
-                        player.setYaw(yawHead);
+                        player.setYRot(yawHead);
                         player.setHeadYaw(yawHead);
-                        player.setPitch(pitch);
+                        player.setXRot(pitch);
                         player.setBodyYaw(yawBody);
                         player.lastYaw = yawHead;
                         player.lastHeadYaw = yawHead;
@@ -566,7 +566,7 @@ public abstract class BaseFilmController
         double y = entity.getY();
         double z = entity.getZ();
 
-        return !frustum.isVisible(new Box(
+        return !frustum.isVisible(new AABB(
             x - CULL_RADIUS, y - CULL_RADIUS, z - CULL_RADIUS,
             x + CULL_RADIUS, y + CULL_RADIUS, z + CULL_RADIUS
         ));
@@ -603,7 +603,7 @@ public abstract class BaseFilmController
         {
             BBSModClient.getFilms().markActorDrawn(entityId);
 
-            if (MinecraftClient.getInstance().world.getEntityById(entityId) instanceof ActorEntity actor)
+            if (Minecraft.getInstance().level.getEntityById(entityId) instanceof ActorEntity actor)
             {
                 /* The higher of the recorded flash and the one being taken right now, so a replay
                  * that carries a damage track keeps it while its shell can still be hit. Read from
@@ -629,7 +629,7 @@ public abstract class BaseFilmController
     {
         FilmControllerContext filmContext = getFilmControllerContext(context, replay, entity);
 
-        filmContext.transition = getTransition(entity, MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false));
+        filmContext.transition = getTransition(entity, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false));
 
         FilmEntityRenderer.renderEntity(filmContext);
     }

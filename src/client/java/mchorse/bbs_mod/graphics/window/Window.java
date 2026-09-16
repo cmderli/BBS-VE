@@ -4,8 +4,8 @@ import mchorse.bbs_mod.data.DataToString;
 import mchorse.bbs_mod.data.types.BaseType;
 import mchorse.bbs_mod.data.types.ListType;
 import mchorse.bbs_mod.data.types.MapType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.InputUtil;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.system.MemoryUtil;
@@ -35,7 +35,7 @@ public class Window
 
     public static long getWindow()
     {
-        return MinecraftClient.getInstance().getWindow().getHandle();
+        return Minecraft.getInstance().getWindow().handle();
     }
 
     public static void setVerticalScroll(int scroll)
@@ -76,7 +76,7 @@ public class Window
 
     public static boolean isKeyPressed(int key)
     {
-        return InputUtil.isKeyPressed(MinecraftClient.getInstance().getWindow(), key);
+        return InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), key);
     }
 
     public static String getClipboard()
@@ -198,7 +198,7 @@ public class Window
 
         /* Without a screen up the pointer is Minecraft's, hidden for the game - showing it
          * again is only ever this code's business over a screen. */
-        if (!hide && MinecraftClient.getInstance().currentScreen == null)
+        if (!hide && Minecraft.getInstance().screen == null)
         {
             return;
         }

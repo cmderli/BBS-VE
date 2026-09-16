@@ -14,12 +14,12 @@ import mchorse.bbs_mod.settings.values.ui.ValueDebugElement;
 import mchorse.bbs_mod.settings.values.ui.ValuePhysicsDebug;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.RotationAxis;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -70,7 +70,7 @@ public final class ModelPhysicsDebug
     {
     }
 
-    public static void render(MatrixStack stack, IModel model, ModelForm form, int age, String selectedRoot)
+    public static void render(PoseStack stack, IModel model, ModelForm form, int age, String selectedRoot)
     {
         ValuePhysicsDebug config = BBSSettings.physicsDebug;
 
@@ -89,11 +89,11 @@ public final class ModelPhysicsDebug
         Map<String, PivotFrame> frames = collectFrames(model, compiled);
 
 
-        stack.push();
+        stack.pushPose();
 
         if (model.isFacingFlipped())
         {
-            stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
         }
 
         /* The wind is one field for the whole model: resolve its world direction and base magnitude once,
@@ -103,7 +103,7 @@ public final class ModelPhysicsDebug
         ModelPhysicsConfig.Wind wind = new ModelPhysicsConfig.Wind(liveWind.strength, liveWind.x, liveWind.y, liveWind.z, liveWind.turbulence, liveWind.turbulenceSpeed, liveWind.turbulenceScale, liveWind.local);
         Vector3f windDir = new Vector3f();
         float windMagnitude = config.wind.visible.get() ? PhysicsForces.prepareWind(wind, 1F, windDir) : 0F;
-        Matrix4f matrix = new Matrix4f(stack.peek().getPositionMatrix());
+        Matrix4f matrix = new Matrix4f(stack.last().pose());
         Matrix4f inverse = windMagnitude > 0F ? new Matrix4f(matrix).invert() : null;
 
         float unit = DebugOverlay.modelUnit(model);
@@ -125,7 +125,7 @@ public final class ModelPhysicsDebug
             }
         }
 
-        stack.pop();
+        stack.popPose();
 
     }
 
@@ -156,7 +156,7 @@ public final class ModelPhysicsDebug
      * {@code stencilMap.objectIndex} as its colour and {@code addPicking} then
      * claims that same id. The matrix matches the visual overlay's.
      */
-    public static void renderStencil(MatrixStack stack, IModel model, ModelForm modelForm, StencilMap stencilMap, Form form)
+    public static void renderStencil(PoseStack stack, IModel model, ModelForm modelForm, StencilMap stencilMap, Form form)
     {
         ValuePhysicsDebug config = BBSSettings.physicsDebug;
 
@@ -175,14 +175,14 @@ public final class ModelPhysicsDebug
         Map<String, PivotFrame> frames = collectFrames(model, compiled);
 
 
-        stack.push();
+        stack.pushPose();
 
         if (model.isFacingFlipped())
         {
-            stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
         }
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         float unit = DebugOverlay.modelUnit(model);
 
@@ -210,7 +210,7 @@ public final class ModelPhysicsDebug
 
         ModelIKDebug.flushPick(builder);
 
-        stack.pop();
+        stack.popPose();
 
     }
 
@@ -251,7 +251,7 @@ public final class ModelPhysicsDebug
         return pts;
     }
 
-    private static void drawChain(MatrixStack stack, IModel model, Map<String, PivotFrame> frames, ModelPhysicsCache.CompiledChain chain, String selectedRoot, ValuePhysicsDebug config, float unit)
+    private static void drawChain(PoseStack stack, IModel model, Map<String, PivotFrame> frames, ModelPhysicsCache.CompiledChain chain, String selectedRoot, ValuePhysicsDebug config, float unit)
     {
         List<Vector3f> pts = chainPoints(model, frames, chain);
 
@@ -277,13 +277,13 @@ public final class ModelPhysicsDebug
         boolean boxes = anyLine && thickness > 0F;
         boolean anyDot = rootDot || joints || tipDot || attachDot;
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         float dash = unit * 0.12F;
 
         /* Lines: hairline GL lines by default, boxes once a thickness is set. */
         if (anyLine && !boxes)
         {
-            BufferBuilder lines = Tessellator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+            BufferBuilder lines = Tesselator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
 
             emitLines(lines, matrix, 0F, dash, pts, target, a, config);
 
@@ -296,7 +296,7 @@ public final class ModelPhysicsDebug
         }
 
         /* Solid geometry: the pinned root, joints, the simulated tip and the attach bone, plus the thick lines. */
-        BufferBuilder dots = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder dots = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         if (boxes)
         {
@@ -359,7 +359,7 @@ public final class ModelPhysicsDebug
      * Each arrow points in the displayed-world wind direction. The pinned root (point 0) feels no wind, so
      * it is skipped. Length is proportional to the force, scaled to the chain's segment length.
      */
-    private static void drawWind(MatrixStack stack, IModel model, Map<String, PivotFrame> frames, ModelPhysicsCache.CompiledChain chain, String selectedRoot, ModelPhysicsConfig.Wind wind, Vector3f windDir, float windMagnitude, int age, Matrix4f matrix, Matrix4f inverse, ValuePhysicsDebug config, float unit)
+    private static void drawWind(PoseStack stack, IModel model, Map<String, PivotFrame> frames, ModelPhysicsCache.CompiledChain chain, String selectedRoot, ModelPhysicsConfig.Wind wind, Vector3f windDir, float windMagnitude, int age, Matrix4f matrix, Matrix4f inverse, ValuePhysicsDebug config, float unit)
     {
         List<Vector3f> pts = chainPoints(model, frames, chain);
 
@@ -376,7 +376,7 @@ public final class ModelPhysicsDebug
         Vector3f force = new Vector3f();
         List<Vector3f> tips = new ArrayList<>(pts.size());
 
-        BufferBuilder lines = Tessellator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        BufferBuilder lines = Tesselator.getInstance().begin(VertexFormat.DrawMode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
 
         for (int i = 1; i < pts.size(); i++)
         {
@@ -404,7 +404,7 @@ public final class ModelPhysicsDebug
 
         ModelIKDebug.flush(lines, ModelIKDebug.getLinesLayer());
 
-        BufferBuilder dots = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder dots = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         for (Vector3f end : tips)
         {

@@ -22,20 +22,20 @@ import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.OverlayBlend;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.block.entity.BlockEntityRenderManager;
-import net.minecraft.client.render.block.entity.BlockEntityRenderer;
-import net.minecraft.client.render.block.entity.state.BlockEntityRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -73,7 +73,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
     private final Set<BlockPos> erroredBlockEntities = new HashSet<>();
 
     /** Structure-backed world the block entities are bound to (null until built; falls back to mc.world). */
-    private World structureWorld;
+    private Level structureWorld;
 
     private final Vector3f offset = new Vector3f();
 
@@ -162,7 +162,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
     private static int blockEntityDepth;
 
     /** Render chests/signs/beds/... through their vanilla block entity renderers (per frame). */
-    private void renderBlockEntities(MatrixStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay)
+    private void renderBlockEntities(PoseStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay)
     {
         if (blockEntityDepth >= 2)
         {
@@ -181,14 +181,14 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
         }
     }
 
-    private void doRenderBlockEntities(MatrixStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay)
+    private void doRenderBlockEntities(PoseStack matrices, CustomVertexConsumerProvider consumers, int light, int overlay)
     {
         if (this.blockEntities == null)
         {
             /* Since 1.21.1 a block entity deserialises with the registries, and those come
              * from the client world; with no world yet there is nothing to build them from,
              * so the list stays null and the next frame tries again. */
-            World client = MinecraftClient.getInstance().world;
+            Level client = Minecraft.getInstance().level;
 
             if (client == null)
             {
@@ -200,11 +200,11 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
 
             Map<BlockPos, BlockEntity> byPos = new HashMap<>();
 
-            for (Map.Entry<BlockPos, NbtCompound> e : this.data.getBlockEntities().entrySet())
+            for (Map.Entry<BlockPos, CompoundTag> e : this.data.getBlockEntities().entrySet())
             {
                 try
                 {
-                    BlockEntity blockEntity = BlockEntity.createFromNbt(e.getKey(), this.data.getBlockState(e.getKey()), e.getValue(), client.getRegistryManager());
+                    BlockEntity blockEntity = BlockEntity.loadStatic(e.getKey(), this.data.getBlockState(e.getKey()), e.getValue(), client.getRegistryManager());
 
                     if (blockEntity != null)
                     {
@@ -229,11 +229,11 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
         }
 
         /* Renamed in 1.21.11: BlockEntityRenderDispatcher is BlockEntityRenderManager. */
-        BlockEntityRenderManager dispatcher = MinecraftClient.getInstance().getBlockEntityRenderDispatcher();
+        BlockEntityRenderDispatcher dispatcher = Minecraft.getInstance().getBlockEntityRenderDispatcher();
 
         for (BlockEntity blockEntity : this.blockEntities)
         {
-            BlockPos pos = blockEntity.getPos();
+            BlockPos pos = blockEntity.getBlockPos();
 
             if (this.erroredBlockEntities.contains(pos))
             {
@@ -243,14 +243,14 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             /* Renderers may query the world (light, double chest neighbors, BBS model blocks). The
              * structure-backed world resolves those against the structure itself; if it could not be
              * built (no client world to borrow registries from), fall back to the real client world */
-            blockEntity.setWorld(this.structureWorld != null ? this.structureWorld : MinecraftClient.getInstance().world);
+            blockEntity.setLevel(this.structureWorld != null ? this.structureWorld : Minecraft.getInstance().level);
 
             /* Isolated stack: if the renderer throws mid-render, its unbalanced pushes must not
              * corrupt the shared pose stack ("Pose stack not empty" crash) */
-            MatrixStack local = new MatrixStack();
+            PoseStack local = new PoseStack();
 
-            local.peek().getPositionMatrix().set(matrices.peek().getPositionMatrix());
-            local.peek().getNormalMatrix().set(matrices.peek().getNormalMatrix());
+            local.last().pose().set(matrices.last().pose());
+            local.last().normal().set(matrices.last().normal());
             local.translate(pos.getX(), pos.getY(), pos.getZ());
 
             try
@@ -261,7 +261,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
                  * refuses anything past the renderer's render distance from the camera: a structure
                  * sits wherever the form does, and its chests must not stop opening far from spawn.
                  * The form's own light replaces the light at that position. */
-                BlockEntityRenderer renderer = dispatcher.get(blockEntity);
+                BlockEntityRenderer renderer = dispatcher.getRenderer(blockEntity);
 
                 if (renderer == null)
                 {
@@ -270,13 +270,13 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
 
                 BlockEntityRenderState renderState = renderer.createRenderState();
 
-                renderer.updateRenderState(blockEntity, renderState,
-                    MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false),
-                    MinecraftClient.getInstance().gameRenderer.getCamera().getCameraPos(), null);
+                renderer.extractRenderState(blockEntity, renderState,
+                    Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false),
+                    Minecraft.getInstance().gameRenderer.getMainCamera().getCameraPos(), null);
 
-                renderState.lightmapCoordinates = light;
+                renderState.lightCoords = light;
 
-                dispatcher.render(renderState, local, QueueDispatch.queue(), QueueDispatch.cameraState());
+                dispatcher.submit(renderState, local, QueueDispatch.queue(), QueueDispatch.cameraState());
                 QueueDispatch.flush();
             }
             catch (Exception ex)
@@ -301,7 +301,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
     }
 
     @Override
-    public void renderUIPreview(MatrixStack matrices, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack matrices, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         if (this.world == null)
         {
@@ -323,7 +323,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             FormOverlay.swatch(overlay);
         }
 
-        matrices.push();
+        matrices.pushPose();
 
         try
         {
@@ -337,8 +337,8 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             matrices.scale(scale, scale, scale);
             matrices.translate(offset.x, offset.y, offset.z);
 
-            matrices.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-            matrices.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+            matrices.last().normal().getScale(Vectors.EMPTY_3F);
+            matrices.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
             this.ensureBaked();
 
@@ -347,10 +347,10 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
 
             consumers.setUI(true);
             consumers.setLayerMapper(overlayActive ? FormOverlay::withOverlay : null);
-            this.baked.render(matrices.peek(), consumers, LightmapTextureManager.MAX_LIGHT_COORDINATE, set.getARGBColor());
+            this.baked.render(matrices.last(), consumers, LightTexture.FULL_BRIGHT, set.getARGBColor());
 
             consumers.setSubstitute(BBSRendering.getColorConsumer(set));
-            this.renderBlockEntities(matrices, consumers, LightmapTextureManager.MAX_LIGHT_COORDINATE, OverlayTexture.DEFAULT_UV);
+            this.renderBlockEntities(matrices, consumers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
 
             consumers.draw();
         }
@@ -361,16 +361,16 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             consumers.setLayerMapper(null);
             CustomVertexConsumerProvider.clearRunnables();
 
-            matrices.pop();
+            matrices.popPose();
         }
     }
 
-    private void renderPlaceholderBlock(MatrixStack matrices, float angle, int y1, int y2)
+    private void renderPlaceholderBlock(PoseStack matrices, float angle, int y1, int y2)
     {
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
         Matrix4f uiMatrix = getUIPreviewMatrix(angle, y1, y2);
 
-        matrices.push();
+        matrices.pushPose();
 
         try
         {
@@ -378,18 +378,18 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             matrices.scale(this.form.uiScale.get(), this.form.uiScale.get(), this.form.uiScale.get());
             matrices.translate(-0.5F, 0F, -0.5F);
 
-            matrices.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-            matrices.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+            matrices.last().normal().getScale(Vectors.EMPTY_3F);
+            matrices.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
             consumers.setUI(true);
-            MinecraftClient.getInstance().getBlockRenderManager().renderBlockAsEntity(Blocks.STRUCTURE_BLOCK.getDefaultState(), matrices, consumers, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, OverlayTexture.DEFAULT_UV);
+            Minecraft.getInstance().getBlockRenderer().renderSingleBlock(Blocks.STRUCTURE_BLOCK.defaultBlockState(), matrices, consumers, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY);
             consumers.draw();
         }
         finally
         {
             consumers.setUI(false);
 
-            matrices.pop();
+            matrices.popPose();
         }
     }
 
@@ -414,10 +414,10 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             FormOverlay.swatch(overlay);
         }
 
-        context.stack.push();
+        context.stack.pushPose();
         if (context.world != null)
         {
-            context.world.push();
+            context.world.pushPose();
         }
 
         /* finally guarantees pops/state reset: a renderer failure must degrade to a log line,
@@ -450,11 +450,11 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
 
                 FormRenderCapture.begin();
 
-                Map<RenderLayer, List<FormRenderCapture.Captured>> captured;
+                Map<RenderType, List<FormRenderCapture.Captured>> captured;
 
                 try
                 {
-                    this.baked.render(context.stack.peek(), consumers, context.light, 0xFFFFFFFF);
+                    this.baked.render(context.stack.last(), consumers, context.light, 0xFFFFFFFF);
 
                     /* The block entities are part of the silhouette the eye sees, so they are part
                      * of what the cursor may land on. */
@@ -483,7 +483,7 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
                 }
 
                 consumers.setLayerMapper(overlayActive ? FormOverlay::withOverlay : null);
-                this.baked.render(context.stack.peek(), consumers, context.light, COLOR.getARGBColor());
+                this.baked.render(context.stack.last(), consumers, context.light, COLOR.getARGBColor());
 
                 /* Block entities still go through the consumer interface — tint them via substitute */
                 consumers.setSubstitute(BBSRendering.getColorConsumer(COLOR));
@@ -498,10 +498,10 @@ public class StructureFormRenderer extends FormRenderer<StructureForm>
             consumers.setLayerMapper(null);
             CustomVertexConsumerProvider.clearRunnables();
 
-            context.stack.pop();
+            context.stack.popPose();
             if (context.world != null)
             {
-                context.world.pop();
+                context.world.popPose();
             }
 
             /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */

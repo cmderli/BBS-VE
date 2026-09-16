@@ -1,10 +1,10 @@
 package mchorse.bbs_mod.client.renderer;
 
 import mchorse.bbs_mod.cubic.animation.ItemUsePose;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Hand;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
 
 /**
  * The take's item use answered to whoever DRAWS the real player, so the first
@@ -33,22 +33,22 @@ import net.minecraft.util.Hand;
 public class LivePlayerItemUse
 {
     private static ItemUsePose.Use use;
-    private static Hand hand = Hand.MAIN_HAND;
+    private static InteractionHand hand = InteractionHand.MAIN_HAND;
 
     /** Whether the film's answer is the one being drawn right now (see class doc). */
     private static boolean drawing;
 
     public static void apply(LivingEntity player, ItemUsePose.Use mainUse, ItemUsePose.Use offUse)
     {
-        if (player != MinecraftClient.getInstance().player)
+        if (player != Minecraft.getInstance().player)
         {
             return;
         }
 
         ItemUsePose.Use active = mainUse == null ? offUse : mainUse;
-        Hand activeHand = mainUse == null ? Hand.OFF_HAND : Hand.MAIN_HAND;
+        InteractionHand activeHand = mainUse == null ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
 
-        if (active == null || player.getStackInHand(activeHand).isEmpty())
+        if (active == null || player.getItemInHand(activeHand).isEmpty())
         {
             clear();
 
@@ -75,10 +75,10 @@ public class LivePlayerItemUse
     /** Whether this entity's use is the film's to answer at this moment. */
     public static boolean answersFor(LivingEntity entity)
     {
-        return drawing && use != null && entity == MinecraftClient.getInstance().player;
+        return drawing && use != null && entity == Minecraft.getInstance().player;
     }
 
-    public static Hand getHand()
+    public static InteractionHand getHand()
     {
         return hand;
     }
@@ -89,9 +89,9 @@ public class LivePlayerItemUse
      */
     public static ItemStack getStack()
     {
-        LivingEntity player = MinecraftClient.getInstance().player;
+        LivingEntity player = Minecraft.getInstance().player;
 
-        return player == null ? ItemStack.EMPTY : player.getStackInHand(hand);
+        return player == null ? ItemStack.EMPTY : player.getItemInHand(hand);
     }
 
     /**
@@ -111,6 +111,6 @@ public class LivePlayerItemUse
     {
         /* The hand being drawn is the client player's own, and 1.21.1 asks the
          * holder for the max use time (the stack's enchantments read its Random). */
-        return Math.max(0, getStack().getMaxUseTime(MinecraftClient.getInstance().player) - (int) Math.floor(use.elapsed()) - 1);
+        return Math.max(0, getStack().getUseDuration(Minecraft.getInstance().player) - (int) Math.floor(use.elapsed()) - 1);
     }
 }

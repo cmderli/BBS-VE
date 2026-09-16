@@ -5,7 +5,7 @@ import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.CollectionUtils;
-import net.minecraft.client.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import org.lwjgl.opengl.GL11;
 
 /**
@@ -45,7 +45,7 @@ public class IrisTextureWrapper extends IrisPbrTexture
     {
         GpuTexture resolved = super.getGlTexture();
 
-        return resolved == null && this.fallback != null ? this.fallback.getGlTexture() : resolved;
+        return resolved == null && this.fallback != null ? this.fallback.getTexture() : resolved;
     }
 
     @Override

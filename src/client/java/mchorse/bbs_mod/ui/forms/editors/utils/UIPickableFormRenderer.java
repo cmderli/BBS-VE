@@ -25,9 +25,9 @@ import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 
 import java.util.function.Supplier;
@@ -161,7 +161,7 @@ public class UIPickableFormRenderer extends UIFormRenderer implements GizmoViewp
          * so the cubic geometry lands in view space; the global model-view stays identity + perspective
          * projection is set in ModelPreviewRenderer.begin. */
         FormRenderingContext formContext = new FormRenderingContext()
-            .set(FormRenderType.PREVIEW, this.target == null ? this.entity : this.target, this.createCameraStack(), LightmapTextureManager.pack(15, 15), OverlayTexture.DEFAULT_UV, context.getTransition())
+            .set(FormRenderType.PREVIEW, this.target == null ? this.entity : this.target, this.createCameraStack(), LightTexture.pack(15, 15), OverlayTexture.NO_OVERLAY, context.getTransition())
             .camera(this.camera)
             .modelRenderer(context.getTick());
 
@@ -233,9 +233,9 @@ public class UIPickableFormRenderer extends UIFormRenderer implements GizmoViewp
          * own vertices — that is exactly what createCameraStack() returns, and what the ground grid and the
          * model geometry already use. Starting from a bare `new MatrixStack()` left this geometry in raw
          * model space: it landed at the camera origin, i.e. nowhere on screen. */
-                MatrixStack gizmoStack = this.createCameraStack();
+                PoseStack gizmoStack = this.createCameraStack();
 
-                gizmoStack.push();
+                gizmoStack.pushPose();
 
                 if (gizmoMatrix != null)
                 {
@@ -246,7 +246,7 @@ public class UIPickableFormRenderer extends UIFormRenderer implements GizmoViewp
                  * so hovering a ring lands where it's drawn. */
                 Gizmo.INSTANCE.reorientForSpace(gizmoStack, this.formEditor.getGizmoSpace(), this.camera.view, this.getSceneAxes());
                 Gizmo.INSTANCE.renderStencil(gizmoStack);
-                gizmoStack.pop();
+                gizmoStack.popPose();
             }
 
             /* Pick-read with the SAME scale the stencil was sized at: map the cursor (in GUI units, relative to
@@ -276,9 +276,9 @@ public class UIPickableFormRenderer extends UIFormRenderer implements GizmoViewp
          * own vertices — that is exactly what createCameraStack() returns, and what the ground grid and the
          * model geometry already use. Starting from a bare `new MatrixStack()` left this geometry in raw
          * model space: it landed at the camera origin, i.e. nowhere on screen. */
-        MatrixStack stack = this.createCameraStack();
+        PoseStack stack = this.createCameraStack();
 
-        stack.push();
+        stack.pushPose();
 
         if (matrix != null)
         {
@@ -302,7 +302,7 @@ public class UIPickableFormRenderer extends UIFormRenderer implements GizmoViewp
             Gizmo.INSTANCE.render(stack);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     private void renderFormHitbox(UIContext context)
@@ -313,7 +313,7 @@ public class UIPickableFormRenderer extends UIFormRenderer implements GizmoViewp
 
         /* Same camera-baking requirement as the gizmo above: the hitbox boxes are world-space geometry
          * drawn into the preview pass, so they start from the camera stack, not a bare one. */
-        MatrixStack stack = this.createCameraStack();
+        PoseStack stack = this.createCameraStack();
 
         /* Draw look vector */
         final float thickness = 0.01F;

@@ -28,8 +28,8 @@ import mchorse.bbs_mod.settings.values.ui.ValueStringKeys;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 
 import java.util.Collections;
 import java.util.ArrayList;
@@ -316,19 +316,19 @@ public abstract class Form extends ValueGroup
 
         if (hp != 20F)
         {
-            entity.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(hp);
+            entity.getAttribute(Attributes.MAX_HEALTH).setBaseValue(hp);
             entity.setHealth(hp);
         }
-        if (speed != 0.1F) entity.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).setBaseValue(speed);
-        if (stepHeight != 0.5F) entity.getAttributeInstance(EntityAttributes.STEP_HEIGHT).setBaseValue(stepHeight);
+        if (speed != 0.1F) entity.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(speed);
+        if (stepHeight != 0.5F) entity.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(stepHeight);
     }
 
     public void onDemorph(LivingEntity entity)
     {
-        entity.getAttributeInstance(EntityAttributes.MAX_HEALTH).setBaseValue(20F);
+        entity.getAttribute(Attributes.MAX_HEALTH).setBaseValue(20F);
         entity.setHealth(20F);
-        entity.getAttributeInstance(EntityAttributes.MOVEMENT_SPEED).setBaseValue(0.1F);
-        entity.getAttributeInstance(EntityAttributes.STEP_HEIGHT).setBaseValue(0.5F);
+        entity.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.1F);
+        entity.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(0.5F);
     }
 
     /* ID and display name */

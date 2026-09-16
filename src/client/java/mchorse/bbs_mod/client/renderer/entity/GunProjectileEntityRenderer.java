@@ -8,20 +8,20 @@ import mchorse.bbs_mod.forms.renderers.FormRenderingContext;
 import mchorse.bbs_mod.items.GunProperties;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.entity.EntityRenderer;
-import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.render.entity.state.EntityRenderState;
-import net.minecraft.client.render.state.CameraRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.util.Mth;
+import com.mojang.math.Axis;
 
 public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEntity, GunProjectileEntityRenderer.GunProjectileRenderState>
 {
-    public GunProjectileEntityRenderer(EntityRendererFactory.Context ctx)
+    public GunProjectileEntityRenderer(EntityRendererProvider.Context ctx)
     {
         super(ctx);
     }
@@ -33,24 +33,24 @@ public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEnt
     }
 
     @Override
-    public void updateRenderState(GunProjectileEntity entity, GunProjectileRenderState state, float tickDelta)
+    public void extractRenderState(GunProjectileEntity entity, GunProjectileRenderState state, float tickDelta)
     {
-        super.updateRenderState(entity, state, tickDelta);
+        super.extractRenderState(entity, state, tickDelta);
 
         GunProperties properties = entity.getProperties();
         int out = properties.lifeSpan - 2;
 
         state.entity = entity;
         state.tickDelta = tickDelta;
-        state.bodyYaw = MathHelper.lerpAngleDegrees(tickDelta, entity.lastYaw, entity.getYaw());
-        state.entityPitch = MathHelper.lerpAngleDegrees(tickDelta, entity.lastPitch, entity.getPitch());
-        state.fadeScale = Lerps.envelope(entity.age + tickDelta, 0, properties.fadeIn, out - properties.fadeOut, out);
+        state.bodyYaw = Mth.rotLerp(tickDelta, entity.yRotO, entity.getViewYRot());
+        state.entityPitch = Mth.rotLerp(tickDelta, entity.xRotO, entity.getViewXRot());
+        state.fadeScale = Lerps.envelope(entity.tickCount + tickDelta, 0, properties.fadeIn, out - properties.fadeOut, out);
     }
 
     @Override
-    public void render(GunProjectileRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue, CameraRenderState cameraState)
+    public void submit(GunProjectileRenderState state, PoseStack matrices, SubmitNodeCollector queue, CameraRenderState cameraState)
     {
-        super.render(state, matrices, queue, cameraState);
+        super.submit(state, matrices, queue, cameraState);
 
         GunProjectileEntity projectile = state.entity;
 
@@ -61,10 +61,10 @@ public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEnt
 
         GunProperties properties = projectile.getProperties();
 
-        matrices.push();
+        matrices.pushPose();
 
-        if (properties.yaw) matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(state.bodyYaw));
-        if (properties.pitch) matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-state.entityPitch));
+        if (properties.yaw) matrices.rotateAround(Axis.YP.rotationDegrees(state.bodyYaw));
+        if (properties.pitch) matrices.rotateAround(Axis.XP.rotationDegrees(-state.entityPitch));
         matrices.scale(state.fadeScale, state.fadeScale, state.fadeScale);
         MatrixStackUtils.applyTransform(matrices, properties.projectileTransform);
 
@@ -77,14 +77,14 @@ public class GunProjectileEntityRenderer extends EntityRenderer<GunProjectileEnt
         try
         {
             FormUtilsClient.render(projectile.getForm(), new FormRenderingContext()
-                .set(FormRenderType.ENTITY, projectile.getFormEntity(), matrices, state.light, OverlayTexture.DEFAULT_UV, state.tickDelta)
-                .camera(MinecraftClient.getInstance().gameRenderer.getCamera()));
+                .set(FormRenderType.ENTITY, projectile.getFormEntity(), matrices, state.lightCoords, OverlayTexture.NO_OVERLAY, state.tickDelta)
+                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
         }
         finally
         {
             BBSRendering.endWorldForms(prevWorldForms);
 
-            matrices.pop();
+            matrices.popPose();
         }
     }
 

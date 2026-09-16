@@ -39,15 +39,15 @@ import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.RotationAxis;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -353,7 +353,7 @@ public class ModelInstance implements IModelInstance
     {
         if (this.model instanceof BOBJModel model)
         {
-            MinecraftClient.getInstance().execute(model::setup);
+            Minecraft.getInstance().execute(model::setup);
         }
     }
 
@@ -399,7 +399,7 @@ public class ModelInstance implements IModelInstance
     {
         if (this.model instanceof Model model)
         {
-            MatrixStack stack = new MatrixStack();
+            PoseStack stack = new PoseStack();
             CubicMatrixRenderer renderer = new CubicMatrixRenderer(model);
 
             CubicRenderer.processRenderModel(renderer, null, stack, model);
@@ -486,7 +486,7 @@ public class ModelInstance implements IModelInstance
      * Runs a dedicated capture-only renderer that only touches welded cubes (and only their welded face's corners),
      * so it's a light matrix walk over the tree rather than a full per-vertex pass.
      */
-    private void captureWelds(List<WeldBinding> bindings, MatrixStack stack, Model model, int light, int overlay, StencilMap stencilMap, ShapeKeys keys)
+    private void captureWelds(List<WeldBinding> bindings, PoseStack stack, Model model, int light, int overlay, StencilMap stencilMap, ShapeKeys keys)
     {
         for (WeldBinding binding : bindings)
         {
@@ -538,11 +538,11 @@ public class ModelInstance implements IModelInstance
         return passes;
     }
 
-    public void render(MatrixStack stack, Color color, int light, int overlay, StencilMap stencilMap, ShapeKeys keys, Function<String, Texture> textureResolver)
+    public void render(PoseStack stack, Color color, int light, int overlay, StencilMap stencilMap, ShapeKeys keys, Function<String, Texture> textureResolver)
     {
         /* The colour overlay is off while the pick buffer is being filled (it draws ids, not colours)
          * and while the entity is flashing red — the hurt flash owns the channel then, and it wins. */
-        boolean tintable = stencilMap == null && overlay == OverlayTexture.DEFAULT_UV && this.form instanceof ModelForm;
+        boolean tintable = stencilMap == null && overlay == OverlayTexture.NO_OVERLAY && this.form instanceof ModelForm;
 
         if (this.model instanceof Model model)
         {
@@ -607,7 +607,7 @@ public class ModelInstance implements IModelInstance
                  * entity RenderLayer (POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL + QUADS). During an in-panel
                  * preview (ModelPreviewRenderer.ACTIVE) it goes to entityCutoutNoCull(adopted model texture);
                  * the world path still targets the not-yet-ported BBS model layer (no-op until VARIANT 2). */
-                BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL);
+                BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.NEW_ENTITY);
                 CubicRenderer.processRenderModel(renderProcessor, builder, stack, model);
 
                 /* The subdivided welded quads are held back in the renderer's patch buffer during
@@ -615,7 +615,7 @@ public class ModelInstance implements IModelInstance
                  * here — without this the bent bands are simply not emitted. */
                 renderProcessor.finish(builder);
 
-                BuiltBuffer built = builder.endNullable();
+                MeshData built = builder.build();
 
                 /* Claimed while the geometry was written, so the upload comes after it. */
                 boolean tinted = FormOverlay.hasPalette();
@@ -669,8 +669,8 @@ public class ModelInstance implements IModelInstance
 
             if (!vaos.isEmpty())
             {
-                stack.push();
-                stack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180F));
+                stack.pushPose();
+                stack.rotateAround(Axis.YP.rotationDegrees(180F));
 
                 model.getArmature().setupMatrices();
 
@@ -709,7 +709,7 @@ public class ModelInstance implements IModelInstance
                     vao.render(stack, color.r, color.g, color.b, color.a, stencilMap, light, overlay, this.isCulling(), tint);
                 }
 
-                stack.pop();
+                stack.popPose();
             }
         }
     }

@@ -13,8 +13,8 @@ import mchorse.bbs_mod.forms.forms.StructureForm;
 import mchorse.bbs_mod.utils.clips.Clip;
 import mchorse.bbs_mod.utils.clips.Clips;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 
@@ -90,7 +90,7 @@ public class ReplayFactory
 
         replay.category.set("");
 
-        BlockPos blockPos = modelBlock.getPos();
+        BlockPos blockPos = modelBlock.getBlockPos();
         ModelProperties properties = modelBlock.getProperties();
         Transform transform = properties.getTransform().copy();
         double x = blockPos.getX() + transform.translate.x + 0.5D;

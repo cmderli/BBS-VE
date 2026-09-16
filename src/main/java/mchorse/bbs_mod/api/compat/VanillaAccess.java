@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.api.compat;
 
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * The bits of vanilla BBS had to widen access to, offered as plain methods.
@@ -22,22 +22,22 @@ public final class VanillaAccess
 
     public static ItemStack getActiveItemStack(LivingEntity entity)
     {
-        return entity.activeItemStack;
+        return entity.useItem;
     }
 
     public static void setActiveItemStack(LivingEntity entity, ItemStack stack)
     {
-        entity.activeItemStack = stack;
+        entity.useItem = stack;
     }
 
     public static int getItemUseTimeLeft(LivingEntity entity)
     {
-        return entity.itemUseTimeLeft;
+        return entity.useItemRemaining;
     }
 
     public static void setItemUseTimeLeft(LivingEntity entity, int ticks)
     {
-        entity.itemUseTimeLeft = ticks;
+        entity.useItemRemaining = ticks;
     }
 
     /**
@@ -48,12 +48,12 @@ public final class VanillaAccess
      */
     public static void setLivingFlag(LivingEntity entity, int index, boolean value)
     {
-        entity.setLivingFlag(index, value);
+        entity.setLivingEntityFlag(index, value);
     }
 
     public static int getRiptideTicks(LivingEntity entity)
     {
-        return entity.riptideTicks;
+        return entity.autoSpinAttackTicks;
     }
 
     /**
@@ -62,6 +62,6 @@ public final class VanillaAccess
      */
     public static void setRiptideTicks(LivingEntity entity, int ticks)
     {
-        entity.riptideTicks = ticks;
+        entity.autoSpinAttackTicks = ticks;
     }
 }

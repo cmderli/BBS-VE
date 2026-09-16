@@ -1,12 +1,12 @@
 package mchorse.bbs_mod.client.renderer;
 
 import mchorse.bbs_mod.cubic.animation.ItemUsePose;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.decoration.ArmorStandEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Hand;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.InteractionHand;
 
 /**
  * A stand-in entity for vanilla's item model predicates.
@@ -18,7 +18,7 @@ import net.minecraft.util.Hand;
  */
 public class ItemPredicateDonor
 {
-    private static ArmorStandEntity donor;
+    private static ArmorStand donor;
 
     /**
      * An entity that reports "using this stack, this much time left" so that
@@ -29,19 +29,19 @@ public class ItemPredicateDonor
      */
     public static LivingEntity get(ItemStack stack, ItemUsePose.Use use)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
-        if (mc.world == null || stack.isEmpty())
+        if (mc.level == null || stack.isEmpty())
         {
             return null;
         }
 
-        if (donor == null || donor.getEntityWorld() != mc.world)
+        if (donor == null || donor.getEntityWorld() != mc.level)
         {
-            donor = new ArmorStandEntity(mc.world, 0D, 0D, 0D);
+            donor = new ArmorStand(mc.level, 0D, 0D, 0D);
 
-            donor.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.BOW));
-            donor.setCurrentHand(Hand.MAIN_HAND);
+            donor.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BOW));
+            donor.startUsingItem(InteractionHand.MAIN_HAND);
 
             /* setCurrentHand only raises the "using item" flag on the SERVER
              * (its isClient branch skips setLivingFlag - 1.20.4 bytecode), and
@@ -49,11 +49,11 @@ public class ItemPredicateDonor
              * "throwing" predicates all demand that flag: without it the bow
              * never bends and never shows its arrow. Raise it by hand, once -
              * on the client nothing ever lowers it again. */
-            donor.setLivingFlag(1, true);
+            donor.setLivingEntityFlag(1, true);
         }
 
-        donor.activeItemStack = stack;
-        donor.itemUseTimeLeft = Math.max(0, Math.round(ItemUsePose.maxUseTime(stack, use.user()) - use.elapsed()));
+        donor.useItem = stack;
+        donor.useItemRemaining = Math.max(0, Math.round(ItemUsePose.maxUseTime(stack, use.user()) - use.elapsed()));
 
         return donor;
     }

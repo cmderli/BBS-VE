@@ -19,17 +19,17 @@ import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.renderer.RenderPipelines;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -55,9 +55,9 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
 
     /* POSITION_COLOR / TRIANGLES, no depth test (the axes path did RenderSystem.disableDepthTest()). */
     private static final RenderPipeline AXES_PIPELINE = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/trail_axes"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/trail_axes"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withBlend(BLEND)
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
@@ -75,23 +75,23 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
      * (vanilla position_tex_color, full brightness, cull on, texture in the layer's own Sampler0),
      * and the culled model layer under a shaderpack — see render3D. */
 
-    private static RenderLayer axesLayer;
+    private static RenderType axesLayer;
 
-    private static RenderLayer getAxesLayer()
+    private static RenderType getAxesLayer()
     {
         if (axesLayer == null)
         {
-            axesLayer = RenderLayer.of(BBSMod.MOD_ID + "_trail_axes",
-                RenderSetup.builder(AXES_PIPELINE).translucent().build());
+            axesLayer = RenderType.create(BBSMod.MOD_ID + "_trail_axes",
+                RenderSetup.builder(AXES_PIPELINE).sortOnUpload().createRenderSetup());
         }
 
         return axesLayer;
     }
 
     /** Finish a buffer and submit it through the given layer (no-op on an empty buffer). */
-    private static void flush(BufferBuilder builder, RenderLayer layer)
+    private static void flush(BufferBuilder builder, RenderType layer)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -136,7 +136,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
 
         if (context.modelRenderer || context.ui)
         {
-            MatrixStack stack = context.stack;
+            PoseStack stack = context.stack;
             float scale = BBSSettings.axesScale.get();
             float axisSize = 1F;
             float axisOffset = 0.01F;
@@ -146,7 +146,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             axisOffset *= scale;
             outlineOffset *= scale;
 
-            BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
             Draw.fillBox(builder, stack, -outlineOffset, -outlineSize, -outlineOffset, outlineOffset, outlineSize, outlineOffset, 0, 0, 0);
             Draw.fillBox(builder, stack, -axisOffset, -axisSize, -axisOffset, axisOffset, axisSize, axisOffset, 0, 1, 0);
@@ -164,7 +164,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             return;
         }
 
-        MatrixStack stack = context.stack;
+        PoseStack stack = context.stack;
         Matrix4f camInverse = new Matrix4f(InverseView.get());
 
         Camera camera = context.camera;
@@ -182,7 +182,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
              * (view * translate(-cam) * formChain). Without it camInverse over-rotates the
              * sampled point and the recorded world position ends up depending on the camera,
              * which makes the trail smear whenever the camera moves rather than the object. */
-            Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(stack.peek().getPositionMatrix());
+            Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(stack.last().pose());
 
             Vector4f top = new Vector4f(0F, 1F, 0F, 1F);
             Vector4f bottom = new Vector4f(0F, -1F, 0F, 1F);
@@ -247,28 +247,28 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
          * GPU to drop the side facing away — drawn without culling the back lands on equal depth,
          * LEQUAL lets it through, and the two sides double-blend and shimmer with the viewpoint. */
         boolean packed = BBSRendering.isIrisWorldForms();
-        VertexFormat format = packed ? VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL : VertexFormats.POSITION_TEXTURE_COLOR;
+        VertexFormat format = packed ? DefaultVertexFormat.NEW_ENTITY : DefaultVertexFormat.POSITION_TEX_COLOR;
 
-        stack.push();
+        stack.pushPose();
 
         Trail last = null;
         Trail trail;
 
         /* The form's camera-relative world position, taken before the stack top is repurposed below —
          * it becomes the camera-space sort origin if the packed draw ends up deferred. */
-        Vector3f origin = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+        Vector3f origin = stack.last().pose().getTranslation(new Vector3f());
 
         /* The vertices below are in camera-relative world space; the GPU then applies
          * RenderSystem's global model-view, which since 1.21.1 already holds the camera view.
          * Build m so that (globalModelView * m) collapses to the pure camera view:
          * m = inv(globalModelView) * view. In the form editor the global model-view is
          * identity, so m stays the plain view and nothing changes. */
-        Matrix4f m = stack.peek().getPositionMatrix();
+        Matrix4f m = stack.last().pose();
 
         m.set(RenderSystem.getModelViewMatrix()).invert();
         m.mul(new Matrix4f(camInverse).invert());
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
 
         for (it = trails.iterator(); it.hasNext(); last = trail)
         {
@@ -354,7 +354,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             }
         }
 
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -374,7 +374,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             }
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -385,19 +385,19 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
      */
     private void fill(VertexFormat format, BufferBuilder builder, Matrix4f m, float x, float y, float z, float u, float v, float nx, float ny, float nz)
     {
-        if (format == VertexFormats.POSITION_TEXTURE_COLOR)
+        if (format == DefaultVertexFormat.POSITION_TEX_COLOR)
         {
-            builder.vertex(m, x, y, z).texture(u, v).color(1F, 1F, 1F, 1F);
+            builder.addVertex(m, x, y, z).setUv(u, v).setColor(1F, 1F, 1F, 1F);
 
             return;
         }
 
-        builder.vertex(m, x, y, z)
-            .color(1F, 1F, 1F, 1F)
-            .texture(u, v)
-            .overlay(OverlayTexture.DEFAULT_UV)
-            .light(LightmapTextureManager.MAX_LIGHT_COORDINATE)
-            .normal(nx, ny, nz);
+        builder.addVertex(m, x, y, z)
+            .setColor(1F, 1F, 1F, 1F)
+            .setUv(u, v)
+            .setUv1(OverlayTexture.NO_OVERLAY)
+            .setUv2(LightTexture.FULL_BRIGHT)
+            .setNormal(nx, ny, nz);
     }
 
     @Override

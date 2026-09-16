@@ -38,10 +38,10 @@ import mchorse.bbs_mod.forms.renderers.TrailFormRenderer;
 import mchorse.bbs_mod.forms.renderers.VanillaParticleFormRenderer;
 import mchorse.bbs_mod.forms.renderers.VideoFormRenderer;
 import mchorse.bbs_mod.ui.framework.UIContext;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.TexturedRenderLayers;
-import net.minecraft.client.render.model.ModelBaker;
-import net.minecraft.client.util.BufferAllocator;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.resources.model.ModelBakery;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import org.slf4j.Logger;
 
 import java.util.Collections;
@@ -71,35 +71,35 @@ public class FormUtilsClient
 
     private static CustomVertexConsumerProvider createProvider()
     {
-        SequencedMap<RenderLayer, BufferAllocator> layers = new Object2ObjectLinkedOpenHashMap<>();
+        SequencedMap<RenderType, ByteBufferBuilder> layers = new Object2ObjectLinkedOpenHashMap<>();
 
-        assignAllocator(layers, TexturedRenderLayers.getEntitySolid());
-        assignAllocator(layers, TexturedRenderLayers.getEntityCutout());
-        assignAllocator(layers, TexturedRenderLayers.getBannerPatterns());
+        assignAllocator(layers, Sheets.solidBlockSheet());
+        assignAllocator(layers, Sheets.cutoutBlockSheet());
+        assignAllocator(layers, Sheets.bannerSheet());
         /* TODO(1.21.11 render): the terrain layers are no longer RenderLayer factories —
          * RenderLayer.getSolid/getCutout/getCutoutMipped are gone and chunk terrain draws through
          * the BlockRenderLayer enum's RenderPipelines instead. Forms that render real blocks (the
          * structure form) therefore fall through to the shared fallback buffer here, which flushes
          * on every layer switch and can lose depth between opaque layers. Pre-assignment was an
          * optimisation, so this only costs the pre-sizing until the terrain path is ported. */
-        assignAllocator(layers, TexturedRenderLayers.getItemTranslucentCull());
-        assignAllocator(layers, TexturedRenderLayers.getBlockTranslucentCull());
-        assignAllocator(layers, TexturedRenderLayers.getShieldPatterns());
-        assignAllocator(layers, TexturedRenderLayers.getBeds());
-        assignAllocator(layers, TexturedRenderLayers.getShulkerBoxes());
-        assignAllocator(layers, TexturedRenderLayers.getSign());
-        assignAllocator(layers, TexturedRenderLayers.getHangingSign());
-        assignAllocator(layers, TexturedRenderLayers.getChest());
+        assignAllocator(layers, Sheets.translucentItemSheet());
+        assignAllocator(layers, Sheets.translucentBlockItemSheet());
+        assignAllocator(layers, Sheets.shieldSheet());
+        assignAllocator(layers, Sheets.bedSheet());
+        assignAllocator(layers, Sheets.shulkerBoxSheet());
+        assignAllocator(layers, Sheets.signSheet());
+        assignAllocator(layers, Sheets.hangingSignSheet());
+        assignAllocator(layers, Sheets.chestSheet());
         /* TODO(1.21.11 render): the glint layers (armor/item/entity/direct) and the water mask are no
          * longer RenderLayer factories — 1.21.5+ draws glint as a post-process. Pre-assigning an
          * allocator for them was only an optimisation, so dropping them costs nothing but the pre-sizing. */
 
-        for (RenderLayer layer : ModelBaker.BLOCK_DESTRUCTION_RENDER_LAYERS)
+        for (RenderType layer : ModelBakery.DESTROY_TYPES)
         {
             assignAllocator(layers, layer);
         }
 
-        return new CustomVertexConsumerProvider(new BufferAllocator(1536), layers);
+        return new CustomVertexConsumerProvider(new ByteBufferBuilder(1536), layers);
     }
 
     /**
@@ -157,15 +157,15 @@ public class FormUtilsClient
      * and a layer that is not in this map falls into the shared buffer, which {@code Immediate.draw()}
      * flushes FIRST — which would put a structure's translucent blocks under its opaque ones.
      */
-    private static void assignAllocator(SequencedMap<RenderLayer, BufferAllocator> layers, RenderLayer layer)
+    private static void assignAllocator(SequencedMap<RenderType, ByteBufferBuilder> layers, RenderType layer)
     {
         assign(layers, layer);
         assign(layers, mchorse.bbs_mod.forms.renderers.utils.FormOverlay.withOverlay(layer));
     }
 
-    private static void assign(SequencedMap<RenderLayer, BufferAllocator> layers, RenderLayer layer)
+    private static void assign(SequencedMap<RenderType, ByteBufferBuilder> layers, RenderType layer)
     {
-        layers.put(layer, new BufferAllocator(layer.getExpectedBufferSize()));
+        layers.put(layer, new ByteBufferBuilder(layer.bufferSize()));
     }
 
     public static <T extends Form> void register(Class<T> clazz, IFormRendererFactory<T> function)

@@ -1,10 +1,10 @@
 package mchorse.bbs_mod.cubic.jem;
 
 import mchorse.bbs_mod.forms.renderers.mob.IBBSModelPart;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.model.TexturedModelData;
-import net.minecraft.client.render.entity.model.EntityModelLayer;
-import net.minecraft.client.render.entity.model.EntityModels;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraft.client.model.geom.ModelLayerLocation;
+import net.minecraft.client.model.geom.LayerDefinitions;
 import org.joml.Vector3f;
 
 import java.util.HashMap;
@@ -69,9 +69,9 @@ public class VanillaRigs
     {
         Map<String, CemHierarchy> rigs = new HashMap<>();
 
-        for (Map.Entry<EntityModelLayer, TexturedModelData> entry : EntityModels.getModels().entrySet())
+        for (Map.Entry<ModelLayerLocation, LayerDefinition> entry : LayerDefinitions.createRoots().entrySet())
         {
-            EntityModelLayer layer = entry.getKey();
+            ModelLayerLocation layer = entry.getKey();
 
             if (!layer.name().equals(MAIN))
             {
@@ -84,7 +84,7 @@ public class VanillaRigs
 
             try
             {
-                collect(entry.getValue().createModel(), null, parents, pivots, offsets, CemPartNames.of(layer.id().getPath()), new Vector3f());
+                collect(entry.getValue().bakeRoot(), null, parents, pivots, offsets, CemPartNames.of(layer.id().getPath()), new Vector3f());
             }
             catch (Exception e)
             {
@@ -129,9 +129,9 @@ public class VanillaRigs
         {
             String child = entry.getKey();
             ModelPart childPart = entry.getValue();
-            Vector3f absolute = new Vector3f(origin).add(childPart.originX, childPart.originY, childPart.originZ);
+            Vector3f absolute = new Vector3f(origin).add(childPart.x, childPart.y, childPart.z);
             Vector3f pivot = new Vector3f(-absolute.x, Y_OFFSET - absolute.y, absolute.z);
-            Vector3f offset = new Vector3f(-childPart.originX, -childPart.originY, childPart.originZ);
+            Vector3f offset = new Vector3f(-childPart.x, -childPart.y, childPart.z);
 
             pivots.putIfAbsent(names.optifine(child), pivot);
             pivots.putIfAbsent(child, pivot);

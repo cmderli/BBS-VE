@@ -9,19 +9,19 @@ import mchorse.bbs_mod.api.events.ModelBlockEntityUpdateCallback;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.forms.entities.StubEntity;
 import mchorse.bbs_mod.forms.forms.Form;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.listener.ClientPlayPacketListener;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.storage.ReadView;
-import net.minecraft.storage.WriteView;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 public class ModelBlockEntity extends BlockEntity
@@ -39,7 +39,7 @@ public class ModelBlockEntity extends BlockEntity
 
     public String getName()
     {
-        BlockPos pos = this.getPos();
+        BlockPos pos = this.getBlockPos();
         Form form = this.getProperties().getForm();
         String s = "(" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + ")";
 
@@ -98,7 +98,7 @@ public class ModelBlockEntity extends BlockEntity
         this.currentYaw = currentYaw;
     }
 
-    public void tick(World world, BlockPos pos, BlockState state)
+    public void tick(Level world, BlockPos pos, BlockState state)
     {
         ModelBlockEntityUpdateCallback.EVENT.invoker().update(this);
 
@@ -120,38 +120,38 @@ public class ModelBlockEntity extends BlockEntity
 
     @Nullable
     @Override
-    public Packet<ClientPlayPacketListener> toUpdatePacket()
+    public Packet<ClientGamePacketListener> getUpdatePacket()
     {
-        return BlockEntityUpdateS2CPacket.create(this);
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override
-    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registryLookup)
+    public CompoundTag getUpdateTag(HolderLookup.Provider registryLookup)
     {
-        return this.createNbt(registryLookup);
+        return this.saveWithoutMetadata(registryLookup);
     }
 
     @Override
-    protected void writeData(WriteView view)
+    protected void saveAdditional(ValueOutput view)
     {
-        super.writeData(view);
+        super.saveAdditional(view);
 
         MapType data = this.properties.toData();
-        NbtCompound nbt = new NbtCompound();
+        CompoundTag nbt = new CompoundTag();
 
         DataStorageUtils.writeToNbtCompound(nbt, "Properties", data);
 
-        view.put("Properties", NbtCompound.CODEC, nbt.getCompoundOrEmpty("Properties"));
+        view.store("Properties", CompoundTag.CODEC, nbt.getCompoundOrEmpty("Properties"));
     }
 
     @Override
-    protected void readData(ReadView view)
+    protected void loadAdditional(ValueInput view)
     {
-        super.readData(view);
+        super.loadAdditional(view);
 
-        NbtCompound nbt = new NbtCompound();
+        CompoundTag nbt = new CompoundTag();
 
-        view.read("Properties", NbtCompound.CODEC).ifPresent((compound) -> nbt.put("Properties", compound));
+        view.read("Properties", CompoundTag.CODEC).ifPresent((compound) -> nbt.store("Properties", compound));
 
         this.readProperties(nbt);
     }
@@ -162,7 +162,7 @@ public class ModelBlockEntity extends BlockEntity
      * hydrates its off-world entity through here: {@link #readData(ReadView)} is protected, and the
      * component hands out plain NBT rather than a {@link ReadView}.
      */
-    public void readProperties(NbtCompound nbt)
+    public void readProperties(CompoundTag nbt)
     {
         BaseType baseType = DataStorageUtils.readFromNbtCompound(nbt, "Properties");
 
@@ -172,22 +172,22 @@ public class ModelBlockEntity extends BlockEntity
         }
     }
 
-    public void updateForm(MapType data, World world)
+    public void updateForm(MapType data, Level world)
     {
         this.properties.fromData(data);
 
-        BlockPos pos = this.getPos();
+        BlockPos pos = this.getBlockPos();
 
         /* Light and sound live in the block STATE (the engine reads them from
          * there), but their source of truth is the body data — mirror it. */
-        if (!world.isClient())
+        if (!world.isClientSide())
         {
             ModelBlock.mirrorBlockState(world, pos);
         }
 
         BlockState blockState = world.getBlockState(pos);
 
-        world.updateListeners(pos, blockState, blockState, Block.NOTIFY_LISTENERS);
-        world.markDirty(pos);
+        world.sendBlockUpdated(pos, blockState, blockState, Block.UPDATE_CLIENTS);
+        world.blockEntityChanged(pos);
     }
 }

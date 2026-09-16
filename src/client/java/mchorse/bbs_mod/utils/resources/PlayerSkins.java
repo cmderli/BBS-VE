@@ -13,9 +13,9 @@ import mchorse.bbs_mod.data.DataToString;
 import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.resources.Link;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.PlayerInfo;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -274,7 +274,7 @@ public class PlayerSkins
                 boolean result = loaded;
 
                 /* Behind the upload queued by the fetch, so the cache is already in by then */
-                MinecraftClient.getInstance().execute(() -> callback.accept(result));
+                Minecraft.getInstance().execute(() -> callback.accept(result));
             }
         });
     }
@@ -303,7 +303,7 @@ public class PlayerSkins
 
         ImageIO.write(PlayerSkinImage.normalize(image), "png", file);
 
-        MinecraftClient.getInstance().execute(() ->
+        Minecraft.getInstance().execute(() ->
         {
             cache.put(nickname.toLowerCase(), new Entry(nickname, System.currentTimeMillis()));
             saveCache();
@@ -352,14 +352,14 @@ public class PlayerSkins
     {
         try
         {
-            ClientPlayNetworkHandler handler = MinecraftClient.getInstance().getNetworkHandler();
+            ClientPacketListener handler = Minecraft.getInstance().getConnection();
 
             if (handler == null)
             {
                 return null;
             }
 
-            for (PlayerListEntry entry : handler.getPlayerList())
+            for (PlayerInfo entry : handler.getOnlinePlayers())
             {
                 GameProfile profile = entry.getProfile();
 

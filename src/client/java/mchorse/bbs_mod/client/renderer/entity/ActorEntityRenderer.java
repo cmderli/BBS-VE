@@ -9,19 +9,19 @@ import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.renderers.FormRenderType;
 import mchorse.bbs_mod.forms.renderers.FormRenderingContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.entity.EntityRenderer;
-import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.render.entity.model.BipedEntityModel;
-import net.minecraft.client.render.entity.model.EntityModelLayers;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
-import net.minecraft.client.render.state.CameraRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.util.Mth;
+import com.mojang.math.Axis;
 
 public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntityRenderer.ActorRenderState>
 {
@@ -41,7 +41,7 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
         public float tickDelta;
     }
 
-    public ActorEntityRenderer(EntityRendererFactory.Context ctx)
+    public ActorEntityRenderer(EntityRendererProvider.Context ctx)
     {
         super(ctx);
 
@@ -50,9 +50,9 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
          * MUST come from these — building the models off the PLAYER layer put the 64x32 armor
          * texture onto player-model UVs, which is exactly the garbled full-body leather look. */
         armorRenderer = new ArmorRenderer(
-            EntityModelLayers.PLAYER_EQUIPMENT.map((layer) -> new BipedEntityModel(ctx.getPart(layer))),
-            ctx.getPart(EntityModelLayers.ELYTRA),
-            ctx.getEquipmentModelLoader()
+            ModelLayers.PLAYER_ARMOR.map((layer) -> new HumanoidModel(ctx.getPart(layer))),
+            ctx.bakeLayer(ModelLayers.ELYTRA),
+            ctx.getEquipmentAssets()
         );
 
         /* The film draws an actor's shadow itself, sized and offset by the replay. A vanilla shadow
@@ -67,26 +67,26 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
     }
 
     @Override
-    public void updateRenderState(ActorEntity entity, ActorRenderState state, float tickDelta)
+    public void extractRenderState(ActorEntity entity, ActorRenderState state, float tickDelta)
     {
-        super.updateRenderState(entity, state, tickDelta);
+        super.extractRenderState(entity, state, tickDelta);
 
         state.entity = entity;
         state.tickDelta = tickDelta;
 
-        state.bodyYaw = MathHelper.lerpAngleDegrees(tickDelta, entity.lastBodyYaw, entity.bodyYaw);
+        state.bodyRot = Mth.rotLerp(tickDelta, entity.yBodyRotO, entity.yBodyRot);
         state.deathTime = entity.deathTime > 0 ? entity.deathTime + tickDelta : 0F;
 
         /* The red damage flash, exactly as LivingEntityRenderer derives it: a blow OR a death. The
          * death half is what keeps the body red for the whole fall - this renderer extends
          * EntityRenderer and fills the living state itself, so nothing else was setting it. */
-        state.hurt = entity.hurtTime > 0 || entity.deathTime > 0;
+        state.hasRedOverlay = entity.hurtTime > 0 || entity.deathTime > 0;
         state.pose = entity.getPose();
-        state.invisible = entity.isInvisible();
+        state.isInvisible = entity.isInvisible();
     }
 
     @Override
-    public void render(ActorRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue, CameraRenderState cameraState)
+    public void submit(ActorRenderState state, PoseStack matrices, SubmitNodeCollector queue, CameraRenderState cameraState)
     {
         ActorEntity entity = state.entity;
 
@@ -98,16 +98,16 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
             return;
         }
 
-        super.render(state, matrices, queue, cameraState);
+        super.submit(state, matrices, queue, cameraState);
 
         if (entity == null || !this.isVisible(state))
         {
             return;
         }
 
-        matrices.push();
+        matrices.pushPose();
 
-        int overlay = LivingEntityRenderer.getOverlay(state, 0F);
+        int overlay = LivingEntityRenderer.getOverlayCoords(state, 0F);
 
         this.setupTransforms(state, matrices);
 
@@ -127,27 +127,27 @@ public class ActorEntityRenderer extends EntityRenderer<ActorEntity, ActorEntity
         try
         {
             FormUtilsClient.render(form, new FormRenderingContext()
-                .set(FormRenderType.ENTITY, entity.getFormEntity(), matrices, state.light, overlay, state.tickDelta)
-                .camera(MinecraftClient.getInstance().gameRenderer.getCamera()));
+                .set(FormRenderType.ENTITY, entity.getFormEntity(), matrices, state.lightCoords, overlay, state.tickDelta)
+                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
         }
         finally
         {
             BBSRendering.endWorldForms(prevWorldForms);
 
-            matrices.pop();
+            matrices.popPose();
         }
     }
 
     protected boolean isVisible(LivingEntityRenderState state)
     {
-        return !state.invisible;
+        return !state.isInvisible;
     }
 
-    protected void setupTransforms(LivingEntityRenderState state, MatrixStack matrices)
+    protected void setupTransforms(LivingEntityRenderState state, PoseStack matrices)
     {
-        if (!state.isInPose(EntityPose.SLEEPING))
+        if (!state.hasPose(Pose.SLEEPING))
         {
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-state.bodyYaw));
+            matrices.rotateAround(Axis.YP.rotationDegrees(-state.bodyRot));
         }
 
         DeathPose.apply(matrices, state.deathTime);

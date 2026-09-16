@@ -39,24 +39,24 @@ import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.colors.Colors;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.block.enums.CameraSubmersionType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.WindowFramebuffer;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.world.level.material.FogType;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.MainTarget;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.render.state.GuiRenderState;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.fog.FogData;
-import net.minecraft.client.render.fog.FogModifier;
-import net.minecraft.client.texture.GlTexture;
-import net.minecraft.client.util.Window;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.DeltaTracker;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.fog.FogData;
+import net.minecraft.client.renderer.fog.environment.FogEnvironment;
+import com.mojang.blaze3d.opengl.GlTexture;
+import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.entity.Entity;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
@@ -139,8 +139,8 @@ public class BBSRendering
     private static float orthoDistance = -1F;
 
     private static boolean toggleFramebuffer;
-    private static Framebuffer framebuffer;
-    private static Framebuffer clientFramebuffer;
+    private static RenderTarget framebuffer;
+    private static RenderTarget clientFramebuffer;
     private static Texture texture;
 
     /** Private read FBO used to snapshot our framebuffer's colour attachment into {@link #texture}. */
@@ -315,16 +315,16 @@ public class BBSRendering
          * passes and stops (verified against the bytecode) — appending would put us behind
          * AtmosphericFogModifier, which matches every normal above-water frame, and we would
          * never run. */
-        FogRendererAccessor.bbs$getFogModifiers().add(0, new FogModifier()
+        FogRendererAccessor.bbs$getFogModifiers().add(0, new FogEnvironment()
         {
             @Override
-            public boolean shouldApply(CameraSubmersionType submersionType, Entity entity)
+            public boolean shouldApply(FogType submersionType, Entity entity)
             {
                 return BBSRendering.isOrthoActive();
             }
 
             @Override
-            public void applyStartEndModifier(FogData fogData, Camera camera, ClientWorld clientWorld, float f, RenderTickCounter renderTickCounter)
+            public void applyStartEndModifier(FogData fogData, Camera camera, ClientLevel clientWorld, float f, DeltaTracker renderTickCounter)
             {
                 fogData.environmentalStart = 1_000_000F;
                 fogData.renderDistanceStart = 1_000_000F;
@@ -346,48 +346,48 @@ public class BBSRendering
 
     /* Framebuffers */
 
-    public static Framebuffer getFramebuffer()
+    public static RenderTarget getFramebuffer()
     {
         return framebuffer;
     }
 
     public static void setupFramebuffer()
     {
-        Window window = MinecraftClient.getInstance().getWindow();
+        Window window = Minecraft.getInstance().getWindow();
 
-        framebuffer = new WindowFramebuffer(window.getFramebufferWidth(), window.getFramebufferHeight());
+        framebuffer = new MainTarget(window.getWidth(), window.getHeight());
     }
 
     public static void resizeExtraFramebuffers()
     {
-        Set<Framebuffer> buffers = new HashSet<>();
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Set<RenderTarget> buffers = new HashSet<>();
+        Minecraft mc = Minecraft.getInstance();
 
-        buffers.add(mc.worldRenderer.getEntityOutlinesFramebuffer());
-        buffers.add(mc.worldRenderer.getTranslucentFramebuffer());
-        buffers.add(mc.worldRenderer.getEntityFramebuffer());
-        buffers.add(mc.worldRenderer.getParticlesFramebuffer());
-        buffers.add(mc.worldRenderer.getWeatherFramebuffer());
-        buffers.add(mc.worldRenderer.getCloudsFramebuffer());
+        buffers.add(mc.levelRenderer.entityOutlineTarget());
+        buffers.add(mc.levelRenderer.getTranslucentTarget());
+        buffers.add(mc.levelRenderer.getItemEntityTarget());
+        buffers.add(mc.levelRenderer.getParticlesTarget());
+        buffers.add(mc.levelRenderer.getWeatherTarget());
+        buffers.add(mc.levelRenderer.getCloudsTarget());
 
-        for (Framebuffer buffer : buffers)
+        for (RenderTarget buffer : buffers)
         {
             resizeFramebuffer(buffer);
         }
     }
 
-    public static void resizeFramebuffer(Framebuffer framebuffer)
+    public static void resizeFramebuffer(RenderTarget framebuffer)
     {
         if (framebuffer == null)
         {
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        int w = mc.getWindow().getFramebufferWidth();
-        int h = mc.getWindow().getFramebufferHeight();
+        Minecraft mc = Minecraft.getInstance();
+        int w = mc.getWindow().getWidth();
+        int h = mc.getWindow().getHeight();
 
-        if (framebuffer.textureWidth == w && framebuffer.textureHeight == h)
+        if (framebuffer.width == w && framebuffer.height == h)
         {
             return;
         }
@@ -403,23 +403,23 @@ public class BBSRendering
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         BBSRendering.toggleFramebuffer = toggleFramebuffer;
 
         if (toggleFramebuffer)
         {
-            int w = mc.getWindow().getFramebufferWidth();
-            int h = mc.getWindow().getFramebufferHeight();
+            int w = mc.getWindow().getWidth();
+            int h = mc.getWindow().getHeight();
 
             resizeExtraFramebuffers();
 
-            if (framebuffer.textureWidth != w || framebuffer.textureHeight != h)
+            if (framebuffer.width != w || framebuffer.height != h)
             {
                 framebuffer.resize(w, h);
             }
 
-            clientFramebuffer = mc.getFramebuffer();
+            clientFramebuffer = mc.getMainRenderTarget();
 
             reassignFramebuffer(framebuffer);
 
@@ -446,9 +446,9 @@ public class BBSRendering
         }
     }
 
-    private static void reassignFramebuffer(Framebuffer framebuffer)
+    private static void reassignFramebuffer(RenderTarget framebuffer)
     {
-        MinecraftClient.getInstance().framebuffer = framebuffer;
+        Minecraft.getInstance().mainRenderTarget = framebuffer;
     }
 
     /**
@@ -474,9 +474,9 @@ public class BBSRendering
      */
     private static void composeIntoClientFramebuffer()
     {
-        Framebuffer client = clientFramebuffer;
+        RenderTarget client = clientFramebuffer;
 
-        if (client == null || client.getColorAttachment() == null || framebuffer.getColorAttachment() == null)
+        if (client == null || client.getColorTexture() == null || framebuffer.getColorTexture() == null)
         {
             return;
         }
@@ -484,8 +484,8 @@ public class BBSRendering
         /* The two normally match (the world export sizes the window to the export resolution, and
          * without that it exports at the window size), but the export size is rounded to even pixels,
          * so a copy of the shared region is what is always defined. */
-        int w = Math.min(framebuffer.textureWidth, client.textureWidth);
-        int h = Math.min(framebuffer.textureHeight, client.textureHeight);
+        int w = Math.min(framebuffer.width, client.width);
+        int h = Math.min(framebuffer.height, client.height);
 
         if (w <= 0 || h <= 0)
         {
@@ -493,7 +493,7 @@ public class BBSRendering
         }
 
         RenderSystem.getDevice().createCommandEncoder().copyTextureToTexture(
-            framebuffer.getColorAttachment(), client.getColorAttachment(), 0, 0, 0, 0, 0, w, h);
+            framebuffer.getColorTexture(), client.getColorTexture(), 0, 0, 0, 0, 0, w, h);
     }
 
     /* Rendering */
@@ -505,7 +505,7 @@ public class BBSRendering
          * was safe. On 1.21.11 Camera#update moved to GameRenderer.render's updateCamera, BEFORE
          * renderWorld: a HEAD reset would wipe the freshly armed flag before anything reads it (that
          * exact inversion made the whole ortho toggle a no-op). The reset lives in onWorldRenderEnd. */
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         /* The frame boundary the profiler's counters roll over on; the flag is mirrored here
          * so the hot-path checks read a plain static boolean. */
@@ -519,13 +519,13 @@ public class BBSRendering
         ModelSetupQueue.drain();
 
         BBSModClient.getVideos().startFrame();
-        BBSModClient.getFilms().startRenderFrame(mc.getRenderTickCounter().getTickProgress(false));
+        BBSModClient.getFilms().startRenderFrame(mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));
 
         UIBaseMenu menu = UIScreen.getCurrentMenu();
 
         if (menu != null)
         {
-            menu.startRenderFrame(mc.getRenderTickCounter().getTickProgress(false));
+            menu.startRenderFrame(mc.getDeltaTracker().getGameTimeDeltaPartialTick(false));
         }
 
         renderingWorld = true;
@@ -554,7 +554,7 @@ public class BBSRendering
         {
             /* Give back the culling disabled for this ortho frame (see setOrthoDistance);
              * the orbit re-arms the flag next frame from Camera#update if ortho is still on. */
-            MinecraftClient.getInstance().chunkCullingEnabled = true;
+            Minecraft.getInstance().smartCull = true;
 
             if (sodium)
             {
@@ -564,7 +564,7 @@ public class BBSRendering
 
         orthoDistance = -1F;
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         if (BBSModClient.getCameraController().getCurrent() instanceof PlayCameraController controller)
         {
@@ -576,7 +576,7 @@ public class BBSRendering
 
             /* 1.21.11: FrameOverlays takes a 3D MatrixStack (batcher.getContext().getMatrices() is now
              * a 2D Matrix3x2fStack). The overlays manage their own transform stack, so feed a fresh one. */
-            FrameOverlays.render(new MatrixStack(), batcher, controller.getContext());
+            FrameOverlays.render(new PoseStack(), batcher, controller.getContext());
             ImmediateGui.end();
         }
 
@@ -600,7 +600,7 @@ public class BBSRendering
                  * they show in the panel preview and in the exported file, like on 1.21.1. */
                 Batcher2D batcher = new Batcher2D(ImmediateGui.begin());
 
-                FrameOverlays.render(new MatrixStack(), batcher, panel.getRunner().getContext());
+                FrameOverlays.render(new PoseStack(), batcher, panel.getRunner().getContext());
                 ImmediateGui.end();
             }
         }
@@ -676,8 +676,8 @@ public class BBSRendering
      */
     private static void blitIntoSnapshot(Texture texture, int w, int h)
     {
-        int sourceWidth = framebuffer.textureWidth;
-        int sourceHeight = framebuffer.textureHeight;
+        int sourceWidth = framebuffer.width;
+        int sourceHeight = framebuffer.height;
 
         if (captureReadFramebuffer == -1)
         {
@@ -687,7 +687,7 @@ public class BBSRendering
 
         int previousRead = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
         int previousDraw = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-        int sourceId = ((GlTexture) framebuffer.getColorAttachment()).getGlId();
+        int sourceId = ((GlTexture) framebuffer.getColorTexture()).glId();
 
         GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, captureReadFramebuffer);
         GL30.glFramebufferTexture2D(GL30.GL_READ_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, sourceId, 0);
@@ -778,7 +778,7 @@ public class BBSRendering
         {
             Runnable action = pendingExportResolutionAction;
             pendingExportResolutionAction = null;
-            MinecraftClient.getInstance().execute(action);
+            Minecraft.getInstance().execute(action);
         }
     }
 
@@ -806,7 +806,7 @@ public class BBSRendering
         }
     }
 
-    public static void renderHud(DrawContext drawContext, float tickDelta)
+    public static void renderHud(GuiGraphics drawContext, float tickDelta)
     {
         Batcher2D batcher2D = new Batcher2D(drawContext);
 
@@ -840,7 +840,7 @@ public class BBSRendering
 
             label = UIKeys.FILM_VIDEO_RECORDING.format(
                 count,
-                BBSModClient.getKeyRecordVideo().getBoundKeyLocalizedText().getString()
+                BBSModClient.getKeyRecordVideo().getTranslatedKeyMessage().getString()
             ).get();
         }
         else
@@ -897,7 +897,7 @@ public class BBSRendering
         /* Feed the world camera orientation into the holder that replaced RenderSystem's inverse view rotation
          * matrix, so billboards and particles keep facing the camera in world space. The context no longer
          * exposes camera()/positionMatrix(); pull the camera from the game renderer directly. */
-        InverseView.set(new Matrix3f().rotation(MinecraftClient.getInstance().gameRenderer.getCamera().getRotation()));
+        InverseView.set(new Matrix3f().rotation(Minecraft.getInstance().gameRenderer.getMainCamera().rotation()));
 
         /* Draw morph forms collected during the (build-phase) entity render. AFTER_ENTITIES is the only
          * world context where the BBS immediate form pipeline lands correctly (entity queue flushed +
@@ -911,7 +911,7 @@ public class BBSRendering
 
         try
         {
-            if (MinecraftClient.getInstance().currentScreen instanceof UIScreen screen)
+            if (Minecraft.getInstance().screen instanceof UIScreen screen)
             {
                 screen.renderInWorld(worldRenderContext);
             }
@@ -952,7 +952,7 @@ public class BBSRendering
              * the screen edges. Disable it for the frame (Sodium honours the
              * same flag); the frustum and render distance still cull. Sodium's
              * own point-camera heuristics get the same treatment. */
-            MinecraftClient.getInstance().chunkCullingEnabled = false;
+            Minecraft.getInstance().smartCull = false;
 
             if (sodium)
             {
@@ -1008,7 +1008,7 @@ public class BBSRendering
          * which matters here because chunk occlusion culling is off (see
          * setOrthoDistance). */
         float near = -minHalfHeight;
-        float far = renderer.getFarPlaneDistance();
+        float far = renderer.getDepthFar();
 
         return new Matrix4f().setOrtho(-halfWidth, halfWidth, -halfHeight, halfHeight, near, far);
     }
@@ -1401,7 +1401,7 @@ public class BBSRendering
 
     public static Long getTimeOfDay()
     {
-        if (!MinecraftClient.getInstance().isOnThread())
+        if (!Minecraft.getInstance().isSameThread())
         {
             return null;
         }
@@ -1422,7 +1422,7 @@ public class BBSRendering
 
     public static Double getBrightness()
     {
-        if (!MinecraftClient.getInstance().isOnThread())
+        if (!Minecraft.getInstance().isSameThread())
         {
             return null;
         }
@@ -1443,7 +1443,7 @@ public class BBSRendering
 
     public static Double getWeather()
     {
-        if (!MinecraftClient.getInstance().isOnThread())
+        if (!Minecraft.getInstance().isSameThread())
         {
             return null;
         }
@@ -1464,7 +1464,7 @@ public class BBSRendering
 
     public static float getSunHorizontalRotation()
     {
-        if (!MinecraftClient.getInstance().isOnThread())
+        if (!Minecraft.getInstance().isSameThread())
         {
             return 0F;
         }
@@ -1485,7 +1485,7 @@ public class BBSRendering
 
     public static Integer getChromaSkyColorArgb()
     {
-        if (!MinecraftClient.getInstance().isOnThread())
+        if (!Minecraft.getInstance().isSameThread())
         {
             return null;
         }

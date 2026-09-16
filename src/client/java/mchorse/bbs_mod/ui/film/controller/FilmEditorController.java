@@ -21,7 +21,7 @@ import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.KeyframeSegment;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import java.util.List;
 import java.util.Map;
@@ -183,7 +183,7 @@ public class FilmEditorController extends BaseFilmController
                     BBSProfiler.end(BBSProfiler.Timer.ONION);
 
                     replay.keyframes.apply(ticks, entity);
-                    float tick = ticks + this.getTransition(entity, net.minecraft.client.MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false));
+                    float tick = ticks + this.getTransition(entity, net.minecraft.client.MinecraftClient.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false));
                     Form form = entity.getForm();
                     replay.properties.applyProperties(form, tick);
 
@@ -255,7 +255,7 @@ public class FilmEditorController extends BaseFilmController
         return super.getFilmControllerContext(context, replay, entity)
             /* WorldRenderContext.tickCounter() is gone in 1.21.11 — the render tick counter is
              * asked of the client directly. */
-            .transition(this.getTransition(entity, MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false)))
+            .transition(this.getTransition(entity, Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false)))
             .gizmoTarget(target)
             .gizmoView(this.controller.getGizmoView())
             .bone2(aBone2, TransformSpace.LOCAL);

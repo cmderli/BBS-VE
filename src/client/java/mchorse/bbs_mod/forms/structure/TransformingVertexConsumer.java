@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.forms.structure;
 
-import net.minecraft.client.render.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -41,53 +41,53 @@ public class TransformingVertexConsumer implements VertexConsumer
     }
 
     @Override
-    public VertexConsumer vertex(float x, float y, float z)
+    public VertexConsumer addVertex(float x, float y, float z)
     {
         this.position.set(x + this.offsetX, y + this.offsetY, z + this.offsetZ, 1F);
         this.positionMatrix.transform(this.position);
-        this.delegate.vertex(this.position.x, this.position.y, this.position.z);
+        this.delegate.addVertex(this.position.x, this.position.y, this.position.z);
 
         return this;
     }
 
     @Override
-    public VertexConsumer color(int red, int green, int blue, int alpha)
+    public VertexConsumer setColor(int red, int green, int blue, int alpha)
     {
-        this.delegate.color(red, green, blue, alpha);
+        this.delegate.setColor(red, green, blue, alpha);
 
         return this;
     }
 
     @Override
-    public VertexConsumer texture(float u, float v)
+    public VertexConsumer setUv(float u, float v)
     {
-        this.delegate.texture(u, v);
+        this.delegate.setUv(u, v);
 
         return this;
     }
 
     @Override
-    public VertexConsumer overlay(int u, int v)
+    public VertexConsumer setUv1(int u, int v)
     {
-        this.delegate.overlay(u, v);
+        this.delegate.setUv1(u, v);
 
         return this;
     }
 
     @Override
-    public VertexConsumer light(int u, int v)
+    public VertexConsumer setUv2(int u, int v)
     {
-        this.delegate.light(u, v);
+        this.delegate.setUv2(u, v);
 
         return this;
     }
 
     @Override
-    public VertexConsumer normal(float x, float y, float z)
+    public VertexConsumer setNormal(float x, float y, float z)
     {
         this.normal.set(x, y, z);
         this.normalMatrix.transform(this.normal);
-        this.delegate.normal(this.normal.x, this.normal.y, this.normal.z);
+        this.delegate.setNormal(this.normal.x, this.normal.y, this.normal.z);
 
         return this;
     }
@@ -95,17 +95,17 @@ public class TransformingVertexConsumer implements VertexConsumer
     /* Both abstract in 1.21.11 where 1.21.1 had defaults; neither is transformed here. */
 
     @Override
-    public VertexConsumer color(int argb)
+    public VertexConsumer setColor(int argb)
     {
-        this.delegate.color(argb);
+        this.delegate.setColor(argb);
 
         return this;
     }
 
     @Override
-    public VertexConsumer lineWidth(float width)
+    public VertexConsumer setLineWidth(float width)
     {
-        this.delegate.lineWidth(width);
+        this.delegate.setLineWidth(width);
 
         return this;
     }

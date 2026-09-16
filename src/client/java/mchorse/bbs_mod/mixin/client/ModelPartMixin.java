@@ -2,7 +2,7 @@ package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.forms.renderers.mob.IBBSModelPart;
 import mchorse.bbs_mod.forms.renderers.mob.MobRenderContext;
-import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.model.geom.ModelPart;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -83,7 +83,7 @@ public abstract class ModelPartMixin implements IBBSModelPart
      * a handful of entries per part, once per resource reload.
      */
     @Inject(method = "<init>", at = @At("RETURN"))
-    private void bbs$nameChildren(List<ModelPart.Cuboid> cuboids, Map<String, ModelPart> children, CallbackInfo info)
+    private void bbs$nameChildren(List<ModelPart.Cube> cuboids, Map<String, ModelPart> children, CallbackInfo info)
     {
         for (Map.Entry<String, ModelPart> entry : children.entrySet())
         {

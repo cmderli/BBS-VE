@@ -70,10 +70,10 @@ import mchorse.bbs_mod.utils.clips.Clip;
 import mchorse.bbs_mod.utils.clips.Clips;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.level.Level;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 
@@ -1096,7 +1096,7 @@ public class UIReplaysEditor extends UIElement implements IBoneSelectionHost
         }
         else if (context.mouseButton == 1 && this.isVisible())
         {
-            World world = MinecraftClient.getInstance().world;
+            Level world = Minecraft.getInstance().level;
             Camera camera = this.filmPanel.getCamera();
 
             Vector3f rayOffset = new Vector3f();
@@ -1111,7 +1111,7 @@ public class UIReplaysEditor extends UIElement implements IBoneSelectionHost
 
             if (blockHitResult.getType() != HitResult.Type.MISS)
             {
-                Vector3d vec = new Vector3d(blockHitResult.getPos().x, blockHitResult.getPos().y, blockHitResult.getPos().z);
+                Vector3d vec = new Vector3d(blockHitResult.getLocation().x, blockHitResult.getLocation().y, blockHitResult.getLocation().z);
 
                 if (Window.isShiftPressed())
                 {

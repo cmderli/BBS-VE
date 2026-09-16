@@ -21,12 +21,12 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.interps.Lerps;
 import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.ScreenRect;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Hand;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.LightTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.InteractionHand;
 import org.joml.Matrix3x2f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -137,8 +137,8 @@ public abstract class FormRenderer <T extends Form>
             angle = -MathUtils.PI + MathUtils.PI / 8;
         }
 
-        DrawContext dc = context.batcher.getContext();
-        Matrix3x2f pose = new Matrix3x2f(dc.getMatrices());
+        GuiGraphics dc = context.batcher.getContext();
+        Matrix3x2f pose = new Matrix3x2f(dc.pose());
 
         /* The live GUI scissor (set by the caller's batcher.clip — UIReplayList clips the preview to the
          * row's square) rides along as the composite quad's scissorArea; without it the model renders
@@ -146,9 +146,9 @@ public abstract class FormRenderer <T extends Form>
          * Batcher2D.clip neutralises the GUI matrix pose around DrawContext.enableScissor (which on
          * 1.21.11 transforms the rect by that pose, double-shifting it by the scroll), so the stored
          * scissor is shifted by the scroll exactly once — in lock-step with the geometry placed by pose. */
-        ScreenRect scissor = dc.scissorStack.peekLast();
+        ScreenRectangle scissor = dc.scissorStack.peek();
 
-        dc.state.addSpecialElement(new BbsFormGuiElementRenderState(
+        dc.guiRenderState.addSpecialElement(new BbsFormGuiElementRenderState(
             this, angle, context.getTransition(), pose, x1, y1, x2, y2, 1.0F, scissor));
     }
 
@@ -161,7 +161,7 @@ public abstract class FormRenderer <T extends Form>
      * element, so this is never called for them. The caller manages {@code ModelPreviewRenderer.ACTIVE} +
      * diffuse lighting + restore.
      */
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {}
 
     /**
@@ -184,7 +184,7 @@ public abstract class FormRenderer <T extends Form>
         return uiMatrix;
     }
 
-    public boolean renderArm(MatrixStack matrices, int light, AbstractClientPlayerEntity player, Hand hand)
+    public boolean renderArm(PoseStack matrices, int light, AbstractClientPlayer player, InteractionHand hand)
     {
         return false;
     }
@@ -200,10 +200,10 @@ public abstract class FormRenderer <T extends Form>
 
         int light = context.light;
         IEntity entity = context.entity;
-        MatrixStack stack = context.stack;
-        MatrixStack world = context.world;
-        MatrixStack.Entry stackEntry = stack.peek();
-        MatrixStack.Entry worldEntry = world == null ? null : world.peek();
+        PoseStack stack = context.stack;
+        PoseStack world = context.world;
+        PoseStack.Pose stackEntry = stack.last();
+        PoseStack.Pose worldEntry = world == null ? null : world.last();
         boolean isPicking = context.isPicking();
 
         try
@@ -217,10 +217,10 @@ public abstract class FormRenderer <T extends Form>
                 return;
             }
 
-            stack.push();
+            stack.pushPose();
             if (world != null)
             {
-                world.push();
+                world.pushPose();
             }
             this.applyTransforms(stack, false, context.getTransition());
             if (world != null)
@@ -232,7 +232,7 @@ public abstract class FormRenderer <T extends Form>
             int u = context.light & '\uffff';
             int v = context.light >> 16 & '\uffff';
 
-            u = (int) Lerps.lerp(u, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, lf);
+            u = (int) Lerps.lerp(u, LightTexture.FULL_BLOCK, lf);
             context.light = u | v << 16;
 
             this.render3D(context);
@@ -271,7 +271,7 @@ public abstract class FormRenderer <T extends Form>
         }
     }
 
-    protected void applyTransforms(MatrixStack stack, boolean origin, float transition)
+    protected void applyTransforms(PoseStack stack, boolean origin, float transition)
     {
         Transform transform = this.createTransform();
 
@@ -327,14 +327,14 @@ public abstract class FormRenderer <T extends Form>
      */
     public Vector3f getShadowDisplacement(IEntity entity, float transition)
     {
-        MatrixStack stack = new MatrixStack();
+        PoseStack stack = new PoseStack();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, false, transition);
 
-        Vector3f displacement = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+        Vector3f displacement = stack.last().pose().getTranslation(new Vector3f());
 
-        stack.pop();
+        stack.popPose();
 
         return displacement;
     }
@@ -376,10 +376,10 @@ public abstract class FormRenderer <T extends Form>
 
         if (part.getForm() != null)
         {
-            context.stack.push();
+            context.stack.pushPose();
             if (context.world != null)
             {
-                context.world.push();
+                context.world.pushPose();
             }
             MatrixStackUtils.applyTransform(context.stack, part.transform.get());
             if (context.world != null)
@@ -389,10 +389,10 @@ public abstract class FormRenderer <T extends Form>
 
             FormUtilsClient.render(part.getForm(), context);
 
-            context.stack.pop();
+            context.stack.popPose();
             if (context.world != null)
             {
-                context.world.pop();
+                context.world.popPose();
             }
         }
 
@@ -404,26 +404,26 @@ public abstract class FormRenderer <T extends Form>
         BBSProfiler.count(BBSProfiler.Section.COLLECT_MATRICES);
 
         MatrixCache map = new MatrixCache();
-        MatrixStack stack = new MatrixStack();
+        PoseStack stack = new PoseStack();
 
         this.collectMatrices(entity, stack, map, "", transition);
 
         return map;
     }
 
-    public void collectMatrices(IEntity entity, MatrixStack stack, MatrixCache matrices, String prefix, float transition)
+    public void collectMatrices(IEntity entity, PoseStack stack, MatrixCache matrices, String prefix, float transition)
     {
         Matrix4f mm = new Matrix4f();
         Matrix4f oo = new Matrix4f();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, true, transition);
-        oo.set(stack.peek().getPositionMatrix());
-        stack.pop();
+        oo.set(stack.last().pose());
+        stack.popPose();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, false, transition);
-        mm.set(stack.peek().getPositionMatrix());
+        mm.set(stack.last().pose());
 
         matrices.put(prefix, mm, oo);
 
@@ -433,15 +433,15 @@ public abstract class FormRenderer <T extends Form>
 
             if (form != null)
             {
-                stack.push();
+                stack.pushPose();
                 MatrixStackUtils.applyTransform(stack, part.transform.get());
 
                 FormUtilsClient.getRenderer(form).collectMatrices(entity, stack, matrices, StringUtils.combinePaths(prefix, part.getId()), transition);
 
-                stack.pop();
+                stack.popPose();
             }
         }
 
-        stack.pop();
+        stack.popPose();
     }
 }

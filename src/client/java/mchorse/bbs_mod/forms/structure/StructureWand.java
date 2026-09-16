@@ -20,24 +20,24 @@ import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3i;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.ChatFormatting;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.Vec3i;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -110,8 +110,8 @@ public class StructureWand
          * leaves is the attack key HELD on a block: the game keeps trying to break it every tick,
          * and FAIL here is what stops that without a swing or crack particles. The server side of
          * the same callbacks is a net under all of it. */
-        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> isHolding(player, hand) ? ActionResult.FAIL : ActionResult.PASS);
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> isHolding(player, hand) ? ActionResult.FAIL : ActionResult.PASS);
+        AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> isHolding(player, hand) ? InteractionResult.FAIL : InteractionResult.PASS);
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> isHolding(player, hand) ? InteractionResult.FAIL : InteractionResult.PASS);
 
         /* The item stays a plain Item: the tooltip is the one thing it would need a class for, and
          * it belongs on the client with the rest of the wand anyway */
@@ -121,7 +121,7 @@ public class StructureWand
             {
                 for (String line : TOOLTIP)
                 {
-                    lines.add(Text.translatable(line).formatted(Formatting.GRAY));
+                    lines.add(Component.translatable(line).withStyle(ChatFormatting.GRAY));
                 }
             }
         });
@@ -132,7 +132,7 @@ public class StructureWand
     /** Left button: corner A, or with Alt the whole selection dropped. True when the click was the wand's. */
     public static boolean onAttack()
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         if (!isActive(mc))
         {
@@ -156,7 +156,7 @@ public class StructureWand
     /** Right button: corner B, or with Alt the finished box off to the save dialog. */
     public static boolean onUse()
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         if (!isActive(mc))
         {
@@ -185,7 +185,7 @@ public class StructureWand
      */
     public static boolean onScroll(double vertical)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         if (!isActive(mc) || face == null || vertical == 0 || !StructureSelection.isReady())
         {
@@ -209,54 +209,54 @@ public class StructureWand
     }
 
     /** Whether the wand is in the player's hands with the world in front of them, not a screen. */
-    private static boolean isActive(MinecraftClient mc)
+    private static boolean isActive(Minecraft mc)
     {
-        return mc.player != null && mc.currentScreen == null && isHolding(mc.player);
+        return mc.player != null && mc.screen == null && isHolding(mc.player);
     }
 
     /**
      * Where a click lands: the block under the crosshair, or the block at arm's length when the
      * crosshair is on nothing — a region can start in the air, above a build.
      */
-    private static BlockPos pick(MinecraftClient mc)
+    private static BlockPos pick(Minecraft mc)
     {
-        HitResult hit = mc.crosshairTarget;
+        HitResult hit = mc.hitResult;
 
         if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK)
         {
             return blockHit.getBlockPos();
         }
 
-        float tickDelta = mc.getRenderTickCounter().getTickProgress(false);
-        Vec3d eye = mc.player.getCameraPosVec(tickDelta);
-        Vec3d look = mc.player.getRotationVec(tickDelta);
+        float tickDelta = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        Vec3 eye = mc.player.getEyePosition(tickDelta);
+        Vec3 look = mc.player.getViewVector(tickDelta);
         /* Since 1.21.1 the reach is an attribute of the player, not the interaction manager */
-        double reach = mc.player.getBlockInteractionRange();
+        double reach = mc.player.blockInteractionRange();
 
-        return BlockPos.ofFloored(eye.add(look.multiply(reach)));
+        return BlockPos.containing(eye.atLowerCornerWithOffset(look.scale(reach)));
     }
 
-    private static boolean isHolding(PlayerEntity player, Hand hand)
+    private static boolean isHolding(Player player, InteractionHand hand)
     {
-        return player.getStackInHand(hand).isOf(BBSMod.STRUCTURE_WAND_ITEM);
+        return player.getItemInHand(hand).is(BBSMod.STRUCTURE_WAND_ITEM);
     }
 
-    private static boolean isHolding(PlayerEntity player)
+    private static boolean isHolding(Player player)
     {
-        return isHolding(player, Hand.MAIN_HAND) || isHolding(player, Hand.OFF_HAND);
+        return isHolding(player, InteractionHand.MAIN_HAND) || isHolding(player, InteractionHand.OFF_HAND);
     }
 
     /** Whether the local player is holding the wand in either hand. */
     public static boolean isHolding()
     {
-        PlayerEntity player = MinecraftClient.getInstance().player;
+        Player player = Minecraft.getInstance().player;
 
         return player != null && isHolding(player);
     }
 
-    private static Hand getHand(PlayerEntity player)
+    private static InteractionHand getHand(Player player)
     {
-        return isHolding(player, Hand.MAIN_HAND) ? Hand.MAIN_HAND : Hand.OFF_HAND;
+        return isHolding(player, InteractionHand.MAIN_HAND) ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
     }
 
     /* Saving */
@@ -293,13 +293,13 @@ public class StructureWand
      */
     public static void onSaved(boolean ok, String name)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         StructureManager.invalidate();
 
         if (mc.player != null)
         {
-            mc.player.sendMessage(Text.literal((ok ? UIKeys.STRUCTURE_WAND_SAVED : UIKeys.STRUCTURE_WAND_SAVE_FAILED).format(name).get()), true);
+            mc.player.sendMessage(Component.literal((ok ? UIKeys.STRUCTURE_WAND_SAVED : UIKeys.STRUCTURE_WAND_SAVE_FAILED).format(name).get()), true);
         }
 
         if (ok && name.equals(pendingRecent))
@@ -331,7 +331,7 @@ public class StructureWand
      */
     public static void renderWorld(WorldRenderContext context)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         if (mc.player == null || !isHolding(mc.player))
         {
@@ -341,19 +341,19 @@ public class StructureWand
             return;
         }
 
-        float tickDelta = MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false);
-        Vec3d camera = MinecraftClient.getInstance().gameRenderer.getCamera().getCameraPos();
-        Box box = StructureSelection.getBox();
+        float tickDelta = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getCameraPos();
+        AABB box = StructureSelection.getBox();
 
         pick = pick(mc);
-        face = box == null ? null : findFace(mc.player.getCameraPosVec(tickDelta), mc.player.getRotationVec(tickDelta), box);
+        face = box == null ? null : findFace(mc.player.getEyePosition(tickDelta), mc.player.getViewVector(tickDelta), box);
 
-        MatrixStack stack = context.matrices();
+        PoseStack stack = context.matrices();
 
         /* One batch for the whole selection, submitted without depth testing — the blend/cull/depth
          * bracket that used to wrap this is pipeline state now, and reading through terrain is the
          * point of a selection: the box and its corners have to be visible from outside the build. */
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         if (box != null)
         {
@@ -385,7 +385,7 @@ public class StructureWand
      * The face of the box the ray goes through first — or, from inside the box, the one it leaves
      * through, which is the face the user is looking at either way. Null when the ray misses.
      */
-    private static Direction findFace(Vec3d origin, Vec3d direction, Box box)
+    private static Direction findFace(Vec3 origin, Vec3 direction, AABB box)
     {
         double tNear = Double.NEGATIVE_INFINITY;
         double tFar = Double.POSITIVE_INFINITY;
@@ -394,10 +394,10 @@ public class StructureWand
 
         for (Direction.Axis axis : Direction.Axis.values())
         {
-            double o = origin.getComponentAlongAxis(axis);
-            double d = direction.getComponentAlongAxis(axis);
-            double lo = box.getMin(axis);
-            double hi = box.getMax(axis);
+            double o = origin.get(axis);
+            double d = direction.get(axis);
+            double lo = box.min(axis);
+            double hi = box.max(axis);
 
             if (Math.abs(d) < 1E-9)
             {
@@ -411,8 +411,8 @@ public class StructureWand
 
             double tLo = (lo - o) / d;
             double tHi = (hi - o) / d;
-            Direction loFace = Direction.from(axis, Direction.AxisDirection.NEGATIVE);
-            Direction hiFace = Direction.from(axis, Direction.AxisDirection.POSITIVE);
+            Direction loFace = Direction.fromAxisAndDirection(axis, Direction.AxisDirection.NEGATIVE);
+            Direction hiFace = Direction.fromAxisAndDirection(axis, Direction.AxisDirection.POSITIVE);
             double tEnter = Math.min(tLo, tHi);
             double tExit = Math.max(tLo, tHi);
 
@@ -437,15 +437,15 @@ public class StructureWand
         return tNear > 0 ? near : far;
     }
 
-    private static void renderBox(BufferBuilder builder, MatrixStack stack, Vec3d camera, Box box)
+    private static void renderBox(BufferBuilder builder, PoseStack stack, Vec3 camera, AABB box)
     {
-        float w = (float) box.getLengthX();
-        float h = (float) box.getLengthY();
-        float d = (float) box.getLengthZ();
+        float w = (float) box.getXsize();
+        float h = (float) box.getYsize();
+        float d = (float) box.getZsize();
 
         COLOR.set(BBSSettings.primaryColor.get());
 
-        stack.push();
+        stack.pushPose();
         stack.translate(box.minX - camera.x, box.minY - camera.y, box.minZ - camera.z);
 
         /* Only the hovered face is filled — an empty box lets the build inside it be seen, and
@@ -460,7 +460,7 @@ public class StructureWand
         /* The face the wheel would push gets a white rim: a flat box, its thickness along the normal zero */
         if (face != null)
         {
-            boolean positive = face.getDirection() == Direction.AxisDirection.POSITIVE;
+            boolean positive = face.getAxisDirection() == Direction.AxisDirection.POSITIVE;
             Direction.Axis axis = face.getAxis();
             float x = axis == Direction.Axis.X && positive ? w : 0;
             float y = axis == Direction.Axis.Y && positive ? h : 0;
@@ -469,11 +469,11 @@ public class StructureWand
             Draw.renderBox(builder, stack, x, y, z, axis == Direction.Axis.X ? 0 : w, axis == Direction.Axis.Y ? 0 : h, axis == Direction.Axis.Z ? 0 : d, 1F, 1F, 1F, 0.9F);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     /** One face of a box standing at the origin, as two triangles. */
-    private static void fillFace(BufferBuilder builder, MatrixStack stack, Direction side, float w, float h, float d, float r, float g, float b, float a)
+    private static void fillFace(BufferBuilder builder, PoseStack stack, Direction side, float w, float h, float d, float r, float g, float b, float a)
     {
         switch (side)
         {
@@ -487,29 +487,29 @@ public class StructureWand
     }
 
     /** A corner block: filled in its own color, so A and B are told apart at a glance. */
-    private static void renderCorner(BufferBuilder builder, MatrixStack stack, Vec3d camera, BlockPos pos, int color)
+    private static void renderCorner(BufferBuilder builder, PoseStack stack, Vec3 camera, BlockPos pos, int color)
     {
         float r = Colors.getR(color);
         float g = Colors.getG(color);
         float b = Colors.getB(color);
 
-        stack.push();
+        stack.pushPose();
         stack.translate(pos.getX() - camera.x, pos.getY() - camera.y, pos.getZ() - camera.z);
 
 
         Draw.fillBox(builder, stack, 0, 0, 0, 1, 1, 1, r, g, b, CORNER_FILL);
         Draw.renderBox(builder, stack, 0, 0, 0, 1, 1, 1, r, g, b, 1F);
 
-        stack.pop();
+        stack.popPose();
     }
 
     /** The block the next click would take, as a faint white frame. */
-    private static void renderGhost(BufferBuilder builder, MatrixStack stack, Vec3d camera, BlockPos pos)
+    private static void renderGhost(BufferBuilder builder, PoseStack stack, Vec3 camera, BlockPos pos)
     {
-        stack.push();
+        stack.pushPose();
         stack.translate(pos.getX() - camera.x, pos.getY() - camera.y, pos.getZ() - camera.z);
         Draw.renderBox(builder, stack, 0, 0, 0, 1, 1, 1, 1F, 1F, 1F, GHOST);
-        stack.pop();
+        stack.popPose();
     }
 
     /* HUD */
@@ -591,9 +591,9 @@ public class StructureWand
      */
     public static void renderHud(Batcher2D batcher)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
-        if (mc.player == null || mc.currentScreen != null || mc.options.hudHidden || !isHolding(mc.player))
+        if (mc.player == null || mc.screen != null || mc.options.hideGui || !isHolding(mc.player))
         {
             return;
         }
@@ -623,8 +623,8 @@ public class StructureWand
         int total = leftWidth + (rightWidth == 0 ? 0 : COLUMN_GAP + rightWidth);
         int rows = Math.max(plain.size(), alt.size());
 
-        int width = mc.getWindow().getScaledWidth();
-        int height = mc.getWindow().getScaledHeight();
+        int width = mc.getWindow().getGuiScaledWidth();
+        int height = mc.getWindow().getGuiScaledHeight();
 
         /* Bottom edge clear of the hotbar and the health rows; the block grows upwards */
         int y = height - 54 - rows * ROW;

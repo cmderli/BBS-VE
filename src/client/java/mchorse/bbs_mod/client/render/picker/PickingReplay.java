@@ -5,17 +5,17 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.forms.FormRenderCapture;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.texture.AbstractTexture;
-import net.minecraft.client.texture.SpriteAtlasTexture;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.TextureAtlas;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -50,27 +50,27 @@ public class PickingReplay
      * recorded (the renderer's {@code setupTarget}); the model-view is the global one — the
      * capture bakes the form's stack into the vertices, same as the cubic picking draw.
      */
-    public static void draw(Map<RenderLayer, List<FormRenderCapture.Captured>> captured)
+    public static void draw(Map<RenderType, List<FormRenderCapture.Captured>> captured)
     {
         if (captured == null || captured.isEmpty())
         {
             return;
         }
 
-        for (Map.Entry<RenderLayer, List<FormRenderCapture.Captured>> entry : captured.entrySet())
+        for (Map.Entry<RenderType, List<FormRenderCapture.Captured>> entry : captured.entrySet())
         {
-            RenderSetup.Texture texture = sampler0(entry.getKey());
+            RenderSetup.TextureAndSampler texture = sampler0(entry.getKey());
 
             BBSPickerRenderer.setSampler0(texture.textureView(), texture.sampler());
 
-            BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL);
+            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.NEW_ENTITY);
 
             for (FormRenderCapture.Captured single : entry.getValue())
             {
                 emit(single, builder);
             }
 
-            BuiltBuffer built = builder.endNullable();
+            MeshData built = builder.build();
 
             if (built != null)
             {
@@ -84,24 +84,24 @@ public class PickingReplay
      * geometry points there, and a layer that samples nothing of its own (glint) only duplicates
      * geometry the base layer has already written.
      */
-    private static RenderSetup.Texture sampler0(RenderLayer layer)
+    private static RenderSetup.TextureAndSampler sampler0(RenderType layer)
     {
-        RenderSetup.Texture texture = layer.renderSetup.resolveTextures().get("Sampler0");
+        RenderSetup.TextureAndSampler texture = layer.state.getTextures().get("Sampler0");
 
         if (texture != null)
         {
             return texture;
         }
 
-        AbstractTexture atlas = MinecraftClient.getInstance().getTextureManager().getTexture(SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE);
+        AbstractTexture atlas = Minecraft.getInstance().getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS);
 
-        return new RenderSetup.Texture(atlas.getGlTextureView(), atlas.getSampler());
+        return new RenderSetup.TextureAndSampler(atlas.getTextureView(), atlas.getSampler());
     }
 
     /** Re-emit one captured buffer as QUADS, doubling the last vertex of each triangle. */
     private static void emit(FormRenderCapture.Captured captured, VertexConsumer consumer)
     {
-        VertexFormat.DrawMode mode = captured.params().mode();
+        VertexFormat.Mode mode = captured.params().mode();
         int count = captured.params().vertexCount();
 
         if (mode == VertexFormat.DrawMode.QUADS)
@@ -136,7 +136,7 @@ public class PickingReplay
 
         float x = 0F, y = 0F, z = 0F;
         float u = 0F, v = 0F;
-        int overlay = OverlayTexture.DEFAULT_UV;
+        int overlay = OverlayTexture.NO_OVERLAY;
         int light = 0;
 
         for (VertexFormatElement element : format.getElements())
@@ -173,11 +173,11 @@ public class PickingReplay
 
         /* Colour is replaced by the picker's Target index in the shader; light.x carries the
          * per-vertex bone sub-index, which stays 0 for everything without a rig. */
-        consumer.vertex(x, y, z)
-            .color(255, 255, 255, 255)
-            .texture(u, v)
-            .overlay(overlay)
-            .light(light)
-            .normal(0F, 1F, 0F);
+        consumer.addVertex(x, y, z)
+            .setColor(255, 255, 255, 255)
+            .setUv(u, v)
+            .setUv1(overlay)
+            .setUv2(light)
+            .setNormal(0F, 1F, 0F);
     }
 }

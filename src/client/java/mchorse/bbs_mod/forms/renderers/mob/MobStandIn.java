@@ -5,22 +5,22 @@ import mchorse.bbs_mod.forms.entities.EntityState;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.mixin.EntityInvoker;
 import mchorse.bbs_mod.mixin.LimbAnimatorAccessor;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.OtherClientPlayerEntity;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.PlayerLikeEntity;
-import net.minecraft.entity.SpawnReason;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.StringNbtReader;
-import net.minecraft.registry.Registries;
-import net.minecraft.storage.NbtReadView;
-import net.minecraft.util.ErrorReporter;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Avatar;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.resources.Identifier;
 
 import java.util.UUID;
 
@@ -72,35 +72,35 @@ public class MobStandIn
             this.entity = null;
         }
 
-        ClientWorld world = MinecraftClient.getInstance().world;
+        ClientLevel world = Minecraft.getInstance().level;
 
         if (this.entity != null || world == null)
         {
             return this.entity;
         }
 
-        NbtCompound compound = new NbtCompound();
+        CompoundTag compound = new CompoundTag();
 
         try
         {
             /* 1.21.5: new StringNbtReader(StringReader).parseCompound() -> StringNbtReader.readCompound(String). */
-            compound = StringNbtReader.readCompound(nbt);
+            compound = TagParser.parseCompoundFully(nbt);
         }
         catch (Exception e)
         {}
 
-        Identifier identifier = Identifier.tryParse(id);
-        EntityType<?> type = identifier != null && Registries.ENTITY_TYPE.containsId(identifier) ? Registries.ENTITY_TYPE.get(identifier) : null;
+        Identifier identifier = Identifier.tryBuild(id);
+        EntityType<?> type = identifier != null && BuiltInRegistries.ENTITY_TYPE.containsKey(identifier) ? BuiltInRegistries.ENTITY_TYPE.get(identifier) : null;
 
         /* 1.21.2: EntityType.create(World) -> create(World, SpawnReason). */
-        this.entity = type == null ? null : type.create(world, SpawnReason.COMMAND);
+        this.entity = type == null ? null : type.create(world, EntitySpawnReason.COMMAND);
 
         if (this.entity == null && player)
         {
-            this.entity = new OtherClientPlayerEntity(world, slim ? SLIM : WIDE);
+            this.entity = new RemotePlayer(world, slim ? SLIM : WIDE);
             /* 1.21.9: PlayerEntity.PLAYER_MODEL_PARTS moved to PlayerLikeEntity.PLAYER_MODE_CUSTOMIZATION_ID
              * (same tracked byte, renamed; opened via bbs.accesswidener). All cosmetic layers on, as before. */
-            this.entity.getDataTracker().set(PlayerLikeEntity.PLAYER_MODE_CUSTOMIZATION_ID, (byte) 0b1111111);
+            this.entity.getEntityData().set(Avatar.DATA_PLAYER_MODE_CUSTOMISATION, (byte) 0b1111111);
         }
 
         if (this.entity != null)
@@ -112,12 +112,12 @@ public class MobStandIn
                 /* 1.21.6 persistence rewrite: Entity.readNbt(NbtCompound) -> readData(ReadView).
                  * The user-typed NBT can be anything, and a mob that fails mid-read is still
                  * usable — it just ignores the broken tags, like the old readNbt did. */
-                this.entity.readData(NbtReadView.create(ErrorReporter.EMPTY, world.getRegistryManager(), compound));
+                this.entity.load(TagValueInput.create(ProblemReporter.DISCARDING, world.getRegistryManager(), compound));
             }
             catch (Exception e)
             {}
 
-            this.entity.noClip = true;
+            this.entity.noPhysics = true;
         }
 
         return this.entity;
@@ -135,8 +135,8 @@ public class MobStandIn
 
         /* 1.21.9: Entity prevPitch/prevYaw -> lastPitch/lastYaw; LivingEntity prevHeadYaw/
          * prevBodyYaw -> lastHeadYaw/lastBodyYaw. */
-        this.entity.lastPitch = this.prevPitch;
-        this.entity.lastYaw = 0F;
+        this.entity.xRotO = this.prevPitch;
+        this.entity.yRotO = 0F;
 
         if (this.entity instanceof LivingEntity livingEntity)
         {
@@ -144,7 +144,7 @@ public class MobStandIn
             livingEntity.lastBodyYaw = 0F;
 
             /* Limb swing is so ugly */
-            if (livingEntity.limbAnimator instanceof LimbAnimatorAccessor a && source.getLimbAnimator() instanceof LimbAnimatorAccessor b)
+            if (livingEntity.walkAnimation instanceof LimbAnimatorAccessor a && source.getLimbAnimator() instanceof LimbAnimatorAccessor b)
             {
                 a.setPrevSpeed(b.getPrevSpeed());
                 a.setSpeed(b.getSpeed());
@@ -161,20 +161,20 @@ public class MobStandIn
 
             if (handSwingProgress > 0 && this.prevHandSwing == 0)
             {
-                livingEntity.swingHand(Hand.MAIN_HAND);
+                livingEntity.swing(InteractionHand.MAIN_HAND);
             }
 
             this.prevHandSwing = handSwingProgress;
         }
 
-        this.entity.setYaw(0F);
-        this.entity.setHeadYaw(source.getHeadYaw() - source.getBodyYaw());
-        this.entity.setPitch(source.getPitch());
-        this.entity.setBodyYaw(0F);
+        this.entity.setYRot(0F);
+        this.entity.setYHeadRot(source.getHeadYaw() - source.getBodyYaw());
+        this.entity.setXRot(source.getPitch());
+        this.entity.setYBodyRot(0F);
 
-        this.entity.setPos(source.getX(), source.getY(), source.getZ());
+        this.entity.setPosRaw(source.getX(), source.getY(), source.getZ());
         this.entity.setOnGround(source.isOnGround());
-        this.entity.setSneaking(source.isSneaking());
+        this.entity.setShiftKeyDown(source.isSneaking());
         this.entity.setSprinting(source.isSprinting());
         this.entity.setSwimming(source.isSwimming());
         ((EntityInvoker) this.entity).bbs$setFlag(EntityState.FALL_FLYING_FLAG, source.isFallFlying());
@@ -183,16 +183,16 @@ public class MobStandIn
         /* Since 1.21.1 equipStack belongs to LivingEntity, not Entity */
         if (this.entity instanceof LivingEntity living)
         {
-            living.equipStack(EquipmentSlot.MAINHAND, source.getEquipmentStack(EquipmentSlot.MAINHAND));
-            living.equipStack(EquipmentSlot.OFFHAND, source.getEquipmentStack(EquipmentSlot.OFFHAND));
-            living.equipStack(EquipmentSlot.HEAD, source.getEquipmentStack(EquipmentSlot.HEAD));
-            living.equipStack(EquipmentSlot.CHEST, source.getEquipmentStack(EquipmentSlot.CHEST));
-            living.equipStack(EquipmentSlot.LEGS, source.getEquipmentStack(EquipmentSlot.LEGS));
-            living.equipStack(EquipmentSlot.FEET, source.getEquipmentStack(EquipmentSlot.FEET));
+            living.setItemSlot(EquipmentSlot.MAINHAND, source.getEquipmentStack(EquipmentSlot.MAINHAND));
+            living.setItemSlot(EquipmentSlot.OFFHAND, source.getEquipmentStack(EquipmentSlot.OFFHAND));
+            living.setItemSlot(EquipmentSlot.HEAD, source.getEquipmentStack(EquipmentSlot.HEAD));
+            living.setItemSlot(EquipmentSlot.CHEST, source.getEquipmentStack(EquipmentSlot.CHEST));
+            living.setItemSlot(EquipmentSlot.LEGS, source.getEquipmentStack(EquipmentSlot.LEGS));
+            living.setItemSlot(EquipmentSlot.FEET, source.getEquipmentStack(EquipmentSlot.FEET));
         }
 
-        this.entity.age = source.getAge();
-        this.entity.noClip = true;
+        this.entity.tickCount = source.getAge();
+        this.entity.noPhysics = true;
 
         this.prevYawHead = source.getHeadYaw() - source.getBodyYaw();
         this.prevPitch = source.getPitch();

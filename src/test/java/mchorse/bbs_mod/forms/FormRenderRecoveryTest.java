@@ -6,7 +6,7 @@ import mchorse.bbs_mod.forms.renderers.FormRenderer;
 import mchorse.bbs_mod.forms.renderers.FormRenderingContext;
 import mchorse.bbs_mod.settings.values.numeric.ValueInt;
 import mchorse.bbs_mod.ui.framework.UIContext;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
@@ -32,12 +32,12 @@ public class FormRenderRecoveryTest
     {
         TestForm form = new TestForm();
         FormRenderingContext context = context(withWorld);
-        MatrixStack.Entry caller = context.stack.peek();
-        Matrix4f position = new Matrix4f(caller.getPositionMatrix());
-        Matrix3f normal = new Matrix3f(caller.getNormalMatrix());
-        MatrixStack.Entry worldCaller = withWorld ? context.world.peek() : null;
-        Matrix4f worldPosition = withWorld ? new Matrix4f(worldCaller.getPositionMatrix()) : null;
-        Matrix3f worldNormal = withWorld ? new Matrix3f(worldCaller.getNormalMatrix()) : null;
+        PoseStack.Pose caller = context.stack.last();
+        Matrix4f position = new Matrix4f(caller.pose());
+        Matrix3f normal = new Matrix3f(caller.normal());
+        PoseStack.Pose worldCaller = withWorld ? context.world.last() : null;
+        Matrix4f worldPosition = withWorld ? new Matrix4f(worldCaller.pose()) : null;
+        Matrix3f worldNormal = withWorld ? new Matrix3f(worldCaller.normal()) : null;
         int light = context.light;
         RuntimeException failure = new RuntimeException("Deliberate nested render failure");
 
@@ -65,15 +65,15 @@ public class FormRenderRecoveryTest
             {
                 if (fail)
                 {
-                    ctx.stack.push();
+                    ctx.stack.pushPose();
                     ctx.stack.translate(10, 20, 30);
-                    ctx.stack.push();
+                    ctx.stack.pushPose();
                     ctx.stack.scale(2, 3, 4);
                     if (ctx.world != null)
                     {
-                        ctx.world.push();
+                        ctx.world.pushPose();
                         ctx.world.scale(4, 3, 2);
-                        ctx.world.push();
+                        ctx.world.pushPose();
                     }
                     throw failure;
                 }
@@ -92,20 +92,20 @@ public class FormRenderRecoveryTest
         }
 
         check(thrown == fail, "Expected render outcome");
-        check(context.stack.peek() == caller, "Caller stack depth must survive nested failures");
-        check(position.equals(caller.getPositionMatrix()), "Caller position must be unchanged");
-        check(normal.equals(caller.getNormalMatrix()), "Caller normals must be unchanged");
+        check(context.stack.last() == caller, "Caller stack depth must survive nested failures");
+        check(position.equals(caller.pose()), "Caller position must be unchanged");
+        check(normal.equals(caller.normal()), "Caller normals must be unchanged");
         if (withWorld)
         {
-            check(context.world.peek() == worldCaller, "World stack depth must be restored");
-            check(worldPosition.equals(worldCaller.getPositionMatrix()), "World position must be unchanged");
-            check(worldNormal.equals(worldCaller.getNormalMatrix()), "World normals must be unchanged");
-            context.world.pop();
+            check(context.world.last() == worldCaller, "World stack depth must be restored");
+            check(worldPosition.equals(worldCaller.pose()), "World position must be unchanged");
+            check(worldNormal.equals(worldCaller.normal()), "World normals must be unchanged");
+            context.world.popPose();
             check(context.world.isEmpty(), "World stack must balance after caller pops");
         }
         check(context.light == light, "Lighting must be restored");
         check(!form.applied && form.resets == 1, "Temporary form states must be reset");
-        context.stack.pop();
+        context.stack.popPose();
         check(context.stack.isEmpty(), "WorldRenderer.checkEmpty must succeed after caller pops");
     }
 
@@ -114,25 +114,25 @@ public class FormRenderRecoveryTest
         TestForm form = new TestForm();
         form.visible.set(false);
         FormRenderingContext context = context(true);
-        MatrixStack.Entry caller = context.stack.peek();
+        PoseStack.Pose caller = context.stack.last();
 
         new TestRenderer(form).render(context);
 
         check(!form.applied && form.resets == 1, "Invisible forms must also reset temporary states");
-        check(context.stack.peek() == caller, "Invisible forms must leave caller matrices intact");
+        check(context.stack.last() == caller, "Invisible forms must leave caller matrices intact");
     }
 
     private static FormRenderingContext context(boolean world)
     {
         FormRenderingContext context = new FormRenderingContext();
-        context.stack = new MatrixStack();
+        context.stack = new PoseStack();
         context.stack.translate(1, 2, 3);
-        context.stack.push();
+        context.stack.pushPose();
         context.stack.scale(2, 3, 4);
         if (world)
         {
-            context.world = new MatrixStack();
-            context.world.push();
+            context.world = new PoseStack();
+            context.world.pushPose();
             context.world.translate(4, 5, 6);
         }
         context.light = 0x00300020;

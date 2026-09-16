@@ -303,7 +303,7 @@ public class OrbitViewGizmo
 
     private void fillCircle(Batcher2D batcher, float x, float y, float radius, int color)
     {
-        Matrix3x2fc matrix = batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = batcher.getContext().pose();
         GuiQuadMesh builder = new GuiQuadMesh();
 
         /* The deferred GUI composites everything through the hard-wired QUADS index buffer, so the
@@ -317,10 +317,10 @@ public class OrbitViewGizmo
             float x2 = (float) (x - Math.cos(a2) * radius);
             float y2 = (float) (y + Math.sin(a2) * radius);
 
-            builder.vertex(matrix, x, y).color(color);
-            builder.vertex(matrix, x1, y1).color(color);
-            builder.vertex(matrix, x2, y2).color(color);
-            builder.vertex(matrix, x2, y2).color(color);
+            builder.addVertex(matrix, x, y).setColor(color);
+            builder.addVertex(matrix, x1, y1).setColor(color);
+            builder.addVertex(matrix, x2, y2).setColor(color);
+            builder.addVertex(matrix, x2, y2).setColor(color);
         }
 
         this.draw(batcher, builder);
@@ -328,7 +328,7 @@ public class OrbitViewGizmo
 
     private void annulus(Batcher2D batcher, float x, float y, float inner, float outer, int color)
     {
-        Matrix3x2fc matrix = batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = batcher.getContext().pose();
         GuiQuadMesh builder = new GuiQuadMesh();
 
         for (int i = 0; i < SEGMENTS; i++)
@@ -345,10 +345,10 @@ public class OrbitViewGizmo
             float oy2 = (float) (y + Math.sin(a2) * outer);
 
             /* One quad per segment — the same two triangles the explicit emission built. */
-            builder.vertex(matrix, ix2, iy2).color(color);
-            builder.vertex(matrix, ix1, iy1).color(color);
-            builder.vertex(matrix, ox1, oy1).color(color);
-            builder.vertex(matrix, ox2, oy2).color(color);
+            builder.addVertex(matrix, ix2, iy2).setColor(color);
+            builder.addVertex(matrix, ix1, iy1).setColor(color);
+            builder.addVertex(matrix, ox1, oy1).setColor(color);
+            builder.addVertex(matrix, ox2, oy2).setColor(color);
         }
 
         this.draw(batcher, builder);
@@ -368,13 +368,13 @@ public class OrbitViewGizmo
         float nx = -dy / length * width / 2F;
         float ny = dx / length * width / 2F;
 
-        Matrix3x2fc matrix = batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = batcher.getContext().pose();
         GuiQuadMesh builder = new GuiQuadMesh();
 
-        builder.vertex(matrix, x1 - nx, y1 - ny).color(color);
-        builder.vertex(matrix, x1 + nx, y1 + ny).color(color);
-        builder.vertex(matrix, x2 + nx, y2 + ny).color(color);
-        builder.vertex(matrix, x2 - nx, y2 - ny).color(color);
+        builder.addVertex(matrix, x1 - nx, y1 - ny).setColor(color);
+        builder.addVertex(matrix, x1 + nx, y1 + ny).setColor(color);
+        builder.addVertex(matrix, x2 + nx, y2 + ny).setColor(color);
+        builder.addVertex(matrix, x2 - nx, y2 - ny).setColor(color);
 
         this.draw(batcher, builder);
     }

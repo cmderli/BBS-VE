@@ -7,16 +7,16 @@ import mchorse.bbs_mod.settings.values.mc.ValueItemStack;
 import mchorse.bbs_mod.settings.values.numeric.ValueBoolean;
 import mchorse.bbs_mod.settings.values.numeric.ValueInt;
 import mchorse.bbs_mod.utils.clips.Clip;
-import net.minecraft.component.EnchantmentEffectComponentTypes;
-import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.Hand;
+import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.Holder;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.InteractionHand;
 
 /**
  * Vanilla's "released the use button" moment: a drawn bow firing its arrow, a
@@ -56,9 +56,9 @@ public class ReleaseUseItemActionClip extends ItemActionClip
     @Override
     public void applyAction(LivingEntity actor, SuperFakePlayer player, Film film, Replay replay, int tick)
     {
-        Hand hand = this.hand.get() ? Hand.MAIN_HAND : Hand.OFF_HAND;
-        Hand other = this.hand.get() ? Hand.OFF_HAND : Hand.MAIN_HAND;
-        ItemStack stack = this.itemStack.get().copy();
+        InteractionHand hand = this.hand.get() ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND;
+        InteractionHand other = this.hand.get() ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        ItemStack stack = this.itemStack.get().copyFrom();
         ItemStack projectile = this.projectile.get();
 
         this.applyPositionRotation(player, replay, tick);
@@ -72,19 +72,19 @@ public class ReleaseUseItemActionClip extends ItemActionClip
 
         /* Use clips leave the fake player's "using an item" flag raised, and a
          * raised flag makes setCurrentHand() refuse to work */
-        player.clearActiveItem();
-        player.setStackInHand(hand, stack);
+        player.stopUsingItem();
+        player.setItemInHand(hand, stack);
 
         if (!projectile.isEmpty())
         {
-            player.setStackInHand(other, projectile.copy());
+            player.setItemInHand(other, projectile.copyFrom());
         }
 
-        player.setCurrentHand(hand);
-        stack.onStoppedUsing(player.getEntityWorld(), player, Math.max(0, stack.getMaxUseTime(player) - this.charge.get()));
-        player.clearActiveItem();
-        player.setStackInHand(hand, ItemStack.EMPTY);
-        player.setStackInHand(other, ItemStack.EMPTY);
+        player.startUsingItem(hand);
+        stack.releaseUsing(player.level(), player, Math.max(0, stack.getUseDuration(player) - this.charge.get()));
+        player.stopUsingItem();
+        player.setItemInHand(hand, ItemStack.EMPTY);
+        player.setItemInHand(other, ItemStack.EMPTY);
     }
 
     /**
@@ -103,26 +103,26 @@ public class ReleaseUseItemActionClip extends ItemActionClip
         /* 1.21.1 keeps the three riptide sounds in the enchantment's own data
          * instead of picking one by level, and answers with the throw sound for
          * a trident that spins without one. */
-        RegistryEntry<SoundEvent> sound = EnchantmentHelper
-            .getEffect(stack, EnchantmentEffectComponentTypes.TRIDENT_SOUND)
-            .orElse(SoundEvents.ITEM_TRIDENT_THROW);
+        Holder<SoundEvent> sound = EnchantmentHelper
+            .pickHighestLevel(stack, EnchantmentEffectComponents.TRIDENT_SOUND)
+            .orElse(SoundEvents.TRIDENT_THROW);
 
         /* The spin is tracked data, so this is what makes every client show
          * the body whirling - the animator poses it from the same flag.
          * useRiptide() belongs to PlayerEntity; an actor is not one, so it
          * gets the two fields that method sets (javap 1.21.1), and vanilla's
          * own tick counts the spin down and clears the flag from there. */
-        if (actor instanceof PlayerEntity playerActor)
+        if (actor instanceof Player playerActor)
         {
-            playerActor.useRiptide(20, 8F, stack);
+            playerActor.startAutoSpinAttack(20, 8F, stack);
         }
         else if (actor != null)
         {
-            actor.riptideTicks = 20;
-            actor.setLivingFlag(4, true);
+            actor.autoSpinAttackTicks = 20;
+            actor.setLivingEntityFlag(4, true);
         }
 
-        player.getEntityWorld().playSound(null, player.getX(), player.getY(), player.getZ(), sound, SoundCategory.PLAYERS, 1F, 1F);
+        player.level().playSeededSound(null, player.getX(), player.getY(), player.getZ(), sound, SoundSource.PLAYERS, 1F, 1F);
     }
 
     @Override

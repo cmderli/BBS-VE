@@ -4,7 +4,7 @@ import mchorse.bbs_mod.graphics.InverseView;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
@@ -21,23 +21,23 @@ public class MatrixStackUtils
      * Unwind a render scope to the entry saved before its push, including pushes left
      * behind by a failing nested renderer. The caller's own stack levels stay intact.
      */
-    public static void restore(MatrixStack stack, MatrixStack.Entry entry)
+    public static void restore(PoseStack stack, PoseStack.Pose entry)
     {
-        while (stack.peek() != entry)
+        while (stack.last() != entry)
         {
             if (stack.isEmpty())
             {
                 throw new IllegalStateException("Renderer popped the saved matrix stack entry");
             }
 
-            stack.pop();
+            stack.popPose();
         }
     }
 
-    public static void scaleStack(MatrixStack stack, float x, float y, float z)
+    public static void scaleStack(PoseStack stack, float x, float y, float z)
     {
-        stack.peek().getPositionMatrix().scale(x, y, z);
-        stack.peek().getNormalMatrix().scale(x < 0F ? -1F : 1F, y < 0F ? -1F : 1F, z < 0F ? -1F : 1F);
+        stack.last().pose().scale(x, y, z);
+        stack.last().normal().scale(x < 0F ? -1F : 1F, y < 0F ? -1F : 1F, z < 0F ? -1F : 1F);
     }
 
     /**
@@ -52,9 +52,9 @@ public class MatrixStackUtils
      * screen-facing. The pre-1.21.1 trick of setting the orientation to identity only worked because
      * the view used to live in this very matrix.
      */
-    public static void billboard(MatrixStack stack)
+    public static void billboard(PoseStack stack)
     {
-        Matrix4f position = stack.peek().getPositionMatrix();
+        Matrix4f position = stack.last().pose();
         Vector3f scale = Vectors.TEMP_3F;
 
         position.getScale(scale);
@@ -68,7 +68,7 @@ public class MatrixStackUtils
 
         position.scale(scale);
 
-        stack.peek().getNormalMatrix().identity();
+        stack.last().normal().identity();
     }
 
     /**
@@ -113,14 +113,14 @@ public class MatrixStackUtils
         renderStack.popMatrix();
     }
 
-    public static void applyTransform(MatrixStack stack, Transform transform)
+    public static void applyTransform(PoseStack stack, Transform transform)
     {
         stack.translate(transform.translate.x, transform.translate.y, transform.translate.z);
-        stack.multiply(transform.createRotation());
+        stack.rotateAround(transform.createRotation());
         scaleStack(stack, transform.scale.x, transform.scale.y, transform.scale.z);
     }
 
-    public static void multiply(MatrixStack stack, Matrix4f matrix)
+    public static void multiply(PoseStack stack, Matrix4f matrix)
     {
         normal.set(matrix);
         normal.getScale(Vectors.TEMP_3F);
@@ -131,13 +131,13 @@ public class MatrixStackUtils
 
         normal.scale(Vectors.TEMP_3F);
 
-        stack.peek().getPositionMatrix().mul(matrix);
-        stack.peek().getNormalMatrix().mul(normal);
+        stack.last().pose().mul(matrix);
+        stack.last().normal().mul(normal);
     }
 
-    public static void scaleBack(MatrixStack matrices)
+    public static void scaleBack(PoseStack matrices)
     {
-        Matrix4f position = matrices.peek().getPositionMatrix();
+        Matrix4f position = matrices.last().pose();
 
         float scaleX = (float) Math.sqrt(position.m00() * position.m00() + position.m10() * position.m10() + position.m20() * position.m20());
         float scaleY = (float) Math.sqrt(position.m01() * position.m01() + position.m11() * position.m11() + position.m21() * position.m21());

@@ -3,7 +3,7 @@ package mchorse.bbs_mod.forms.renderers.mob;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.model.geom.ModelPart;
 
 import java.util.IdentityHashMap;
 import java.util.Map;

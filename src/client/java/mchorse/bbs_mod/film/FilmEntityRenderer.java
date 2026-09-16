@@ -27,16 +27,16 @@ import mchorse.bbs_mod.utils.Pair;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.LightType;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.LightLayer;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -54,7 +54,7 @@ public class FilmEntityRenderer
         Map<String, IEntity> entities = context.entities;
         IEntity entity = context.entity;
         Camera camera = context.camera;
-        MatrixStack stack = context.stack;
+        PoseStack stack = context.stack;
         float transition = context.transition;
 
         Form form = entity.getForm();
@@ -126,11 +126,11 @@ public class FilmEntityRenderer
             targetWorld = pairWorld.a != null ? pairWorld.a : defaultWorldMatrix;
         }
 
-        BlockPos pos = BlockPos.ofFloored(position.x, position.y + 0.5D, position.z);
-        int sky = entity.getWorld().getLightLevel(LightType.SKY, pos);
-        int torch = entity.getWorld().getLightLevel(LightType.BLOCK, pos);
-        int light = LightmapTextureManager.pack(torch, sky);
-        int overlay = OverlayTexture.packUv(OverlayTexture.getU(0F), OverlayTexture.getV(entity.getHurtTimer() > 0));
+        BlockPos pos = BlockPos.containing(position.x, position.y + 0.5D, position.z);
+        int sky = entity.getWorld().getBrightness(LightLayer.SKY, pos);
+        int torch = entity.getWorld().getBrightness(LightLayer.BLOCK, pos);
+        int light = LightTexture.pack(torch, sky);
+        int overlay = OverlayTexture.pack(OverlayTexture.u(0F), OverlayTexture.v(entity.getHurtTimer() > 0));
 
         FormRenderingContext formContext = new FormRenderingContext()
             .set(FormRenderType.ENTITY, entity, stack, light, overlay, transition)
@@ -138,16 +138,16 @@ public class FilmEntityRenderer
             .stencilMap(context.map)
             .color(context.color);
 
-        stack.push();
+        stack.pushPose();
 
         if (relative)
         {
-            stack.peek().getPositionMatrix().identity();
-            stack.peek().getNormalMatrix().identity();
+            stack.last().pose().identity();
+            stack.last().normal().identity();
         }
 
-        formContext.world.peek().getPositionMatrix().identity();
-        formContext.world.peek().getNormalMatrix().identity();
+        formContext.world.last().pose().identity();
+        formContext.world.last().normal().identity();
         MatrixStackUtils.multiply(formContext.world, targetWorld);
 
         MatrixStackUtils.multiply(stack, target);
@@ -179,7 +179,7 @@ public class FilmEntityRenderer
             if (context.bone2 != null && context.map == null) renderPreviewAxes(context.bone2, context.space2, form, entity, transition, stack, gizmoFrame);
         }
 
-        stack.pop();
+        stack.popPose();
 
         if (UIBaseMenu.shouldRenderAxes())
         {
@@ -230,30 +230,30 @@ public class FilmEntityRenderer
                 shadowZ += offset.z;
             }
 
-            stack.push();
+            stack.pushPose();
             stack.translate(shadowX - cx, shadowY - cy, shadowZ - cz);
 
             ModelBlockEntityRenderer.renderShadow(context.consumers, stack, transition, shadowX, shadowY, shadowZ, 0F, 0F, 0F, context.shadowRadius, opacity);
 
-            stack.pop();
+            stack.popPose();
         }
 
         if (!relative && !context.nameTag.isEmpty() && context.map == null && form.visible.get())
         {
             /* Hide the name tag along with the form (form.visible, animatable via keyframes): when the
              * form renders nothing, its name tag must vanish too - same reasoning as the shadow above. */
-            stack.push();
+            stack.pushPose();
             stack.translate(position.x - cx, position.y - cy, position.z - cz);
 
-            renderNameTag(entity, Text.literal(StringUtils.processColoredText(context.nameTag)), stack, context.consumers, light);
+            renderNameTag(entity, Component.literal(StringUtils.processColoredText(context.nameTag)), stack, context.consumers, light);
 
-            stack.pop();
+            stack.popPose();
         }
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
     }
 
-    private static void renderAxes(String bone, TransformSpace space, Matrix4f gizmoView, StencilMap stencilMap, Form form, IEntity entity, float transition, MatrixStack stack, FormFrameCache frame)
+    private static void renderAxes(String bone, TransformSpace space, Matrix4f gizmoView, StencilMap stencilMap, Form form, IEntity entity, float transition, PoseStack stack, FormFrameCache frame)
     {
         String mapKey = FilmMatrices.boneMapKey(bone);
         Form root = FormUtils.getRoot(form);
@@ -263,7 +263,7 @@ public class FilmEntityRenderer
 
         if (matrix != null)
         {
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, matrix);
 
             /* Reorient into the active space (the replay's own world axes for
@@ -284,14 +284,14 @@ public class FilmEntityRenderer
             }
 
             /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
-            stack.pop();
+            stack.popPose();
         }
     }
 
     /** The replay's "axes preview" (a secondary bone): plain non-interactive axes, not the
      *  editing gizmo. Resolved and distance-scaled exactly like {@link #renderAxes}, since
      *  the whole point is that it matches the gizmo's axes. */
-    private static void renderPreviewAxes(String bone, TransformSpace space, Form form, IEntity entity, float transition, MatrixStack stack, FormFrameCache frame)
+    private static void renderPreviewAxes(String bone, TransformSpace space, Form form, IEntity entity, float transition, PoseStack stack, FormFrameCache frame)
     {
         String mapKey = FilmMatrices.boneMapKey(bone);
         Form root = FormUtils.getRoot(form);
@@ -313,10 +313,10 @@ public class FilmEntityRenderer
 
         if (ownFrame) matrix = MatrixStackUtils.stripScale(matrix);
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.multiply(stack, matrix);
 
-        Vector3f cameraRelative = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+        Vector3f cameraRelative = stack.last().pose().getTranslation(new Vector3f());
         Matrix4f proj = BBSRendering.getWorldProjection();
         float fov = proj.m33() == 0 ? (float) (2.0 * Math.atan(1.0 / proj.m11())) : BBSSettings.getFov();
         float distanceScale = BBSSettings.getGizmoDistanceScale(cameraRelative.length(), fov);
@@ -325,7 +325,7 @@ public class FilmEntityRenderer
         Draw.coolerAxes(stack, 0.25F, 0.008F);
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -335,7 +335,7 @@ public class FilmEntityRenderer
      * anchor's own orientation for LOCAL, the attachment's (this path's origin flavour)
      * otherwise, reoriented into the active frame just the same.
      */
-    private static void renderAnchorGizmo(Map<String, IEntity> entities, IEntity entity, Matrix4f full, Matrix4f defaultMatrix, double cx, double cy, double cz, float transition, TransformSpace space, Matrix4f gizmoView, StencilMap stencilMap, MatrixStack stack, FormFrameCache frame)
+    private static void renderAnchorGizmo(Map<String, IEntity> entities, IEntity entity, Matrix4f full, Matrix4f defaultMatrix, double cx, double cy, double cz, float transition, TransformSpace space, Matrix4f gizmoView, StencilMap stencilMap, PoseStack stack, FormFrameCache frame)
     {
         Form form = entity.getForm();
 
@@ -358,7 +358,7 @@ public class FilmEntityRenderer
             matrix.setTranslation(full.getTranslation(new Vector3f()));
         }
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.multiply(stack, matrix);
 
         /* Same lockstep as renderAxes: reorient before the frame is captured, so
@@ -377,7 +377,7 @@ public class FilmEntityRenderer
         }
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -392,9 +392,9 @@ public class FilmEntityRenderer
      * a record has three position channels and two angles, and no third rotational
      * degree of freedom for the rest to write into.
      */
-    private static void renderReplayGizmo(IEntity entity, double cx, double cy, double cz, float transition, TransformSpace space, Matrix4f gizmoView, StencilMap stencilMap, MatrixStack stack)
+    private static void renderReplayGizmo(IEntity entity, double cx, double cy, double cz, float transition, TransformSpace space, Matrix4f gizmoView, StencilMap stencilMap, PoseStack stack)
     {
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.multiply(stack, FilmMatrices.getMatrixForRenderWithRotation(entity, cx, cy, cz, transition));
 
         /* Same lockstep as renderAxes: reorient before the frame is captured, so the
@@ -411,36 +411,36 @@ public class FilmEntityRenderer
         }
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
-        stack.pop();
+        stack.popPose();
     }
 
-    static void renderNameTag(IEntity entity, Text text, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light)
+    static void renderNameTag(IEntity entity, Component text, PoseStack matrices, MultiBufferSource vertexConsumers, int light)
     {
         boolean sneaking = !entity.isSneaking();
         float hitboxH = (float) entity.getPickingHitbox().h + 0.5F;
 
-        matrices.push();
+        matrices.pushPose();
         matrices.translate(0F, hitboxH, 0F);
         /* 1.21.11: EntityRenderManager.getRotation() is gone — the dispatcher carries the camera
          * itself now, and the camera's rotation is the same billboard turn it used to hand out. */
-        matrices.multiply(MinecraftClient.getInstance().gameRenderer.getCamera().getRotation());
+        matrices.rotateAround(Minecraft.getInstance().gameRenderer.getMainCamera().rotation());
         matrices.scale(-0.025F, -0.025F, 0.025F);
 
-        Matrix4f matrix4f = matrices.peek().getPositionMatrix();
-        TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
+        Matrix4f matrix4f = matrices.last().pose();
+        Font textRenderer = Minecraft.getInstance().font;
 
-        float opacity = MinecraftClient.getInstance().options.getTextBackgroundOpacity(0.25F);
+        float opacity = Minecraft.getInstance().options.getBackgroundOpacity(0.25F);
         int background = (int) (opacity * 255F) << 24;
-        float h = (float) (-textRenderer.getWidth(text) / 2);
+        float h = (float) (-textRenderer.width(text) / 2);
 
-        textRenderer.draw(text, h, 0, 0x20ffffff, false, matrix4f, vertexConsumers, sneaking ? TextRenderer.TextLayerType.SEE_THROUGH : TextRenderer.TextLayerType.NORMAL, background, light);
+        textRenderer.drawInBatch(text, h, 0, 0x20ffffff, false, matrix4f, vertexConsumers, sneaking ? Font.TextLayerType.SEE_THROUGH : Font.TextLayerType.NORMAL, background, light);
 
         if (sneaking)
         {
-            textRenderer.draw(text, h, 0, -1, false, matrix4f, vertexConsumers, TextRenderer.TextLayerType.NORMAL, 0, light);
+            textRenderer.drawInBatch(text, h, 0, -1, false, matrix4f, vertexConsumers, Font.TextLayerType.NORMAL, 0, light);
         }
 
-        matrices.pop();
+        matrices.popPose();
     }
 
     /* Film controller */

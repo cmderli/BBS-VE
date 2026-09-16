@@ -36,7 +36,7 @@ import mchorse.bbs_mod.ui.utils.icons.Icon;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -362,8 +362,8 @@ public class UIModelEditorPanel extends UIDataDashboardPanel<ModelConfig>
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        float aspect = mc.getWindow().getFramebufferWidth() / (float) Math.max(1, mc.getWindow().getFramebufferHeight());
+        Minecraft mc = Minecraft.getInstance();
+        float aspect = mc.getWindow().getWidth() / (float) Math.max(1, mc.getWindow().getHeight());
         int roomW = Math.max(1, this.editor.area.w - splitWidth);
         int roomH = Math.max(1, this.editor.area.h);
         int w = roomW;

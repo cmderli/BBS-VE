@@ -7,8 +7,8 @@ import mchorse.bbs_mod.utils.resources.MultiLink;
 import net.irisshaders.iris.pbr.loader.PBRTextureLoader;
 import net.irisshaders.iris.pbr.texture.PBRType;
 import net.irisshaders.iris.targets.backed.NativeImageBackedSingleColorTexture;
-import net.minecraft.client.texture.AbstractTexture;
-import net.minecraft.resource.ResourceManager;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.server.packs.resources.ResourceManager;
 
 /**
  * The classic LabPBR pair for a BBS texture: the {@code _n} and {@code _s} files lying next to it.

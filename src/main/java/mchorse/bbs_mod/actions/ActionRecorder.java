@@ -9,15 +9,15 @@ import mchorse.bbs_mod.actions.types.blocks.InteractBlockActionClip;
 import mchorse.bbs_mod.actions.types.item.UseItemActionClip;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.utils.clips.Clips;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Hand;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.server.level.ServerLevel;
 
 public class ActionRecorder
 {
     private Film film;
-    private ServerPlayerEntity entity;
-    private ServerWorld world;
+    private ServerPlayer entity;
+    private ServerLevel world;
     private Clips clips = new Clips("...", BBSMod.getFactoryActionClips());
     private int tick;
     private int countdown;
@@ -29,14 +29,14 @@ public class ActionRecorder
     /** The last block interaction, until it's known whether it opened a container. */
     private InteractBlockActionClip interactClip;
 
-    public ActionRecorder(Film film, ServerPlayerEntity entity, int tick, int countdown)
+    public ActionRecorder(Film film, ServerPlayer entity, int tick, int countdown)
     {
         this.film = film;
         this.entity = entity;
         /* Remembered rather than asked for later: the take is held against the world it started
          * in, and a player who walks through a portal mid-recording must not leave that hold
          * behind in a world nobody will release. */
-        this.world = entity.getEntityWorld();
+        this.world = entity.level();
         this.tick = tick;
         this.countdown = countdown;
         this.initialTick = tick;
@@ -47,7 +47,7 @@ public class ActionRecorder
         return this.film;
     }
 
-    public ServerWorld getWorld()
+    public ServerLevel getWorld()
     {
         return this.world;
     }
@@ -93,7 +93,7 @@ public class ActionRecorder
         }
     }
 
-    public void tick(ServerPlayerEntity player)
+    public void tick(ServerPlayer player)
     {
         if (this.countdown > 0)
         {
@@ -105,7 +105,7 @@ public class ActionRecorder
         this.trackItemUse(player);
         this.trackContainer(player);
 
-        if (player.handSwingTicks == -1)
+        if (player.swingTime == -1)
         {
             this.add(new SwipeActionClip());
 
@@ -128,14 +128,14 @@ public class ActionRecorder
      * drawn and held would play back as a blink. Everything that reads the use
      * out of a take reads exactly this duration.
      */
-    private void trackItemUse(ServerPlayerEntity player)
+    private void trackItemUse(ServerPlayer player)
     {
         if (this.useClip == null)
         {
             return;
         }
 
-        boolean sameHand = player.getActiveHand() == (this.useClip.hand.get() ? Hand.MAIN_HAND : Hand.OFF_HAND);
+        boolean sameHand = player.getUsedItemHand() == (this.useClip.hand.get() ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND);
 
         if (player.isUsingItem() && sameHand)
         {
@@ -155,14 +155,14 @@ public class ActionRecorder
      * the clip is exactly as long as the player kept the chest open. Playback
      * holds the lid up for precisely this stretch.
      */
-    private void trackContainer(ServerPlayerEntity player)
+    private void trackContainer(ServerPlayer player)
     {
         if (this.interactClip == null)
         {
             return;
         }
 
-        if (player.currentScreenHandler != player.playerScreenHandler)
+        if (player.containerMenu != player.inventoryMenu)
         {
             this.interactClip.duration.set(Math.max(1, this.tick - this.interactClip.tick.get() + 1));
         }

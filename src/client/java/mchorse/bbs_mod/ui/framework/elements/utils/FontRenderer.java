@@ -1,8 +1,8 @@
 package mchorse.bbs_mod.ui.framework.elements.utils;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.Objects;
@@ -13,7 +13,7 @@ public class FontRenderer
     /** What the interface has always stepped lines by with the default font. */
     public static final int DEFAULT_LINE_HEIGHT = 12;
 
-    private TextRenderer renderer;
+    private Font renderer;
 
     /**
      * {@link TextRenderer#fontHeight} is a constant 9 whichever font is drawing, so
@@ -23,9 +23,9 @@ public class FontRenderer
     private int height;
     private int lineHeight = DEFAULT_LINE_HEIGHT;
 
-    public static List<String> wrap(TextRenderer renderer, String string, int width)
+    public static List<String> wrap(Font renderer, String string, int width)
     {
-        return renderer.wrapLines(Text.literal(string), width).stream().map((ot) ->
+        return renderer.split(Component.literal(string), width).stream().map((ot) ->
         {
             StringBuilder builder = new StringBuilder();
             StyleHolder holder = new StyleHolder(Style.EMPTY);
@@ -58,7 +58,7 @@ public class FontRenderer
 
         if (style.getColor() != null)
         {
-            switch (style.getColor().getName())
+            switch (style.getColor().serialize())
             {
                 case "black": b.append("\u00A70"); break;
                 case "dark_blue": b.append("\u00A71"); break;
@@ -86,26 +86,26 @@ public class FontRenderer
         if (style.isItalic()) b.append("\u00A7o");
     }
 
-    public void setRenderer(TextRenderer renderer)
+    public void setRenderer(Font renderer)
     {
-        this.setRenderer(renderer, renderer.fontHeight - 2, DEFAULT_LINE_HEIGHT);
+        this.setRenderer(renderer, renderer.lineHeight - 2, DEFAULT_LINE_HEIGHT);
     }
 
-    public void setRenderer(TextRenderer renderer, int height, int lineHeight)
+    public void setRenderer(Font renderer, int height, int lineHeight)
     {
         this.renderer = renderer;
         this.height = height;
         this.lineHeight = lineHeight;
     }
 
-    public TextRenderer getRenderer()
+    public Font getRenderer()
     {
         return this.renderer;
     }
 
     public int getWidth(String string)
     {
-        return this.renderer.getWidth(string);
+        return this.renderer.width(string);
     }
 
     public int getHeight()
@@ -136,19 +136,19 @@ public class FontRenderer
             return str;
         }
 
-        int w = this.renderer.getWidth(str);
+        int w = this.renderer.width(str);
 
         if (w < width)
         {
             return str;
         }
 
-        int sw = this.renderer.getWidth(suffix);
+        int sw = this.renderer.width(suffix);
         int i = str.length() - 1;
 
         while (w + sw >= width && i > 0)
         {
-            w -= this.renderer.getWidth(String.valueOf(str.charAt(i)));
+            w -= this.renderer.width(String.valueOf(str.charAt(i)));
             i -= 1;
         }
 

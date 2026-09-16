@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.forms.entities;
 
-import net.minecraft.entity.EntityPose;
+import net.minecraft.world.entity.Pose;
 
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -80,27 +80,27 @@ public enum EntityState
      * renders through can't end up in three different poses from the same frame. The order is
      * vanilla's own: lying down beats standing tall, and a crouch is what's left.</p>
      */
-    public static EntityPose pose(IEntity entity)
+    public static Pose pose(IEntity entity)
     {
         return pose(entity.isFallFlying(), entity.isSwimming(), entity.isSneaking());
     }
 
     /** For places that hold the three states loose rather than an entity - a replay's frame. */
-    public static EntityPose pose(boolean gliding, boolean swimming, boolean sneaking)
+    public static Pose pose(boolean gliding, boolean swimming, boolean sneaking)
     {
         if (gliding)
         {
-            return EntityPose.GLIDING;
+            return Pose.FALL_FLYING;
         }
         else if (swimming)
         {
-            return EntityPose.SWIMMING;
+            return Pose.SWIMMING;
         }
         else if (sneaking)
         {
-            return EntityPose.CROUCHING;
+            return Pose.CROUCHING;
         }
 
-        return EntityPose.STANDING;
+        return Pose.STANDING;
     }
 }

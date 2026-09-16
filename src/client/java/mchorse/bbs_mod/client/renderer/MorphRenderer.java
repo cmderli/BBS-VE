@@ -21,13 +21,13 @@ import mchorse.bbs_mod.ui.morphing.UIMorphingPanel;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.AbstractClientPlayerEntity;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.RotationAxis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.LivingEntity;
+import com.mojang.math.Axis;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
@@ -72,7 +72,7 @@ public class MorphRenderer
     /**
      * Collect a player morph for deferred rendering. Returns true to suppress the vanilla render.
      */
-    public static boolean collectPlayer(AbstractClientPlayerEntity player, MatrixStack matrices, int light, int overlay, float tickDelta, LivingEntityRenderState state)
+    public static boolean collectPlayer(AbstractClientPlayer player, PoseStack matrices, int light, int overlay, float tickDelta, LivingEntityRenderState state)
     {
         if (hidePlayer)
         {
@@ -101,7 +101,7 @@ public class MorphRenderer
      * Collect a selector-owner (mob) morph for deferred rendering. Returns true to suppress the
      * vanilla render.
      */
-    public static boolean collectLivingEntity(LivingEntity livingEntity, MatrixStack matrices, int light, int overlay, float tickDelta, LivingEntityRenderState state)
+    public static boolean collectLivingEntity(LivingEntity livingEntity, PoseStack matrices, int light, int overlay, float tickDelta, LivingEntityRenderState state)
     {
         if (!(livingEntity instanceof ISelectorOwnerProvider))
         {
@@ -143,7 +143,7 @@ public class MorphRenderer
      *       queueing here is what removes the body; nothing else has to change.</li>
      * </ul>
      */
-    private static void submit(Form form, IEntity entity, MatrixStack matrices, int light, int overlay, float tickDelta, int deathTime, LivingEntityRenderState state)
+    private static void submit(Form form, IEntity entity, PoseStack matrices, int light, int overlay, float tickDelta, int deathTime, LivingEntityRenderState state)
     {
         if (BBSRendering.isIrisShadowPass())
         {
@@ -173,7 +173,7 @@ public class MorphRenderer
      * entity, so we do that write ourselves — and put the real values back — instead of letting a
      * preview show the body yaw and head tracking of the world.</p>
      */
-    private static void renderGui(Form form, IEntity entity, MatrixStack matrices, int light, int overlay, float tickDelta, int deathTime, LivingEntityRenderState state)
+    private static void renderGui(Form form, IEntity entity, PoseStack matrices, int light, int overlay, float tickDelta, int deathTime, LivingEntityRenderState state)
     {
         float yaw = entity.getYaw();
         float prevYaw = entity.getPrevYaw();
@@ -184,27 +184,27 @@ public class MorphRenderer
         float pitch = entity.getPitch();
         float prevPitch = entity.getPrevPitch();
 
-        float previewBodyYaw = state == null ? Lerps.lerp(prevBodyYaw, bodyYaw, tickDelta) : state.bodyYaw;
+        float previewBodyYaw = state == null ? Lerps.lerp(prevBodyYaw, bodyYaw, tickDelta) : state.bodyRot;
 
         if (state != null)
         {
-            float previewHeadYaw = state.bodyYaw + state.relativeHeadYaw;
+            float previewHeadYaw = state.bodyRot + state.yRot;
 
             /* No interpolation to do in a preview — prev and current are the same pose. */
-            entity.setBodyYaw(state.bodyYaw);
-            entity.setPrevBodyYaw(state.bodyYaw);
+            entity.setBodyYaw(state.bodyRot);
+            entity.setPrevBodyYaw(state.bodyRot);
             entity.setYaw(previewHeadYaw);
             entity.setPrevYaw(previewHeadYaw);
             entity.setHeadYaw(previewHeadYaw);
             entity.setPrevHeadYaw(previewHeadYaw);
-            entity.setPitch(state.pitch);
-            entity.setPrevPitch(state.pitch);
+            entity.setPitch(state.xRot);
+            entity.setPrevPitch(state.xRot);
         }
 
         boolean wasActive = FormTranslucentQueue.suspend();
 
-        matrices.push();
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-previewBodyYaw));
+        matrices.pushPose();
+        matrices.rotateAround(Axis.YP.rotationDegrees(-previewBodyYaw));
 
         /* This render replaces LivingEntityRenderer's own transforms, so the fall of a dead body has to
          * be repeated here — the same reason as in renderShadow. */
@@ -214,11 +214,11 @@ public class MorphRenderer
         {
             FormUtilsClient.render(form, new FormRenderingContext()
                 .set(FormRenderType.ENTITY, entity, matrices, light, overlay, tickDelta)
-                .camera(MinecraftClient.getInstance().gameRenderer.getCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
         }
         finally
         {
-            matrices.pop();
+            matrices.popPose();
 
             FormTranslucentQueue.restore(wasActive);
 
@@ -255,12 +255,12 @@ public class MorphRenderer
      *
      * <p>A form that opts out of casting shadows is filtered further down, in {@code FormRenderer}.
      */
-    private static void renderShadow(Form form, IEntity entity, MatrixStack matrices, int light, int overlay, float tickDelta, int deathTime)
+    private static void renderShadow(Form form, IEntity entity, PoseStack matrices, int light, int overlay, float tickDelta, int deathTime)
     {
         float bodyYaw = Lerps.lerp(entity.getPrevBodyYaw(), entity.getBodyYaw(), tickDelta);
 
-        matrices.push();
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-bodyYaw));
+        matrices.pushPose();
+        matrices.rotateAround(Axis.YP.rotationDegrees(-bodyYaw));
 
         /* This render replaces LivingEntityRenderer's own transforms, so the fall of a dead body has to
          * be repeated here - without it a morphed player never went down when they died. */
@@ -272,13 +272,13 @@ public class MorphRenderer
         {
             FormUtilsClient.render(form, new FormRenderingContext()
                 .set(FormRenderType.ENTITY, entity, matrices, light, overlay, tickDelta)
-                .camera(MinecraftClient.getInstance().gameRenderer.getCamera()));
+                .camera(Minecraft.getInstance().gameRenderer.getMainCamera()));
         }
         finally
         {
             BBSRendering.endWorldForms(prevWorldForms);
 
-            matrices.pop();
+            matrices.popPose();
         }
     }
 
@@ -328,11 +328,11 @@ public class MorphRenderer
             return;
         }
 
-        Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
         double cx = camera.getCameraPos().x;
         double cy = camera.getCameraPos().y;
         double cz = camera.getCameraPos().z;
-        MatrixStack stack = context.matrices();
+        PoseStack stack = context.matrices();
 
         try
         {
@@ -340,7 +340,7 @@ public class MorphRenderer
             {
                 Matrix4f target = FilmMatrices.getMatrixForRenderWithRotation(queued.entity, cx, cy, cz, queued.tickDelta);
 
-                stack.push();
+                stack.pushPose();
                 MatrixStackUtils.multiply(stack, target);
 
                 /* The target matrix carries position and body yaw, the way vanilla's setupTransforms
@@ -351,7 +351,7 @@ public class MorphRenderer
                     .set(FormRenderType.ENTITY, queued.entity, stack, queued.light, queued.overlay, queued.tickDelta)
                     .camera(camera));
 
-                stack.pop();
+                stack.popPose();
             }
         }
         finally

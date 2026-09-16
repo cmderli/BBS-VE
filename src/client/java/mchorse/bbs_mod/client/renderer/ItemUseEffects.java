@@ -4,21 +4,21 @@ import mchorse.bbs_mod.cubic.animation.ItemUsePose;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.film.replays.ReplayItemUse;
 import mchorse.bbs_mod.forms.entities.IEntity;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ConsumableComponent;
-import net.minecraft.item.ItemStack;
-import net.minecraft.particle.ItemStackParticleEffect;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.item.consume.UseAction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.random.Random;
-import net.minecraft.world.World;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.Consumable;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.particles.ItemParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.item.ItemUseAnimation;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.Level;
 
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -73,16 +73,16 @@ public class ItemUseEffects
             /* The bite that just ended: vanilla's finishing burst and burp. */
             ItemUsePose.Use before = ReplayItemUse.compute(replay, tick - 1, mainHand, user);
 
-            if (before != null && before.action() == UseAction.EAT)
+            if (before != null && before.action() == ItemUseAnimation.EAT)
             {
-                spawn(entity, before.stack(), UseAction.EAT, 16);
+                spawn(entity, before.stack(), ItemUseAnimation.EAT, 16);
                 burp(entity, before.stack());
             }
 
             return;
         }
 
-        if (use.action() != UseAction.EAT && use.action() != UseAction.DRINK)
+        if (use.action() != ItemUseAnimation.EAT && use.action() != ItemUseAnimation.DRINK)
         {
             return;
         }
@@ -101,21 +101,21 @@ public class ItemUseEffects
     }
 
     /** {@code LivingEntity.spawnConsumptionEffects} plus its {@code spawnItemParticles}. */
-    private static void spawn(IEntity entity, ItemStack stack, UseAction action, int count)
+    private static void spawn(IEntity entity, ItemStack stack, ItemUseAnimation action, int count)
     {
-        World world = entity.getWorld();
+        Level world = entity.getWorld();
 
         if (world == null || stack.isEmpty())
         {
             return;
         }
 
-        Random random = world.random;
+        RandomSource random = world.random;
         double x = entity.getX();
         double y = entity.getY() + entity.getEyeHeight();
         double z = entity.getZ();
 
-        ConsumableComponent consumable = stack.get(DataComponentTypes.CONSUMABLE);
+        Consumable consumable = stack.get(DataComponents.CONSUMABLE);
 
         /* 1.21.4+ folded the eating and drinking sounds, and the "does it even make crumbs"
          * answer, into the consumable component - getEatSound/getDrinkSound are gone. */
@@ -124,9 +124,9 @@ public class ItemUseEffects
             count = 0;
         }
 
-        if (action == UseAction.DRINK)
+        if (action == ItemUseAnimation.DRINK)
         {
-            playSound(world, x, y, z, consumeSound(entity, consumable, stack), 0.5F, MathHelper.nextBetween(random, 0.9F, 1F));
+            playSound(world, x, y, z, consumeSound(entity, consumable, stack), 0.5F, Mth.randomBetweenInclusive(random, 0.9F, 1F));
 
             return;
         }
@@ -136,20 +136,20 @@ public class ItemUseEffects
 
         for (int i = 0; i < count; i++)
         {
-            Vec3d velocity = new Vec3d((random.nextFloat() - 0.5D) * 0.1D, Math.random() * 0.1D + 0.1D, 0D)
-                .rotateX(pitch)
-                .rotateY(yaw);
-            Vec3d position = new Vec3d((random.nextFloat() - 0.5D) * 0.3D, -random.nextFloat() * 0.6D - 0.3D, 0.6D)
-                .rotateX(pitch)
-                .rotateY(yaw)
-                .add(x, y, z);
+            Vec3 velocity = new Vec3((random.nextFloat() - 0.5D) * 0.1D, Math.random() * 0.1D + 0.1D, 0D)
+                .xRot(pitch)
+                .yRot(yaw);
+            Vec3 position = new Vec3((random.nextFloat() - 0.5D) * 0.3D, -random.nextFloat() * 0.6D - 0.3D, 0.6D)
+                .xRot(pitch)
+                .yRot(yaw)
+                .atLowerCornerWithOffset(x, y, z);
 
-            world.addParticleClient(new ItemStackParticleEffect(ParticleTypes.ITEM, stack), position.x, position.y, position.z, velocity.x, velocity.y + 0.05D, velocity.z);
+            world.addParticle(new ItemParticleOption(ParticleTypes.ITEM, stack), position.x, position.y, position.z, velocity.x, velocity.y + 0.05D, velocity.z);
         }
 
         playSound(world, x, y, z, consumeSound(entity, consumable, stack),
             random.nextBoolean() ? 0.5F : 1F,
-            random.nextTriangular(1F, 0.2F));
+            random.triangle(1F, 0.2F));
     }
 
     /**
@@ -157,11 +157,11 @@ public class ItemUseEffects
      * (ConsumableSoundProvider - vanilla asks the entity, not the item), and the component's
      * own sound otherwise.
      */
-    private static SoundEvent consumeSound(IEntity entity, ConsumableComponent consumable, ItemStack stack)
+    private static SoundEvent consumeSound(IEntity entity, Consumable consumable, ItemStack stack)
     {
         LivingEntity living = ItemUsePose.livingOf(entity);
 
-        if (living instanceof ConsumableComponent.ConsumableSoundProvider provider)
+        if (living instanceof Consumable.OverrideConsumeSound provider)
         {
             return provider.getConsumeSound(stack);
         }
@@ -176,24 +176,24 @@ public class ItemUseEffects
      * player's own code, everyone else's sounds arrive as packets). Passing
      * {@code null} would be silence, so the client entry point is used directly.
      */
-    private static void playSound(World world, double x, double y, double z, SoundEvent sound, float volume, float pitch)
+    private static void playSound(Level world, double x, double y, double z, SoundEvent sound, float volume, float pitch)
     {
-        if (sound != null && world instanceof ClientWorld clientWorld)
+        if (sound != null && world instanceof ClientLevel clientWorld)
         {
-            clientWorld.playSoundClient(x, y, z, sound, SoundCategory.PLAYERS, volume, pitch, false);
+            clientWorld.playSoundClient(x, y, z, sound, SoundSource.PLAYERS, volume, pitch, false);
         }
     }
 
     /** {@code PlayerEntity.eatFood}'s tail: only actual food burps. */
     private static void burp(IEntity entity, ItemStack stack)
     {
-        World world = entity.getWorld();
+        Level world = entity.getWorld();
 
-        if (world == null || stack.get(DataComponentTypes.FOOD) == null)
+        if (world == null || stack.get(DataComponents.FOOD) == null)
         {
             return;
         }
 
-        playSound(world, entity.getX(), entity.getY(), entity.getZ(), SoundEvents.ENTITY_PLAYER_BURP, 0.5F, world.random.nextFloat() * 0.1F + 0.9F);
+        playSound(world, entity.getX(), entity.getY(), entity.getZ(), SoundEvents.PLAYER_BURP, 0.5F, world.random.nextFloat() * 0.1F + 0.9F);
     }
 }

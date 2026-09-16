@@ -3,7 +3,7 @@ package mchorse.bbs_mod.forms.renderers.mob;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.model.geom.ModelPart;
 import org.joml.Vector3f;
 
 import java.util.Map;
@@ -78,23 +78,23 @@ public class MobPoseApplier
 
             SavedTransform transform = new SavedTransform();
 
-            transform.hidden = part.hidden;
-            part.hidden |= !poseTransform.visible;
+            transform.hidden = part.skipDraw;
+            part.skipDraw |= !poseTransform.visible;
 
-            transform.translate.set(part.originX, part.originY, part.originZ);
-            transform.rotate.set(part.pitch, part.yaw, part.roll);
+            transform.translate.set(part.x, part.y, part.z);
+            transform.rotate.set(part.xRot, part.yRot, part.zRot);
             transform.scale.set(part.xScale, part.yScale, part.zScale);
 
             /* Vanilla ModelPart holds euler pitch/yaw/roll only, so a quaternion pose bone is
              * decomposed to its euler equivalent here instead of reading the stale rotate triple. */
             Vector3f rotation = poseTransform.getEulerRotation(new Vector3f());
 
-            part.originX += poseTransform.translate.x;
-            part.originY += poseTransform.translate.y;
-            part.originZ += poseTransform.translate.z;
-            part.pitch += rotation.x;
-            part.yaw += rotation.y;
-            part.roll += rotation.z;
+            part.x += poseTransform.translate.x;
+            part.y += poseTransform.translate.y;
+            part.z += poseTransform.translate.z;
+            part.xRot += rotation.x;
+            part.yRot += rotation.y;
+            part.zRot += rotation.z;
             part.xScale += poseTransform.scale.x - 1F;
             part.yScale += poseTransform.scale.y - 1F;
             part.zScale += poseTransform.scale.z - 1F;
@@ -112,15 +112,15 @@ public class MobPoseApplier
 
             if (transform instanceof SavedTransform original)
             {
-                part.hidden = original.hidden;
+                part.skipDraw = original.hidden;
             }
 
-            part.originX = transform.translate.x;
-            part.originY = transform.translate.y;
-            part.originZ = transform.translate.z;
-            part.pitch = transform.rotate.x;
-            part.yaw = transform.rotate.y;
-            part.roll = transform.rotate.z;
+            part.x = transform.translate.x;
+            part.y = transform.translate.y;
+            part.z = transform.translate.z;
+            part.xRot = transform.rotate.x;
+            part.yRot = transform.rotate.y;
+            part.zRot = transform.rotate.z;
             part.xScale = transform.scale.x;
             part.yScale = transform.scale.y;
             part.zScale = transform.scale.z;

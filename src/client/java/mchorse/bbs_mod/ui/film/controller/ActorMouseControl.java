@@ -3,8 +3,8 @@ package mchorse.bbs_mod.ui.film.controller;
 import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.graphics.window.Window;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.Mouse;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.MouseHandler;
 import org.joml.Vector2f;
 import org.joml.Vector2i;
 
@@ -98,9 +98,9 @@ public class ActorMouseControl
      */
     public void trackCursor(boolean driving, boolean onModdedServer)
     {
-        Mouse mouse = MinecraftClient.getInstance().mouse;
-        int x = (int) mouse.getX();
-        int y = (int) mouse.getY();
+        MouseHandler mouse = Minecraft.getInstance().mouseHandler;
+        int x = (int) mouse.xpos();
+        int y = (int) mouse.ypos();
 
         if (driving)
         {
@@ -109,7 +109,7 @@ public class ActorMouseControl
                 float cursorDeltaX = (x - this.lastMouse.x) / 2F;
                 float cursorDeltaY = (y - this.lastMouse.y) / 2F;
 
-                MinecraftClient.getInstance().player.changeLookDirection(cursorDeltaX, cursorDeltaY);
+                Minecraft.getInstance().player.turn(cursorDeltaX, cursorDeltaY);
             }
             else
             {

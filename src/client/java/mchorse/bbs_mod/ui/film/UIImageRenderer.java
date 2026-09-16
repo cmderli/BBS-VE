@@ -9,8 +9,8 @@ import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.framework.elements.utils.Batcher2D;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3x2fStack;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -25,12 +25,12 @@ public class UIImageRenderer
      */
     public static float getUnitWidth()
     {
-        net.minecraft.client.gl.Framebuffer fb = MinecraftClient.getInstance().getFramebuffer();
+        net.minecraft.client.gl.RenderTarget fb = Minecraft.getInstance().getMainRenderTarget();
 
-        return fb.textureWidth * Placement.HEIGHT / fb.textureHeight;
+        return fb.width * Placement.HEIGHT / fb.height;
     }
 
-    public static void renderImages(MatrixStack stack, Batcher2D batcher, List<ImageOverlay> images)
+    public static void renderImages(PoseStack stack, Batcher2D batcher, List<ImageOverlay> images)
     {
         if (images.isEmpty())
         {
@@ -45,11 +45,11 @@ public class UIImageRenderer
          * through DrawContext#getMatrices() (a Matrix3x2fStack), so a projection swap would not
          * reach it anyway; scaling unit coordinates onto the GUI's is what the ortho did. The
          * depth/cull/blend bracket goes with it — the GUI pipeline owns that state now. */
-        Matrix3x2fStack matrices = batcher.getContext().getMatrices();
+        Matrix3x2fStack matrices = batcher.getContext().pose();
 
         matrices.pushMatrix();
-        matrices.scale(batcher.getContext().getScaledWindowWidth() / width,
-            batcher.getContext().getScaledWindowHeight() / height);
+        matrices.scale(batcher.getContext().guiWidth() / width,
+            batcher.getContext().guiHeight() / height);
 
         for (ImageOverlay image : images)
         {

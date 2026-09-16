@@ -6,11 +6,11 @@ import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.client.renderer.MorphRenderer;
 import mchorse.bbs_mod.forms.FormTranslucentQueue;
 import mchorse.bbs_mod.forms.renderers.utils.FramebufferDebug;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.FrameGraphBuilder;
-import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import net.minecraft.client.Camera;
+import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
+import net.minecraft.client.renderer.LevelRenderer;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -19,12 +19,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(WorldRenderer.class)
+@Mixin(LevelRenderer.class)
 public class WorldRendererMixin
 {
     /* 1.21.11 renamed and privatized the outlines framebuffer field. */
     @Shadow
-    private Framebuffer entityOutlineFramebuffer;
+    private RenderTarget entityOutlineFramebuffer;
 
     /* Deferred form translucency spans the frame: forms enqueue their translucent pass while
      * entities render, and the queue flushes at the end of WorldRenderEvents.AFTER_ENTITIES (see
@@ -111,6 +111,6 @@ public class WorldRendererMixin
     )
     private Matrix4f onSetupFrustumProjection(Matrix4f projection)
     {
-        return BBSRendering.getOrthoProjection(MinecraftClient.getInstance().gameRenderer, projection, 20F);
+        return BBSRendering.getOrthoProjection(Minecraft.getInstance().gameRenderer, projection, 20F);
     }
 }

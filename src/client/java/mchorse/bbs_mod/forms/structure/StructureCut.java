@@ -2,9 +2,9 @@ package mchorse.bbs_mod.forms.structure;
 
 import mchorse.bbs_mod.network.ClientNetwork;
 import mchorse.bbs_mod.ui.UIKeys;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
 
 import java.util.List;
 import java.util.Locale;
@@ -84,14 +84,14 @@ public class StructureCut
     /** The server's word: the file is written and the world is empty, or nothing happened at all. */
     public static void onCut(boolean ok, String name)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         Consumer<Boolean> callback = pendingCallback;
 
         StructureManager.invalidate();
 
         if (mc.player != null)
         {
-            mc.player.sendMessage(Text.literal((ok ? UIKeys.STRUCTURE_CUT_DONE : UIKeys.STRUCTURE_CUT_FAILED).format(StructureManager.assetId(name)).get()), true);
+            mc.player.sendMessage(Component.literal((ok ? UIKeys.STRUCTURE_CUT_DONE : UIKeys.STRUCTURE_CUT_FAILED).format(StructureManager.assetId(name)).get()), true);
         }
 
         if (ok)

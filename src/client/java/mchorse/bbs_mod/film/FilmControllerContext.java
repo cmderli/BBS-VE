@@ -6,11 +6,11 @@ import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.colors.Colors;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.vertex.PoseStack;
 
 import java.util.Map;
 
@@ -23,8 +23,8 @@ public class FilmControllerContext
     public IEntity entity;
     public Replay replay;
     public Camera camera;
-    public MatrixStack stack;
-    public VertexConsumerProvider consumers;
+    public PoseStack stack;
+    public MultiBufferSource consumers;
     public StencilMap map;
 
     public float transition;
@@ -71,15 +71,15 @@ public class FilmControllerContext
         this.entities = entities;
         this.entity = entity;
         this.replay = replay;
-        this.camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+        this.camera = Minecraft.getInstance().gameRenderer.getMainCamera();
         this.stack = context.matrices();
         this.consumers = context.consumers();
-        this.transition = MinecraftClient.getInstance().getRenderTickCounter().getTickProgress(false);
+        this.transition = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
 
         return this;
     }
 
-    public FilmControllerContext setup(Map<String, IEntity> entities, IEntity entity, Replay replay, Camera camera, MatrixStack stack, VertexConsumerProvider consumers, float transition)
+    public FilmControllerContext setup(Map<String, IEntity> entities, IEntity entity, Replay replay, Camera camera, PoseStack stack, MultiBufferSource consumers, float transition)
     {
         this.reset();
 

@@ -5,31 +5,31 @@ import mchorse.bbs_mod.forms.CustomVertexConsumerProvider;
 import mchorse.bbs_mod.utils.MathUtils;
 import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandler;
 import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderHandlerRegistry;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.BlockRenderLayer;
-import net.minecraft.client.render.BlockRenderLayers;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.TexturedRenderLayers;
-import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.Tesselator;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.Sheets;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.model.BakedQuad;
-import net.minecraft.client.render.model.BlockModelPart;
-import net.minecraft.client.render.model.BlockStateModel;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.random.Random;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.RandomSource;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -65,14 +65,14 @@ public class BakedStructure
     private final List<BakedLayer> layers = new ArrayList<>();
 
     /** Sprites referenced by the baked geometry — marked active for Sodium every frame. */
-    private final Set<Sprite> sprites = new HashSet<>();
+    private final Set<TextureAtlasSprite> sprites = new HashSet<>();
 
     private final StructureRenderWorld world;
     private final int generation;
 
     /* 1.21.11: terrain layers are the BlockRenderLayer enum (each carrying a RenderPipeline), not
      * RenderLayer objects — RenderLayer.getSolid/getCutout/getTranslucent are gone. */
-    private record BakedLayer(BlockRenderLayer layer, ByteBuffer data, int vertexCount) {}
+    private record BakedLayer(ChunkSectionLayer layer, ByteBuffer data, int vertexCount) {}
 
     private BakedStructure(StructureRenderWorld world)
     {
@@ -94,9 +94,9 @@ public class BakedStructure
     {
         BakedStructure result = new BakedStructure(world);
 
-        BlockRenderManager manager = MinecraftClient.getInstance().getBlockRenderManager();
-        Random random = Random.create();
-        MatrixStack matrices = new MatrixStack();
+        BlockRenderDispatcher manager = Minecraft.getInstance().getBlockRenderer();
+        RandomSource random = RandomSource.create();
+        PoseStack matrices = new PoseStack();
         TransformingVertexConsumer fluidConsumer = new TransformingVertexConsumer(new Matrix4f(), new Matrix3f());
 
         for (Map.Entry<BlockPos, BlockState> e : data.getBlocks().entrySet())
@@ -104,9 +104,9 @@ public class BakedStructure
             result.collectSprites(manager, world, e.getKey(), e.getValue(), random);
         }
 
-        for (BlockRenderLayer layer : BlockRenderLayer.values())
+        for (ChunkSectionLayer layer : ChunkSectionLayer.values())
         {
-            BufferBuilder builder = beginBuffer(layer.getPipeline().getVertexFormatMode(), layer.getPipeline().getVertexFormat());
+            BufferBuilder builder = beginBuffer(layer.pipeline().getVertexFormatMode(), layer.pipeline().getVertexFormat());
 
             for (Map.Entry<BlockPos, BlockState> e : data.getBlocks().entrySet())
             {
@@ -114,20 +114,20 @@ public class BakedStructure
                 BlockState state = e.getValue();
                 FluidState fluid = state.getFluidState();
 
-                if (!fluid.isEmpty() && BlockRenderLayers.getFluidLayer(fluid) == layer)
+                if (!fluid.isEmpty() && ItemBlockRenderTypes.getRenderLayer(fluid) == layer)
                 {
                     fluidConsumer.target(builder, pos.getX() & ~15, pos.getY() & ~15, pos.getZ() & ~15);
-                    manager.renderFluid(pos, world, fluidConsumer, state, fluid);
+                    manager.renderLiquid(pos, world, fluidConsumer, state, fluid);
                 }
 
-                if (state.getRenderType() == BlockRenderType.MODEL && BlockRenderLayers.getBlockLayer(state) == layer)
+                if (state.getRenderShape() == RenderShape.MODEL && ItemBlockRenderTypes.getChunkRenderType(state) == layer)
                 {
-                    matrices.push();
+                    matrices.pushPose();
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     /* 1.21.11 takes the model's parts rather than the seeded Random: the model
                      * picks its variant from the random itself, and renderBlock draws what it got. */
-                    manager.renderBlock(state, pos, world, matrices, builder, true, manager.getModel(state).getParts(random));
-                    matrices.pop();
+                    manager.renderBatched(state, pos, world, matrices, builder, true, manager.getBlockModel(state).collectParts(random));
+                    matrices.popPose();
                 }
             }
 
@@ -161,18 +161,18 @@ public class BakedStructure
     }
 
     /** Remember which sprites the block/fluid at this position uses (for Sodium animation). */
-    private void collectSprites(BlockRenderManager manager, StructureRenderWorld world, BlockPos pos, BlockState state, Random random)
+    private void collectSprites(BlockRenderDispatcher manager, StructureRenderWorld world, BlockPos pos, BlockState state, RandomSource random)
     {
-        if (state.getRenderType() == BlockRenderType.MODEL)
+        if (state.getRenderShape() == RenderShape.MODEL)
         {
-            BlockStateModel model = manager.getModel(state);
+            BlockStateModel model = manager.getBlockModel(state);
 
-            random.setSeed(state.getRenderingSeed(pos));
+            random.setSeed(state.getSeed(pos));
 
             /* 1.21.11: a state's model is a list of parts, and each part answers getQuads(direction)
              * — the (state, direction, random) triple the old BakedModel took is split across the
              * two calls. Null is still the "no particular face" bucket. */
-            for (BlockModelPart part : model.getParts(random))
+            for (BlockModelPart part : model.collectParts(random))
             {
                 for (Direction direction : DIRECTIONS)
                 {
@@ -193,11 +193,11 @@ public class BakedStructure
 
         if (!fluid.isEmpty())
         {
-            FluidRenderHandler handler = FluidRenderHandlerRegistry.INSTANCE.get(fluid.getFluid());
+            FluidRenderHandler handler = FluidRenderHandlerRegistry.INSTANCE.get(fluid.getType());
 
             if (handler != null)
             {
-                for (Sprite sprite : handler.getFluidSprites(world, pos, fluid))
+                for (TextureAtlasSprite sprite : handler.getFluidSprites(world, pos, fluid))
                 {
                     if (sprite != null)
                     {
@@ -225,9 +225,9 @@ public class BakedStructure
     }
 
     /** Layers whose per-vertex alpha is real opacity; everything else is opaque (alpha ignorable). */
-    private static boolean isTranslucent(BlockRenderLayer layer)
+    private static boolean isTranslucent(ChunkSectionLayer layer)
     {
-        return layer == BlockRenderLayer.TRANSLUCENT || layer == BlockRenderLayer.TRIPWIRE;
+        return layer == ChunkSectionLayer.TRANSLUCENT || layer == ChunkSectionLayer.TRIPWIRE;
     }
 
     /**
@@ -242,14 +242,14 @@ public class BakedStructure
      * which would draw translucent before opaque and bring the bug back.</p>
      */
 
-    private static RenderLayer getEntityLayer(BlockRenderLayer blockLayer)
+    private static RenderType getEntityLayer(ChunkSectionLayer blockLayer)
     {
         if (isTranslucent(blockLayer))
         {
-            return TexturedRenderLayers.getBlockTranslucentCull();
+            return Sheets.translucentBlockItemSheet();
         }
 
-        return TexturedRenderLayers.getEntityCutout();
+        return Sheets.cutoutBlockSheet();
     }
 
     /**
@@ -264,13 +264,13 @@ public class BakedStructure
      * other form, while baked emitters (glowstone, lamps) keep glowing. UI previews pass
      * {@code MAX_LIGHT_COORDINATE} which makes everything full-bright.</p>
      */
-    public void render(MatrixStack.Entry entry, CustomVertexConsumerProvider consumers, int contextLight, int tint)
+    public void render(PoseStack.Pose entry, CustomVertexConsumerProvider consumers, int contextLight, int tint)
     {
         /* Sodium only animates sprites it saw this frame — baked geometry bypasses it */
         SodiumSpriteHook.markActive(this.sprites);
 
-        Matrix4f pose = entry.getPositionMatrix();
-        Matrix3f normalMatrix = entry.getNormalMatrix();
+        Matrix4f pose = entry.pose();
+        Matrix3f normalMatrix = entry.normal();
         int contextBlock = contextLight & 0xFFFF;
         int contextSky = (contextLight >> 16) & 0xFFFF;
 
@@ -296,7 +296,7 @@ public class BakedStructure
              * cannot serve. So the opaque half takes the route the shaders branch always did, and
              * the whole structure goes through entity layers: cutout first, translucent-cull last,
              * which is what keeps glass and water compositing over the blocks behind them. */
-            RenderLayer target = getEntityLayer(baked.layer());
+            RenderType target = getEntityLayer(baked.layer());
 
             replay(consumers.getBuffer(target), baked, pose, normalMatrix, contextBlock, contextSky, tint);
         }
@@ -336,14 +336,14 @@ public class BakedStructure
             normalMatrix.transform(normal);
 
             emitVertex(out, position.x, position.y, position.z, r, g, b, a, u, v,
-                OverlayTexture.DEFAULT_UV, Math.max(bakedBlock, contextBlock), contextSky, normal.x, normal.y, normal.z);
+                OverlayTexture.NO_OVERLAY, Math.max(bakedBlock, contextBlock), contextSky, normal.x, normal.y, normal.z);
         }
     }
 
     /** Begin a scratch vertex buffer for the given draw mode + format. */
-    private static BufferBuilder beginBuffer(VertexFormat.DrawMode mode, VertexFormat format)
+    private static BufferBuilder beginBuffer(VertexFormat.Mode mode, VertexFormat format)
     {
-        return Tessellator.getInstance().begin(mode, format);
+        return Tesselator.getInstance().begin(mode, format);
     }
 
     /** End the builder and copy its vertices into a tight {@code POSITION_COLOR_TEXTURE_LIGHT_NORMAL}
@@ -351,16 +351,16 @@ public class BakedStructure
      *  {@link BakedBuffer} with null data if the format misses standard block attributes. */
     private static BakedBuffer endAndNormalize(BufferBuilder builder)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built == null)
         {
             return null;
         }
 
-        BuiltBuffer.DrawParameters parameters = built.getDrawParameters();
+        MeshData.DrawState parameters = built.drawState();
         int count = parameters.vertexCount();
-        ByteBuffer copy = normalize(built.getBuffer(), parameters.format(), count);
+        ByteBuffer copy = normalize(built.vertexBuffer(), parameters.format(), count);
 
         built.close();
 
@@ -385,7 +385,7 @@ public class BakedStructure
         int base = source.position();
         ByteBuffer copy = ByteBuffer.allocate(count * BakedBuffer.STRIDE).order(ByteOrder.nativeOrder());
 
-        if (stride == BakedBuffer.STRIDE && VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL.equals(format))
+        if (stride == BakedBuffer.STRIDE && DefaultVertexFormat.BLOCK.equals(format))
         {
             copy.put(0, source, base, count * BakedBuffer.STRIDE);
 
@@ -424,12 +424,12 @@ public class BakedStructure
     private static void emitVertex(VertexConsumer out, float x, float y, float z, int r, int g, int b, int a,
         float u, float v, int overlay, int blockLight, int skyLight, float nx, float ny, float nz)
     {
-        out.vertex(x, y, z)
-            .color(r, g, b, a)
-            .texture(u, v)
-            .overlay(overlay)
-            .light(blockLight, skyLight)
-            .normal(nx, ny, nz);
+        out.addVertex(x, y, z)
+            .setColor(r, g, b, a)
+            .setUv(u, v)
+            .setUv1(overlay)
+            .setUv2(blockLight, skyLight)
+            .setNormal(nx, ny, nz);
     }
 
 }

@@ -14,12 +14,12 @@ import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.ui.utils.icons.Icon;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.NbtComponent;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 
 public class UIItemStack extends UIElement
 {
@@ -60,7 +60,7 @@ public class UIItemStack extends UIElement
 
     public void setStack(ItemStack stack)
     {
-        this.stack = stack == null ? ItemStack.EMPTY : stack.copy();
+        this.stack = stack == null ? ItemStack.EMPTY : stack.copyFrom();
     }
 
     public UIItemStack placeholder(Icon icon)
@@ -115,13 +115,13 @@ public class UIItemStack extends UIElement
 
         if (!empty)
         {
-            org.joml.Matrix3x2fStack matrices = context.batcher.getContext().getMatrices();
+            org.joml.Matrix3x2fStack matrices = context.batcher.getContext().pose();
             CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
 
             matrices.pushMatrix();
             consumers.setUI(true);
-            context.batcher.getContext().drawItem(this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
-            context.batcher.getContext().drawStackOverlay(context.batcher.getFont().getRenderer(), this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().renderItem(this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
+            context.batcher.getContext().renderItemDecorations(context.batcher.getFont().getRenderer(), this.stack, this.area.x + (slot - 16) / 2, this.area.my() - 8);
             consumers.setUI(false);
             matrices.popMatrix();
         }
@@ -142,7 +142,7 @@ public class UIItemStack extends UIElement
         else
         {
             int color = hover ? Colors.HIGHLIGHT : Colors.WHITE;
-            String name = this.stack.getName().getString();
+            String name = this.stack.getHoverName().getString();
 
             if (this.stack.getCount() > 1)
             {
@@ -175,24 +175,24 @@ public class UIItemStack extends UIElement
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
-        if (mc.player == null || mc.player.networkHandler == null)
+        if (mc.player == null || mc.player.connection == null)
         {
             return;
         }
 
-        Identifier id = Registries.ITEM.getId(stack.getItem());
+        Identifier id = BuiltInRegistries.ITEM.getId(stack.getItem());
         StringBuilder command = new StringBuilder("give @s ").append(id);
-        NbtComponent customData = stack.get(DataComponentTypes.CUSTOM_DATA);
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
 
         if (customData != null && !customData.isEmpty())
         {
-            command.append("[minecraft:custom_data=").append(customData.copyNbt()).append(']');
+            command.append("[minecraft:custom_data=").append(customData.copyTag()).append(']');
         }
 
         command.append(' ').append(stack.getCount());
 
-        mc.player.networkHandler.sendChatCommand(command.toString());
+        mc.player.connection.sendCommand(command.toString());
     }
 }

@@ -2,17 +2,17 @@ package mchorse.bbs_mod.utils;
 
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.ActionManager;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtHelper;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.structure.StructureTemplate;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.Container;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.core.BlockPos;
 
 import java.io.File;
 import java.util.List;
@@ -43,7 +43,7 @@ public class StructureSaver
      * @param path file path under the structures folder, without the extension
      * @return whether the file was written
      */
-    public static boolean save(ServerWorld world, String path, BlockPos from, BlockPos to)
+    public static boolean save(ServerLevel world, String path, BlockPos from, BlockPos to)
     {
         File folder = BBSMod.getAssetsPath(ASSETS_FOLDER);
         File file = new File(folder, path + ".nbt");
@@ -57,14 +57,14 @@ public class StructureSaver
         try
         {
             StructureTemplate template = new StructureTemplate();
-            NbtCompound nbt = new NbtCompound();
+            CompoundTag nbt = new CompoundTag();
 
-            template.saveFromWorld(world, min(from, to), size(from, to), true, List.of(Blocks.STRUCTURE_VOID));
-            template.writeNbt(nbt);
+            template.fillFromWorld(world, min(from, to), size(from, to), true, List.of(Blocks.STRUCTURE_VOID));
+            template.save(nbt);
 
             /* Stamped the way the vanilla manager stamps its own, so a file written here is the
              * same file a structure block would have written and reads back everywhere. */
-            NbtHelper.putDataVersion(nbt);
+            NbtUtils.addDataVersion(nbt);
 
             file.getParentFile().mkdirs();
             NbtIo.writeCompressed(nbt, file.toPath());
@@ -97,7 +97,7 @@ public class StructureSaver
             Math.max(from.getZ(), to.getZ())
         );
 
-        return max.subtract(min).add(1, 1, 1);
+        return max.subtract(min).offset(1, 1, 1);
     }
 
     /**
@@ -112,11 +112,11 @@ public class StructureSaver
      *
      * @return how many blocks were removed
      */
-    public static int clear(ServerWorld world, BlockPos from, BlockPos to)
+    public static int clear(ServerLevel world, BlockPos from, BlockPos to)
     {
-        BlockState air = Blocks.AIR.getDefaultState();
-        BlockPos.Mutable pos = new BlockPos.Mutable();
-        int flags = Block.NOTIFY_LISTENERS | Block.FORCE_STATE | Block.SKIP_DROPS;
+        BlockState air = Blocks.AIR.defaultBlockState();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
         int cleared = 0;
 
         int minX = Math.min(from.getX(), to.getX());
@@ -132,7 +132,7 @@ public class StructureSaver
             {
                 for (int z = minZ; z <= maxZ; z++)
                 {
-                    pos.set(x, y, z);
+                    pos.setWithOffset(x, y, z);
 
                     if (world.getBlockState(pos).isAir())
                     {
@@ -141,12 +141,12 @@ public class StructureSaver
 
                     BlockEntity blockEntity = world.getBlockEntity(pos);
 
-                    if (blockEntity instanceof Inventory inventory)
+                    if (blockEntity instanceof Container inventory)
                     {
-                        inventory.clear();
+                        inventory.clearContent();
                     }
 
-                    world.setBlockState(pos, air, flags);
+                    world.setBlockAndUpdate(pos, air, flags);
                     cleared += 1;
                 }
             }

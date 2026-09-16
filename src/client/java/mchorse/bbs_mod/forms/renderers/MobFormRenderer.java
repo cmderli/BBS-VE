@@ -30,22 +30,22 @@ import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.entity.EntityRenderManager;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.render.entity.model.EntityModel;
-import net.minecraft.client.render.entity.state.EntityRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.model.EntityModel;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import com.mojang.math.Axis;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -93,7 +93,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
     {
         this.ensureEntity();
 
-        if (this.entity != null && MinecraftClient.getInstance().getEntityRenderDispatcher().getRenderer(this.entity) instanceof LivingEntityRenderer renderer)
+        if (this.entity != null && Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(this.entity) instanceof LivingEntityRenderer renderer)
         {
             return MobRigs.of(renderer.getModel());
         }
@@ -163,10 +163,10 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
                 continue;
             }
 
-            context.stack.push();
+            context.stack.pushPose();
             if (context.world != null)
             {
-                context.world.push();
+                context.world.pushPose();
             }
 
             MatrixStackUtils.multiply(context.stack, matrix);
@@ -177,10 +177,10 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
             this.renderBodyPart(part, context);
 
-            context.stack.pop();
+            context.stack.popPose();
             if (context.world != null)
             {
-                context.world.pop();
+                context.world.popPose();
             }
         }
 
@@ -193,21 +193,21 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
      * mob's head resolves under {@code <path>/head} the way a model form's bones do.
      */
     @Override
-    public void collectMatrices(IEntity entity, MatrixStack stack, MatrixCache matrices, String prefix, float transition)
+    public void collectMatrices(IEntity entity, PoseStack stack, MatrixCache matrices, String prefix, float transition)
     {
         this.ensureEntity();
 
         Matrix4f mm = new Matrix4f();
         Matrix4f oo = new Matrix4f();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, true, transition);
-        oo.set(stack.peek().getPositionMatrix());
-        stack.pop();
+        oo.set(stack.last().pose());
+        stack.popPose();
 
-        stack.push();
+        stack.pushPose();
         this.applyTransforms(stack, false, transition);
-        mm.set(stack.peek().getPositionMatrix());
+        mm.set(stack.last().pose());
 
         matrices.put(prefix, mm, oo);
 
@@ -220,15 +220,15 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
             Matrix4f matrix = new Matrix4f();
             Matrix4f o = new Matrix4f();
 
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, entry.getValue().matrix());
-            matrix.set(stack.peek().getPositionMatrix());
-            stack.pop();
+            matrix.set(stack.last().pose());
+            stack.popPose();
 
-            stack.push();
+            stack.pushPose();
             MatrixStackUtils.multiply(stack, entry.getValue().origin());
-            o.set(stack.peek().getPositionMatrix());
-            stack.pop();
+            o.set(stack.last().pose());
+            stack.popPose();
 
             matrices.put(StringUtils.combinePaths(prefix, entry.getKey()), matrix, o);
         }
@@ -244,7 +244,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
             Matrix4f matrix = part.filterBoneMatrix(collected.get(part.bone.get()).matrix());
 
-            stack.push();
+            stack.pushPose();
 
             if (matrix != null)
             {
@@ -254,10 +254,10 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
             MatrixStackUtils.applyTransform(stack, part.transform.get());
             FormUtilsClient.getRenderer(form).collectMatrices(entity, stack, matrices, StringUtils.combinePaths(prefix, part.getId()), transition);
 
-            stack.pop();
+            stack.popPose();
         }
 
-        stack.pop();
+        stack.popPose();
     }
 
     private void bindTexture()
@@ -290,7 +290,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
     }
 
     @Override
-    public void renderUIPreview(MatrixStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
+    public void renderUIPreview(PoseStack stack, float angle, float transition, int x1, int y1, int x2, int y2)
     {
         if (this.entity == null)
         {
@@ -299,27 +299,27 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
         Matrix4f uiMatrix = getUIPreviewMatrix(angle, y1, y2);
         float scale = this.form.uiScale.get();
-        float width = this.entity.getWidth();
-        float height = this.entity.getHeight();
+        float width = this.entity.getBbWidth();
+        float height = this.entity.getBbHeight();
 
         /* Big mobs are normalized into the cell, exactly like the 1.21.1 preview did. */
         scale = scale * Math.min(1.8F / Math.max(width, height), 1F);
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.multiply(stack, uiMatrix);
         stack.scale(scale, scale, scale);
 
         if (!this.form.mobID.get().equals("minecraft:ender_dragon"))
         {
-            stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
         }
 
-        stack.peek().getNormalMatrix().getScale(Vectors.EMPTY_3F);
-        stack.peek().getNormalMatrix().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
+        stack.last().normal().getScale(Vectors.EMPTY_3F);
+        stack.last().normal().scale(1F / Vectors.EMPTY_3F.x, -1F / Vectors.EMPTY_3F.y, 1F / Vectors.EMPTY_3F.z);
 
-        this.renderEntity(stack, transition, LightmapTextureManager.MAX_BLOCK_LIGHT_COORDINATE, OverlayTexture.DEFAULT_UV, null);
+        this.renderEntity(stack, transition, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY, null);
 
-        stack.pop();
+        stack.popPose();
     }
 
     @Override
@@ -339,20 +339,20 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
         Matrix4f cached = new Matrix4f(RenderSystem.getModelViewMatrix());
 
-        context.stack.push();
+        context.stack.pushPose();
 
         if (context.world != null)
         {
-            context.world.push();
+            context.world.pushPose();
         }
 
         if (this.form.mobID.get().equals("minecraft:ender_dragon"))
         {
-            context.stack.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+            context.stack.rotateAround(Axis.YP.rotation(MathUtils.PI));
 
             if (context.world != null)
             {
-                context.world.multiply(RotationAxis.POSITIVE_Y.rotation(MathUtils.PI));
+                context.world.rotateAround(Axis.YP.rotation(MathUtils.PI));
             }
         }
 
@@ -375,7 +375,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
              * argument therefore goes in clean. */
             FormRenderCapture.begin();
 
-            Map<RenderLayer, List<FormRenderCapture.Captured>> captured;
+            Map<RenderType, List<FormRenderCapture.Captured>> captured;
 
             try
             {
@@ -392,7 +392,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
         {
             /* Publishing the form's camera-space origin opts its translucent layers (slime
              * bodies, ghost textures) into the deferred sorted pass. */
-            Vector3f origin = context.stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+            Vector3f origin = context.stack.last().pose().getTranslation(new Vector3f());
 
             FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
 
@@ -401,11 +401,11 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
             FormTranslucentQueue.setSortOrigin(null);
         }
 
-        context.stack.pop();
+        context.stack.popPose();
 
         if (context.world != null)
         {
-            context.world.pop();
+            context.world.popPose();
         }
 
         /* Restore the shared model-view in case a command renderer touched it — the 2D UI batch
@@ -418,26 +418,26 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
      * command queue and flush the queue synchronously through the BBS provider. See
      * {@link QueueDispatch} for why the private queue exists at all.
      */
-    private void renderEntity(MatrixStack stack, float transition, int light, int overlay, StencilMap stencilMap)
+    private void renderEntity(PoseStack stack, float transition, int light, int overlay, StencilMap stencilMap)
     {
         CustomVertexConsumerProvider consumers = FormUtilsClient.getProvider();
-        EntityRenderManager manager = MinecraftClient.getInstance().getEntityRenderDispatcher();
+        EntityRenderDispatcher manager = Minecraft.getInstance().getEntityRenderDispatcher();
 
         /* Resolves (and caches) the part map as a side effect, for the pose below. */
         this.getBones();
 
-        EntityRenderState state = manager.getAndUpdateRenderState(this.entity, transition);
+        EntityRenderState state = manager.extractEntity(this.entity, transition);
 
         /* The film/preview owns placement and lighting: the entity nominally stands wherever the
          * real world put it, but it draws at the stack's origin with the form's light. Labels,
          * vanilla blob shadows and leashes are world-decorations that never made sense on a form. */
         state.x = state.y = state.z = 0;
-        state.squaredDistanceToCamera = 0;
-        state.light = light;
-        state.displayName = null;
-        state.nameLabelPos = null;
+        state.distanceToCameraSq = 0;
+        state.lightCoords = light;
+        state.nameTag = null;
+        state.nameTagAttachment = null;
         state.shadowPieces.clear();
-        state.leashDatas = null;
+        state.leashStates = null;
         state.outlineColor = 0;
 
         /* Publish the rig and the pose for the length of this flush: the parts take their final
@@ -462,7 +462,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
                 {
                     first[0] = false;
 
-                    return RenderLayers.entityTranslucent(adopted);
+                    return RenderTypes.entityTranslucent(adopted);
                 }
 
                 return null;
@@ -471,7 +471,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
         try
         {
-            manager.render(state, QueueDispatch.cameraState(), 0D, 0D, 0D, stack, QueueDispatch.queue());
+            manager.submit(state, QueueDispatch.cameraState(), 0D, 0D, 0D, stack, QueueDispatch.queue());
             QueueDispatch.flush();
             consumers.draw();
         }

@@ -13,7 +13,7 @@ import mchorse.bbs_mod.ui.utils.keys.KeyAction;
 import mchorse.bbs_mod.ui.utils.keys.KeyCombo;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.interps.Lerps;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.joml.Intersectiond;
 import org.joml.Matrix3f;
 import org.joml.Vector2f;
@@ -300,7 +300,7 @@ public abstract class OrbitViewportController implements ICameraController
             return;
         }
 
-        float dt = MinecraftClient.getInstance().getRenderTickCounter().getDynamicDeltaTicks();
+        float dt = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaTicks();
         float factor = MathUtils.clamp(1F - (float) Math.pow(Math.min(smoothness, 0.99F), dt), 0F, 1F);
 
         this.rotation.lerp(this.targetRotation, factor);

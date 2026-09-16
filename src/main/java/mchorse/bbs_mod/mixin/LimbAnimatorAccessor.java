@@ -1,10 +1,10 @@
 package mchorse.bbs_mod.mixin;
 
-import net.minecraft.entity.LimbAnimator;
+import net.minecraft.world.entity.WalkAnimationState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(LimbAnimator.class)
+@Mixin(WalkAnimationState.class)
 public interface LimbAnimatorAccessor
 {
     @Accessor("lastSpeed")

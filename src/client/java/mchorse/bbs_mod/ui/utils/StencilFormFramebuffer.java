@@ -16,7 +16,7 @@ import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.utils.StencilMap;
 import mchorse.bbs_mod.utils.Pair;
-import net.minecraft.client.texture.GlTexture;
+import com.mojang.blaze3d.opengl.GlTexture;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -102,7 +102,7 @@ public class StencilFormFramebuffer
     /** Raw GL id of this viewport's highlight texture, for the recorded {@code texturedBox(int,...)} blit. */
     public int getHighlightGlId()
     {
-        return this.highlightTex == null ? -1 : ((GlTexture) this.highlightTex).getGlId();
+        return this.highlightTex == null ? -1 : ((GlTexture) this.highlightTex).glId();
     }
 
     public int getHighlightWidth()
@@ -329,7 +329,7 @@ public class StencilFormFramebuffer
             this.readFbo = GL30.glGenFramebuffers();
         }
 
-        int glId = ((GlTexture) this.colorTexture).getGlId();
+        int glId = ((GlTexture) this.colorTexture).glId();
 
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.readFbo);
         GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, glId, 0);

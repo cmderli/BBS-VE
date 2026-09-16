@@ -3,12 +3,12 @@ package mchorse.bbs_mod.forms.entities;
 import mchorse.bbs_mod.cubic.jem.CemVariables;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.utils.AABB;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LimbAnimator;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.WalkAnimationState;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.Level;
 
 /**
  * Interface that provides access to an "Entity" within forms for rendering
@@ -16,9 +16,9 @@ import net.minecraft.world.World;
  */
 public interface IEntity
 {
-    public void setWorld(World world);
+    public void setWorld(Level world);
 
-    public World getWorld();
+    public Level getWorld();
 
     public Form getForm();
 
@@ -293,7 +293,7 @@ public interface IEntity
 
     public double getEyeHeight();
 
-    public Vec3d getVelocity();
+    public Vec3 getVelocity();
 
     public void setVelocity(float x, float y, float z);
 
@@ -381,7 +381,7 @@ public interface IEntity
         }
     }
 
-    public LimbAnimator getLimbAnimator();
+    public WalkAnimationState getLimbAnimator();
 
     public float getLimbPos(float tickDelta);
 
@@ -403,7 +403,7 @@ public interface IEntity
 
     public boolean isTouchingWater();
 
-    public EntityPose getEntityPose();
+    public Pose getEntityPose();
 
     public int getRoll();
 
@@ -414,9 +414,9 @@ public interface IEntity
 
     public void setFallFlying(boolean fallFlying);
 
-    public Vec3d getRotationVec(float transition);
+    public Vec3 getRotationVec(float transition);
 
-    public Vec3d lerpVelocity(float transition);
+    public Vec3 lerpVelocity(float transition);
 
     public boolean isUsingRiptide();
 }

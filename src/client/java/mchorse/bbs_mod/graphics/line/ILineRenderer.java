@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.graphics.line;
 
-import net.minecraft.client.render.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix3x2fc;
 
 /**

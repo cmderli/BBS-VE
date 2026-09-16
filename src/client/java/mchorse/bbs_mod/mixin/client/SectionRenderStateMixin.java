@@ -1,9 +1,9 @@
 package mchorse.bbs_mod.mixin.client;
 
 import mchorse.bbs_mod.BBSSettings;
-import net.minecraft.client.gl.GpuSampler;
-import net.minecraft.client.render.BlockRenderLayerGroup;
-import net.minecraft.client.render.SectionRenderState;
+import com.mojang.blaze3d.textures.GpuSampler;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayerGroup;
+import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,11 +19,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@link SectionRenderState#renderSection} (called for every {@link BlockRenderLayerGroup}
  * from the main pass), so the kill switch moved here — one hook covers all layer groups.
  */
-@Mixin(SectionRenderState.class)
+@Mixin(ChunkSectionsToRender.class)
 public class SectionRenderStateMixin
 {
     @Inject(method = "renderSection", at = @At("HEAD"), cancellable = true)
-    private void onRenderSection(BlockRenderLayerGroup group, GpuSampler terrainSampler, CallbackInfo info)
+    private void onRenderSection(ChunkSectionLayerGroup group, GpuSampler terrainSampler, CallbackInfo info)
     {
         if (BBSSettings.chromaSkyEnabled.get() && !BBSSettings.chromaSkyTerrain.get())
         {

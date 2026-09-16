@@ -17,19 +17,19 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
 import mchorse.bbs_mod.graphics.texture.Texture;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.texture.AbstractTexture;
-import net.minecraft.client.gl.UniformType;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import com.mojang.blaze3d.shaders.UniformType;
+import net.minecraft.resources.Identifier;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.GpuSampler;
-import net.minecraft.client.gl.MappableRingBuffer;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.textures.GpuSampler;
+import net.minecraft.client.renderer.MappableRingBuffer;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
@@ -76,9 +76,9 @@ public class BBSPickerRenderer
      * keeps the colour unpremultiplied, and the single blend at blit time is the correct one.
      */
     private static final RenderPipeline GIZMO_HIGHLIGHT_PIPELINE = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/gizmo_sphere_highlight"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/gizmo_sphere_highlight"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withoutBlend()
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
@@ -250,9 +250,9 @@ public class BBSPickerRenderer
             return;
         }
 
-        AbstractTexture at = MinecraftClient.getInstance().getTextureManager().getTexture(adopted);
+        AbstractTexture at = Minecraft.getInstance().getTextureManager().getTexture(adopted);
 
-        setSampler0(at.getGlTextureView(), at.getSampler());
+        setSampler0(at.getTextureView(), at.getSampler());
     }
 
     /**
@@ -288,7 +288,7 @@ public class BBSPickerRenderer
 
         uboRing.rotate();
 
-        GpuBuffer ubo = uboRing.getBlocking();
+        GpuBuffer ubo = uboRing.currentBuffer();
 
         try (GpuBuffer.MappedView view = encoder.mapBuffer(ubo, false, true))
         {
@@ -331,35 +331,35 @@ public class BBSPickerRenderer
      *                  form's stack folded in; for the in-panel preview it is identity, the camera being
      *                  baked into the vertices)
      */
-    public static void draw(RenderPipeline pipeline, BuiltBuffer buffer, Matrix4f modelView)
+    public static void draw(RenderPipeline pipeline, MeshData buffer, Matrix4f modelView)
     {
         GpuDevice device = RenderSystem.getDevice();
         CommandEncoder encoder = device.createCommandEncoder();
 
         /* DynamicTransforms: modelView + identity colorModulator/offset/textureMatrix, like RenderLayer.draw. */
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .write(modelView, new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
+            .writeTransform(modelView, new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
 
         /* BBSPicker: the Target/HighlightColor block. */
         GpuBuffer pickerUniform = writeUniform(device, encoder);
 
         VertexFormat format = pipeline.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.getBuffer());
+        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
 
         GpuBuffer indexBuffer;
         VertexFormat.IndexType indexType;
 
-        if (buffer.getSortedBuffer() == null)
+        if (buffer.indexBuffer() == null)
         {
-            RenderSystem.ShapeIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.getDrawParameters().mode());
+            RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
 
-            indexBuffer = sequential.getIndexBuffer(buffer.getDrawParameters().indexCount());
-            indexType = sequential.getIndexType();
+            indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
+            indexType = sequential.type();
         }
         else
         {
-            indexBuffer = format.uploadImmediateIndexBuffer(buffer.getSortedBuffer());
-            indexType = buffer.getDrawParameters().indexType();
+            indexBuffer = format.uploadImmediateIndexBuffer(buffer.indexBuffer());
+            indexType = buffer.drawState().indexType();
         }
 
         GpuTextureView color;
@@ -372,10 +372,10 @@ public class BBSPickerRenderer
         }
         else
         {
-            Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
+            RenderTarget framebuffer = Minecraft.getInstance().getMainRenderTarget();
 
-            color = framebuffer.getColorAttachmentView();
-            depth = framebuffer.useDepthAttachment ? framebuffer.getDepthAttachmentView() : null;
+            color = framebuffer.getColorTextureView();
+            depth = framebuffer.useDepth ? framebuffer.getDepthTextureView() : null;
         }
 
         GpuBufferSlice projectionUniform = projectionOverrideSlice(encoder);
@@ -390,7 +390,7 @@ public class BBSPickerRenderer
             pass.setVertexBuffer(0, vertexBuffer);
             pass.bindTexture("Sampler0", sampler0View, sampler0);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.getDrawParameters().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
         }
         finally
         {
@@ -419,7 +419,7 @@ public class BBSPickerRenderer
      *                  would apply ({@link RenderSystem#getModelViewMatrix()}); the per-vertex stack pose is
      *                  already baked into the geometry, matching the visible gizmo exactly.
      */
-    public static void drawColorId(RenderPipeline pipeline, BuiltBuffer buffer, Matrix4f modelView)
+    public static void drawColorId(RenderPipeline pipeline, MeshData buffer, Matrix4f modelView)
     {
         if (targetColor == null)
         {
@@ -432,25 +432,25 @@ public class BBSPickerRenderer
         CommandEncoder encoder = device.createCommandEncoder();
 
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .write(modelView, new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
+            .writeTransform(modelView, new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
 
         VertexFormat format = pipeline.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.getBuffer());
+        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
 
         GpuBuffer indexBuffer;
         VertexFormat.IndexType indexType;
 
-        if (buffer.getSortedBuffer() == null)
+        if (buffer.indexBuffer() == null)
         {
-            RenderSystem.ShapeIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.getDrawParameters().mode());
+            RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
 
-            indexBuffer = sequential.getIndexBuffer(buffer.getDrawParameters().indexCount());
-            indexType = sequential.getIndexType();
+            indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
+            indexType = sequential.type();
         }
         else
         {
-            indexBuffer = format.uploadImmediateIndexBuffer(buffer.getSortedBuffer());
-            indexType = buffer.getDrawParameters().indexType();
+            indexBuffer = format.uploadImmediateIndexBuffer(buffer.indexBuffer());
+            indexType = buffer.drawState().indexType();
         }
 
         GpuBufferSlice projectionUniform = projectionOverrideSlice(encoder);
@@ -463,7 +463,7 @@ public class BBSPickerRenderer
             pass.setUniform("DynamicTransforms", dynamicTransforms);
             pass.setVertexBuffer(0, vertexBuffer);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.getDrawParameters().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
         }
         finally
         {
@@ -485,7 +485,7 @@ public class BBSPickerRenderer
 
         projectionRing.rotate();
 
-        GpuBuffer ubo = projectionRing.getBlocking();
+        GpuBuffer ubo = projectionRing.currentBuffer();
 
         try (GpuBuffer.MappedView view = encoder.mapBuffer(ubo, false, true))
         {
@@ -542,7 +542,7 @@ public class BBSPickerRenderer
         {
             /* NEAREST + clamp: the source carries the encoded index per texel; any filtering would blend
              * indices at bone borders and corrupt the int match. */
-            pickSampler = RenderSystem.getSamplerCache().get(
+            pickSampler = RenderSystem.getSamplerCache().getClampToEdge(
                 AddressMode.CLAMP_TO_EDGE, AddressMode.CLAMP_TO_EDGE, FilterMode.NEAREST, FilterMode.NEAREST, false);
         }
 
@@ -561,7 +561,7 @@ public class BBSPickerRenderer
         /* DynamicTransforms: identity ModelViewMat, ColorModulator (1,1,1,1) — the shader's final
          * color * ColorModulator must be a no-op so HighlightColor passes through unchanged. */
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .write(new Matrix4f(), new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
+            .writeTransform(new Matrix4f(), new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
 
         GpuBufferSlice projectionUniform = writeProjection(encoder, projection);
         GpuBuffer pickerUniform = writeUniform(device, encoder);
@@ -572,14 +572,14 @@ public class BBSPickerRenderer
          * blit-flip cancel to identity -> the highlight matches the model. WHITE vertex colour (* texel = texel). */
         int color = Colors.WHITE;
 
-        BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
-        builder.vertex(0F, (float) h, 0F).texture(0F, 0F).color(color);
-        builder.vertex((float) w, (float) h, 0F).texture(1F, 0F).color(color);
-        builder.vertex((float) w, 0F, 0F).texture(1F, 1F).color(color);
-        builder.vertex(0F, 0F, 0F).texture(0F, 1F).color(color);
+        builder.vertex(0F, (float) h, 0F).setUv(0F, 0F).setColor(color);
+        builder.vertex((float) w, (float) h, 0F).setUv(1F, 0F).setColor(color);
+        builder.vertex((float) w, 0F, 0F).setUv(1F, 1F).setColor(color);
+        builder.vertex(0F, 0F, 0F).setUv(0F, 1F).setColor(color);
 
-        BuiltBuffer buffer = builder.endNullable();
+        MeshData buffer = builder.build();
 
         if (buffer == null)
         {
@@ -587,11 +587,11 @@ public class BBSPickerRenderer
         }
 
         VertexFormat format = pipeline.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.getBuffer());
+        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
 
-        RenderSystem.ShapeIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.getDrawParameters().mode());
-        GpuBuffer indexBuffer = sequential.getIndexBuffer(buffer.getDrawParameters().indexCount());
-        VertexFormat.IndexType indexType = sequential.getIndexType();
+        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
+        GpuBuffer indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
+        VertexFormat.IndexType indexType = sequential.type();
 
         /* Clear-on-load to fully transparent (the OptionalInt clear colour): only the recoloured (matched)
          * pixels end up carrying alpha, so the later GUI_TEXTURED blit (texel.a * vertex.a) composites only the
@@ -607,7 +607,7 @@ public class BBSPickerRenderer
             pass.setVertexBuffer(0, vertexBuffer);
             pass.bindTexture("Sampler0", source, pickSampler);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.getDrawParameters().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
         }
         finally
         {
@@ -631,7 +631,7 @@ public class BBSPickerRenderer
      *
      * @return {@code true} when something was rendered and the caller should blit
      */
-    public static boolean drawGeometryHighlight(BuiltBuffer buffer, GpuTextureView target, Matrix4f modelView, Matrix4f projection)
+    public static boolean drawGeometryHighlight(MeshData buffer, GpuTextureView target, Matrix4f modelView, Matrix4f projection)
     {
         if (buffer == null || target == null)
         {
@@ -645,28 +645,28 @@ public class BBSPickerRenderer
             RenderPipeline pipeline = GIZMO_HIGHLIGHT_PIPELINE;
 
             GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-                .write(modelView, new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
+                .writeTransform(modelView, new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
 
             /* Written before the pass opens: rotating the ring issues a GPU fence, which the encoder
              * rejects while a pass is open. */
             GpuBufferSlice projectionUniform = writeProjection(encoder, projection);
 
             VertexFormat format = pipeline.getVertexFormat();
-            GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.getBuffer());
+            GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
             GpuBuffer indexBuffer;
             VertexFormat.IndexType indexType;
 
-            if (buffer.getSortedBuffer() == null)
+            if (buffer.indexBuffer() == null)
             {
-                RenderSystem.ShapeIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.getDrawParameters().mode());
+                RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
 
-                indexBuffer = sequential.getIndexBuffer(buffer.getDrawParameters().indexCount());
-                indexType = sequential.getIndexType();
+                indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
+                indexType = sequential.type();
             }
             else
             {
-                indexBuffer = format.uploadImmediateIndexBuffer(buffer.getSortedBuffer());
-                indexType = buffer.getDrawParameters().indexType();
+                indexBuffer = format.uploadImmediateIndexBuffer(buffer.indexBuffer());
+                indexType = buffer.drawState().indexType();
             }
 
             try (RenderPass pass = encoder.createRenderPass(() -> "bbs:gizmo_sphere_highlight", target, OptionalInt.of(0x00000000)))
@@ -677,7 +677,7 @@ public class BBSPickerRenderer
                 pass.setUniform("DynamicTransforms", dynamicTransforms);
                 pass.setVertexBuffer(0, vertexBuffer);
                 pass.setIndexBuffer(indexBuffer, indexType);
-                pass.drawIndexed(0, 0, buffer.getDrawParameters().indexCount(), 1);
+                pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
             }
 
             return true;

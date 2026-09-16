@@ -1,0 +1,24 @@
+files scanned:   1590
+files changed:   363
+renames applied: 7912
+unresolved:      4357
+by kind:
+  field access: 488
+  method call: 2758
+  override declaration: 108
+  static field access: 1
+  static method call: 280
+  type name in expression: 967
+  type reference: 3808
+unresolved reasons:
+  521  IllegalStateException: Symbol resolution not configured: to configure consider setting a SymbolResolver in the ParserConfiguration
+  318  UnsupportedOperationException: null
+  305  UnsupportedOperationException: Unknown node type: ObjectCreationExpr
+  156  UnsupportedOperationException: com.github.javaparser.symbolsolver.javassistmodel.JavassistRecordDeclaration
+  91  UnsolvedSymbolException: Unsolved symbol in v.floatValue() : v
+  81  UnsolvedSymbolException: Unsolved symbol in b.getValue() : b
+  68  UnsolvedSymbolException: Unsolved symbol : WorldRenderContext
+  57  UnsupportedOperationException: The type declaration cannot be found on constraint T
+  56  UnsolvedSymbolException: Unsolved symbol : We are unable to find the value declaration corresponding to VertexFormat.DrawMode
+  54  MethodAmbiguityException: Ambiguous method call: cannot find a most applicable method: JavaParserMethodDeclaration{wrappedNode=public UIElement context(Supplier
+conflicts:       0

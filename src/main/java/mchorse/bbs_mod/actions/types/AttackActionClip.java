@@ -5,13 +5,13 @@ import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.settings.values.numeric.ValueFloat;
 import mchorse.bbs_mod.utils.clips.Clip;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.projectile.ProjectileUtil;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class AttackActionClip extends ActionClip
 {
@@ -37,14 +37,14 @@ public class AttackActionClip extends ActionClip
         this.applyPositionRotation(player, replay, tick);
 
         double distance = 6D;
-        HitResult blockHit = player.raycast(distance, 1F, false);
-        Vec3d origin = player.getCameraPosVec(1F);
-        Vec3d rotation = player.getRotationVec(1F);
-        Vec3d direction = origin.add(rotation.x * distance, rotation.y * distance, rotation.z * distance);
+        HitResult blockHit = player.pick(distance, 1F, false);
+        Vec3 origin = player.getEyePosition(1F);
+        Vec3 rotation = player.getViewVector(1F);
+        Vec3 direction = origin.atLowerCornerWithOffset(rotation.x * distance, rotation.y * distance, rotation.z * distance);
 
-        double newDistance = blockHit != null ? blockHit.getPos().squaredDistanceTo(origin) : distance * distance;
-        Box box = player.getBoundingBox().stretch(rotation.multiply(distance)).expand(1, 1, 1);
-        EntityHitResult enittyHit = ProjectileUtil.raycast(actor == null ? player : actor, origin, direction, box, entity -> !entity.isSpectator() && entity.canHit(), newDistance);
+        double newDistance = blockHit != null ? blockHit.getLocation().distanceToSqr(origin) : distance * distance;
+        AABB box = player.getBoundingBox().expandTowards(rotation.scale(distance)).inflate(1, 1, 1);
+        EntityHitResult enittyHit = ProjectileUtil.getEntityHitResult(actor == null ? player : actor, origin, direction, box, entity -> !entity.isSpectator() && entity.isPickable(), newDistance);
 
         if (enittyHit != null)
         {
@@ -52,9 +52,9 @@ public class AttackActionClip extends ActionClip
 
             if (entity != null)
             {
-                net.minecraft.server.world.ServerWorld world = player.getEntityWorld();
+                net.minecraft.server.world.ServerLevel world = player.level();
 
-                entity.damage(world, world.getDamageSources().mobAttack(player), damage);
+                entity.hurtServer(world, world.damageSources().mobAttack(player), damage);
             }
         }
     }

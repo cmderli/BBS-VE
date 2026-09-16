@@ -90,7 +90,7 @@ public class LineBuilder <T>
         /* The mesh folds the live 2D GUI pose into every vertex as it is recorded (the VertexConsumer
          * default vertex(Matrix3x2fc, ...) transforms CPU-side), so recording synchronously against the
          * live matrix is correct. */
-        Matrix3x2fc matrix = batcher2D.getContext().getMatrices();
+        Matrix3x2fc matrix = batcher2D.getContext().pose();
         GuiQuadMesh mesh = new GuiQuadMesh();
         List<List<LinePoint<T>>> build = this.build();
 

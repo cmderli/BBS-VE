@@ -15,8 +15,8 @@ import mchorse.bbs_mod.ui.morphing.camera.ImmersiveMorphingCameraController;
 import mchorse.bbs_mod.ui.onboarding.TourAnchors;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.Direction;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.Perspective;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.CameraType;
 
 public class UIMorphingPanel extends UIDashboardPanel
 {
@@ -46,7 +46,7 @@ public class UIMorphingPanel extends UIDashboardPanel
         this.demorph.tooltip(UIKeys.MORPHING_DEMORPH, Direction.TOP);
         this.fromMob = new UIIcon(Icons.MORPH, (b) ->
         {
-            Form form = Morph.getMobForm(MinecraftClient.getInstance().player);
+            Form form = Morph.getMobForm(Minecraft.getInstance().player);
 
             if (form != null)
             {
@@ -75,24 +75,24 @@ public class UIMorphingPanel extends UIDashboardPanel
     {
         this.palette.list.forms.scroll.scrollSpeed = 40;
 
-        Morph morph = ((IMorphProvider) MinecraftClient.getInstance().player).getMorph();
+        Morph morph = ((IMorphProvider) Minecraft.getInstance().player).getMorph();
 
         this.palette.list.setupForms(BBSModClient.getFormCategories());
         this.palette.setSelected(morph.getForm());
 
         BBSModClient.getCameraController().add(this.controller);
-        MinecraftClient.getInstance().options.setPerspective(Perspective.THIRD_PERSON_BACK);
+        Minecraft.getInstance().options.setCameraType(CameraType.THIRD_PERSON_BACK);
 
         if (BBSSettings.morphingFocusSearch.get())
         {
-            MinecraftClient.getInstance().execute(() -> this.palette.list.focusSearchInput());
+            Minecraft.getInstance().execute(() -> this.palette.list.focusSearchInput());
         }
     }
 
     private void leaveMorphing()
     {
         BBSModClient.getCameraController().remove(this.controller);
-        MinecraftClient.getInstance().options.setPerspective(Perspective.FIRST_PERSON);
+        Minecraft.getInstance().options.setCameraType(CameraType.FIRST_PERSON);
     }
 
     private void setForm(Form form)

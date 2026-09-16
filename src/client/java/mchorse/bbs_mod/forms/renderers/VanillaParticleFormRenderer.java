@@ -14,18 +14,18 @@ import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.joml.Vectors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.command.argument.ParticleEffectArgumentType;
-import net.minecraft.item.ItemStack;
-import net.minecraft.particle.BlockStateParticleEffect;
-import net.minecraft.particle.ItemStackParticleEffect;
-import net.minecraft.particle.ParticleEffect;
-import net.minecraft.particle.ParticleType;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.commands.arguments.ParticleArgument;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.particles.ItemParticleOption;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.particles.ParticleType;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.Level;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
@@ -103,7 +103,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
          * model-view back in (identity, hence a no-op, in the form editor where the camera
          * lives in the stack) so the emitter's world position and direction come out right. */
         matrix.mul(RenderSystem.getModelViewMatrix());
-        matrix.mul(context.stack.peek().getPositionMatrix());
+        matrix.mul(context.stack.last().pose());
 
         Vector3d translation = new Vector3d(matrix.getTranslation(Vectors.TEMP_3F));
 
@@ -116,7 +116,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
         }
         else
         {
-            Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+            Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
 
             translation.add(camera.getCameraPos().x, camera.getCameraPos().y, camera.getCameraPos().z);
 
@@ -153,10 +153,10 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
              * getTickProgress(false) came out CONSTANT WITHIN A TICK here (probe: the τ-keyed
              * dedupe admitted exactly ~20 renders/sec), which both froze the lerp and starved the
              * redraw — the field is the real per-frame interpolant. */
-            net.minecraft.client.render.RenderTickCounter counter = MinecraftClient.getInstance().getRenderTickCounter();
+            net.minecraft.client.render.DeltaTracker counter = Minecraft.getInstance().getDeltaTracker();
             float transition = counter instanceof mchorse.bbs_mod.mixin.client.RenderTickCounterAccessor accessor
                 ? accessor.bbs$getTickDelta()
-                : counter.getTickProgress(false);
+                : counter.getGameTimeDeltaPartialTick(false);
 
             /* Second gate: only under the preview FBO override. A render3D call without it would
              * put the quads into whatever framebuffer is current — black quads in the world. */
@@ -243,7 +243,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
             this.lastPreviewTick = Long.MIN_VALUE;
         }
 
-        World world = entity.getWorld();
+        Level world = entity.getWorld();
 
         if (world == null)
         {
@@ -263,7 +263,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
          * which split the old alwaysSpawn flag into (alwaysSpawn, important/force). Keep
          * alwaysSpawn=true and force=false to match the prior 8-arg behaviour. */
         this.emitTick((effect, x, y, z, velocityX, velocityY, velocityZ) ->
-            world.addParticleClient(effect, true, false, x, y, z, velocityX, velocityY, velocityZ));
+            world.addParticle(effect, true, false, x, y, z, velocityX, velocityY, velocityZ));
     }
 
     /**
@@ -321,7 +321,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
         Vector3f v = Vectors.TEMP_3F;
         Vector3f temp3f = new Vector3f();
 
-        ParticleEffect effect = this.getEffect();
+        ParticleOptions effect = this.getEffect();
         float velocity = this.form.velocity.get();
         int count = this.form.count.get();
 
@@ -357,12 +357,12 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
         }
     }
 
-    private ParticleEffect getEffect()
+    private ParticleOptions getEffect()
     {
         /* The registry manager the parser needs lives on the world. Nobody hands
          * one down here — the editor's preview emits without an entity — and on
          * the client there is only ever the one world, so take it from there */
-        return createEffect(this.form.settings.get(), MinecraftClient.getInstance().world);
+        return createEffect(this.form.settings.get(), Minecraft.getInstance().level);
     }
 
     /**
@@ -373,28 +373,28 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
      * parsed exactly like the vanilla {@code /particle} command, so every particle type still
      * works. Falls back to flame when nothing parses.
      */
-    private static ParticleEffect createEffect(ParticleSettings settings, World world)
+    private static ParticleOptions createEffect(ParticleSettings settings, Level world)
     {
         String args = settings.arguments == null ? "" : settings.arguments.trim();
 
         try
         {
-            ParticleType<?> type = Registries.PARTICLE_TYPE.get(settings.particle);
+            ParticleType<?> type = BuiltInRegistries.PARTICLE_TYPE.getValue(settings.particle);
             boolean bareId = !args.isEmpty() && args.charAt(0) != '{';
 
             if (bareId && type == ParticleTypes.BLOCK)
             {
-                return new BlockStateParticleEffect(ParticleTypes.BLOCK, Registries.BLOCK.get(Identifier.of(args)).getDefaultState());
+                return new BlockParticleOption(ParticleTypes.BLOCK, BuiltInRegistries.BLOCK.get(Identifier.fromNamespaceAndPath(args)).defaultBlockState());
             }
 
             if (bareId && type == ParticleTypes.ITEM)
             {
-                return new ItemStackParticleEffect(ParticleTypes.ITEM, new ItemStack(Registries.ITEM.get(Identifier.of(args))));
+                return new ItemParticleOption(ParticleTypes.ITEM, new ItemStack(BuiltInRegistries.ITEM.get(Identifier.fromNamespaceAndPath(args))));
             }
 
             StringReader reader = new StringReader(settings.particle.toString() + args);
 
-            return ParticleEffectArgumentType.readParameters(reader, world.getRegistryManager());
+            return ParticleArgument.readParticle(reader, world.getRegistryManager());
         }
         catch (Exception e)
         {
@@ -404,6 +404,6 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
 
     private interface ParticleSink
     {
-        public void spawn(ParticleEffect effect, double x, double y, double z, double velocityX, double velocityY, double velocityZ);
+        public void spawn(ParticleOptions effect, double x, double y, double z, double velocityX, double velocityY, double velocityZ);
     }
 }

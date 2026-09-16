@@ -17,15 +17,15 @@ import mchorse.bbs_mod.morphing.Morph;
 import mchorse.bbs_mod.network.ServerNetwork;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
 import mchorse.bbs_mod.utils.DataPath;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.MovementType;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -45,8 +45,8 @@ public class ActionPlayer
     public boolean syncing;
     private boolean pendingResync;
 
-    private ServerPlayerEntity serverPlayer;
-    private ServerWorld world;
+    private ServerPlayer serverPlayer;
+    private ServerLevel world;
     private int duration;
 
     private Map<String, LivingEntity> actors = new HashMap<>();
@@ -69,7 +69,7 @@ public class ActionPlayer
     private int cacheXpLevel;
     private float cacheXpProgress;
 
-    public ActionPlayer(ServerPlayerEntity serverPlayer, ServerWorld world, Film film, int tick, int countdown, int exception, PlayerType type)
+    public ActionPlayer(ServerPlayer serverPlayer, ServerLevel world, Film film, int tick, int countdown, int exception, PlayerType type)
     {
         this.world = world;
         this.film = film;
@@ -99,7 +99,7 @@ public class ActionPlayer
             ServerNetwork.sendMorphToTracked(this.serverPlayer, fpReplay.form.get());
 
             this.cacheHp = this.serverPlayer.getHealth();
-            this.cacheHunger = this.serverPlayer.getHungerManager().getFoodLevel();
+            this.cacheHunger = this.serverPlayer.getFoodData().getFoodLevel();
             this.cacheXpLevel = this.serverPlayer.experienceLevel;
             this.cacheXpProgress = this.serverPlayer.experienceProgress;
 
@@ -112,7 +112,7 @@ public class ActionPlayer
 
     private void borrowEquipment(ReplayKeyframes keyframes)
     {
-        PlayerInventory inventory = this.serverPlayer.getInventory();
+        Inventory inventory = this.serverPlayer.getInventory();
 
         this.borrowedEquipment = true;
         this.cacheSelectedSlot = inventory.getSelectedSlot();
@@ -120,7 +120,7 @@ public class ActionPlayer
 
         for (int i = 0; i < ReplayKeyframes.HOTBAR_SIZE; i++)
         {
-            this.cachedHotbar.add(inventory.getStack(i).copy());
+            this.cachedHotbar.add(inventory.getStack(i).copyFrom());
 
             /* Cells the replay says nothing about are left to the world during playback (see
              * ReplayKeyframes#applyEquipment), but they're still emptied once - otherwise the
@@ -133,18 +133,18 @@ public class ActionPlayer
 
         for (EquipmentSlot slot : BORROWED_SLOTS)
         {
-            this.cachedEquipment.put(slot, this.serverPlayer.getEquippedStack(slot).copy());
+            this.cachedEquipment.put(slot, this.serverPlayer.getItemBySlot(slot).copyFrom());
 
             if (keyframes.getEquipmentChannel(slot).isEmpty())
             {
-                this.serverPlayer.equipStack(slot, ItemStack.EMPTY);
+                this.serverPlayer.setItemSlot(slot, ItemStack.EMPTY);
             }
         }
     }
 
     private void returnEquipment()
     {
-        PlayerInventory inventory = this.serverPlayer.getInventory();
+        Inventory inventory = this.serverPlayer.getInventory();
 
         /* Playback can be stopped more than once (the film ends, then the manager stops it) */
         this.borrowedEquipment = false;
@@ -156,17 +156,17 @@ public class ActionPlayer
 
         for (Map.Entry<EquipmentSlot, ItemStack> entry : this.cachedEquipment.entrySet())
         {
-            this.serverPlayer.equipStack(entry.getKey(), entry.getValue());
+            this.serverPlayer.setItemSlot(entry.getKey(), entry.getValue());
         }
 
         ServerNetwork.sendSelectedSlot(this.serverPlayer, this.cacheSelectedSlot);
     }
 
-    public static void applyFilmPlayerSettingsTo(ServerPlayerEntity player, float hp, float hunger, int xpLevel, float xpProgress)
+    public static void applyFilmPlayerSettingsTo(ServerPlayer player, float hp, float hunger, int xpLevel, float xpProgress)
     {
         player.setHealth(hp);
-        player.getHungerManager().setFoodLevel((int) hunger);
-        player.setExperienceLevel(xpLevel);
+        player.getFoodData().setFoodLevel((int) hunger);
+        player.setExperienceLevels(xpLevel);
         player.experienceProgress = xpProgress;
     }
 
@@ -251,7 +251,7 @@ public class ActionPlayer
 
     private void broadcastActors()
     {
-        for (ServerPlayerEntity player : this.world.getPlayers())
+        for (ServerPlayer player : this.world.getPlayers())
         {
             ServerNetwork.sendActors(player, this.film.getId(), this.actors);
         }
@@ -313,7 +313,7 @@ public class ActionPlayer
         this.broadcastActors();
     }
 
-    public ServerWorld getWorld()
+    public ServerLevel getWorld()
     {
         return this.world;
     }
@@ -324,7 +324,7 @@ public class ActionPlayer
      * It outlived the disconnect that should have ended it, still holding the equipment it had
      * borrowed - which the player never got back.
      */
-    public boolean isPlayedBy(ServerPlayerEntity player)
+    public boolean isPlayedBy(ServerPlayer player)
     {
         return this.serverPlayer != null && player != null && this.serverPlayer.getUuid().equals(player.getUuid());
     }
@@ -337,7 +337,7 @@ public class ActionPlayer
             return;
         }
 
-        ServerPlayerEntity live = this.world.getServer().getPlayerManager().getPlayer(this.serverPlayer.getUuid());
+        ServerPlayer live = this.world.getServer().getPlayerList().getPlayerByName(this.serverPlayer.getUuid());
 
         if (live != null)
         {
@@ -360,7 +360,7 @@ public class ActionPlayer
         float yawBody = replay.keyframes.bodyYaw.interpolate(tick).floatValue();
         float pitch = replay.keyframes.pitch.interpolate(tick).floatValue();
 
-        Vec3d pos = actor.getEntityPos();
+        Vec3 pos = actor.getEntityPos();
         boolean grounded = replay.keyframes.grounded.interpolate(tick) > 0;
 
         if (ticking)
@@ -369,19 +369,19 @@ public class ActionPlayer
              * ReplayKeyframes#GRAVITY_PROBE. */
             double dY = y - pos.y - (grounded ? ReplayKeyframes.GRAVITY_PROBE : 0D);
 
-            actor.move(MovementType.SELF, new Vec3d(x - pos.x, dY, z - pos.z));
+            actor.move(MoverType.SELF, new Vec3(x - pos.x, dY, z - pos.z));
         }
 
-        actor.setPosition(x, y, z);
-        actor.setYaw(yawHead);
+        actor.setPos(x, y, z);
+        actor.setYRot(yawHead);
         actor.setHeadYaw(yawHead);
-        actor.setPitch(pitch);
+        actor.setXRot(pitch);
         actor.setBodyYaw(yawBody);
         boolean sneaking = EntityState.isOn(replay.keyframes.state(EntityState.SNEAKING).interpolate(tick));
         boolean swimming = EntityState.isOn(replay.keyframes.state(EntityState.SWIMMING).interpolate(tick));
         boolean gliding = EntityState.isOn(replay.keyframes.state(EntityState.GLIDING).interpolate(tick));
 
-        actor.setSneaking(sneaking);
+        actor.setShiftKeyDown(sneaking);
         actor.setOnGround(grounded);
 
         /* The sprinting flag is tracked data, so setting it here is what makes the
@@ -400,7 +400,7 @@ public class ActionPlayer
         /* Riding and creative flight are recorded but not written here: a replay doesn't mount
          * anyone, and flight is a permission on a real player. Both only pick an animation. */
 
-        if (actor instanceof ServerPlayerEntity player)
+        if (actor instanceof ServerPlayer player)
         {
             /* On a player equipStack() is a write into the real inventory, so the replay may
              * only dress one whose equipment the film borrowed at startup and gives back on
@@ -413,12 +413,12 @@ public class ActionPlayer
         }
         else
         {
-            actor.equipStack(EquipmentSlot.MAINHAND, replay.keyframes.getMainHandStack(tick));
-            actor.equipStack(EquipmentSlot.OFFHAND, replay.keyframes.offHand.interpolate(tick, ItemStack.EMPTY));
-            actor.equipStack(EquipmentSlot.HEAD, replay.keyframes.armorHead.interpolate(tick, ItemStack.EMPTY));
-            actor.equipStack(EquipmentSlot.CHEST, replay.keyframes.armorChest.interpolate(tick, ItemStack.EMPTY));
-            actor.equipStack(EquipmentSlot.LEGS, replay.keyframes.armorLegs.interpolate(tick, ItemStack.EMPTY));
-            actor.equipStack(EquipmentSlot.FEET, replay.keyframes.armorFeet.interpolate(tick, ItemStack.EMPTY));
+            actor.setItemSlot(EquipmentSlot.MAINHAND, replay.keyframes.getMainHandStack(tick));
+            actor.setItemSlot(EquipmentSlot.OFFHAND, replay.keyframes.offHand.interpolate(tick, ItemStack.EMPTY));
+            actor.setItemSlot(EquipmentSlot.HEAD, replay.keyframes.armorHead.interpolate(tick, ItemStack.EMPTY));
+            actor.setItemSlot(EquipmentSlot.CHEST, replay.keyframes.armorChest.interpolate(tick, ItemStack.EMPTY));
+            actor.setItemSlot(EquipmentSlot.LEGS, replay.keyframes.armorLegs.interpolate(tick, ItemStack.EMPTY));
+            actor.setItemSlot(EquipmentSlot.FEET, replay.keyframes.armorFeet.interpolate(tick, ItemStack.EMPTY));
         }
 
         double vx = x - replay.keyframes.x.interpolate(tick - 1);
@@ -430,7 +430,7 @@ public class ActionPlayer
             vy = -ReplayKeyframes.GRAVITY_PROBE;
         }
 
-        actor.setVelocity(vx, vy, vz);
+        actor.setDeltaMovement(vx, vy, vz);
 
         actor.fallDistance = replay.keyframes.fall.interpolate(tick).floatValue();
     }
@@ -440,7 +440,7 @@ public class ActionPlayer
      * the off hand and the selection. Nothing is put into the main hand - that's the selected
      * cell, and it's already there.
      */
-    private void dressPlayer(ServerPlayerEntity player, ReplayKeyframes keyframes, float tick)
+    private void dressPlayer(ServerPlayer player, ReplayKeyframes keyframes, float tick)
     {
         /* Selection first, so anything reading "the hand" during this frame reads the cell the
          * frame means rather than the one it just left. */
@@ -653,9 +653,9 @@ public class ActionPlayer
             ServerNetwork.sendMorphToTracked(this.serverPlayer, this.cachedForm);
 
             this.serverPlayer.setHealth(this.cacheHp);
-            this.serverPlayer.getHungerManager().setFoodLevel(this.cacheHunger);
+            this.serverPlayer.getFoodData().setFoodLevel(this.cacheHunger);
             this.serverPlayer.experienceProgress = this.cacheXpProgress;
-            this.serverPlayer.setExperienceLevel(this.cacheXpLevel);
+            this.serverPlayer.setExperienceLevels(this.cacheXpLevel);
         }
     }
 

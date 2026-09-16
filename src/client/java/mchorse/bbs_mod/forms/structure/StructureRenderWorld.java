@@ -1,22 +1,22 @@
 package mchorse.bbs_mod.forms.structure;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.BlockRenderView;
-import net.minecraft.world.LightType;
-import net.minecraft.world.biome.Biome;
-import net.minecraft.world.biome.BiomeKeys;
-import net.minecraft.world.biome.ColorResolver;
-import net.minecraft.world.chunk.ChunkProvider;
-import net.minecraft.world.chunk.light.LightSourceView;
-import net.minecraft.world.chunk.light.LightingProvider;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.ColorResolver;
+import net.minecraft.world.level.chunk.LightChunkGetter;
+import net.minecraft.world.level.chunk.LightChunk;
+import net.minecraft.world.level.lighting.LevelLightEngine;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -27,11 +27,11 @@ import org.jetbrains.annotations.Nullable;
  * <p>Light comes from {@link StructureLighting}: constant full skylight, and block light traced
  * through the structure from its own emitters.</p>
  */
-public class StructureRenderWorld implements BlockRenderView
+public class StructureRenderWorld implements BlockAndTintGetter
 {
     private final StructureRenderData data;
     private final Biome biome;
-    private final LightingProvider lighting;
+    private final LevelLightEngine lighting;
 
     public StructureRenderWorld(StructureRenderData data, String biomeId)
     {
@@ -40,17 +40,17 @@ public class StructureRenderWorld implements BlockRenderView
 
         /* Never queried for actual light (getLightLevel is overridden), but BlockRenderView
          * requires a non-null provider for default methods */
-        this.lighting = new LightingProvider(new ChunkProvider()
+        this.lighting = new LevelLightEngine(new LightChunkGetter()
         {
             @Nullable
             @Override
-            public LightSourceView getChunk(int chunkX, int chunkZ)
+            public LightChunk getChunk(int chunkX, int chunkZ)
             {
                 return null;
             }
 
             @Override
-            public net.minecraft.world.BlockView getWorld()
+            public net.minecraft.world.BlockGetter getWorld()
             {
                 return StructureRenderWorld.this;
             }
@@ -59,22 +59,22 @@ public class StructureRenderWorld implements BlockRenderView
 
     private static Biome resolveBiome(String id)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
-        if (mc.world == null)
+        if (mc.level == null)
         {
             return null;
         }
 
         /* 1.21.11: DynamicRegistryManager.get() is gone; getOrThrow is the direct replacement here
          * (the biome registry is always present on a loaded client world). */
-        Registry<Biome> registry = mc.world.getRegistryManager().getOrThrow(RegistryKeys.BIOME);
-        Identifier identifier = Identifier.tryParse(id == null ? "" : id);
-        Biome biome = identifier == null ? null : registry.get(identifier);
+        Registry<Biome> registry = mc.level.getRegistryManager().lookupOrThrow(Registries.BIOME);
+        Identifier identifier = Identifier.tryBuild(id == null ? "" : id);
+        Biome biome = identifier == null ? null : registry.getValue(identifier);
 
         if (biome == null)
         {
-            biome = registry.get(BiomeKeys.PLAINS);
+            biome = registry.getValue(Biomes.PLAINS);
         }
 
         if (biome == null)
@@ -89,19 +89,19 @@ public class StructureRenderWorld implements BlockRenderView
     }
 
     @Override
-    public float getBrightness(Direction direction, boolean shaded)
+    public float getShade(Direction direction, boolean shaded)
     {
         return StructureLighting.getBrightness(direction, shaded);
     }
 
     @Override
-    public LightingProvider getLightingProvider()
+    public LevelLightEngine getLightEngine()
     {
         return this.lighting;
     }
 
     @Override
-    public int getColor(BlockPos pos, ColorResolver colorResolver)
+    public int getBlockTint(BlockPos pos, ColorResolver colorResolver)
     {
         if (this.biome == null)
         {
@@ -112,7 +112,7 @@ public class StructureRenderWorld implements BlockRenderView
     }
 
     @Override
-    public int getLightLevel(LightType type, BlockPos pos)
+    public int getBrightness(LightLayer type, BlockPos pos)
     {
         return this.data.getLighting().getLightLevel(type, pos);
     }

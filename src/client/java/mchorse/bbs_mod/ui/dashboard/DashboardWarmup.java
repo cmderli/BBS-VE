@@ -1,10 +1,10 @@
 package mchorse.bbs_mod.ui.dashboard;
 
 import mchorse.bbs_mod.BBSModClient;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ProgressScreen;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.world.LevelLoadingScreen;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ProgressScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.LevelLoadingScreen;
 
 /**
  * Builds the dashboard ahead of the user asking for it.
@@ -45,21 +45,21 @@ public class DashboardWarmup
 
     /** Keep the terrain screen visible while the end-of-tick warmup finishes the panels.
      * Without a usable world, allow vanilla's timeout to close the screen as usual. */
-    public static boolean shouldKeepLoading(MinecraftClient mc)
+    public static boolean shouldKeepLoading(Minecraft mc)
     {
-        return !done && mc.world != null && mc.player != null && mc.getCameraEntity() != null;
+        return !done && mc.level != null && mc.player != null && mc.getCameraEntity() != null;
     }
 
-    public static void tick(MinecraftClient mc)
+    public static void tick(Minecraft mc)
     {
         /* The world and the player being there is what makes building a panel safe — the
          * earliest loading screens come up before either of them exists */
-        if (done || mc.world == null || mc.player == null || mc.getCameraEntity() == null)
+        if (done || mc.level == null || mc.player == null || mc.getCameraEntity() == null)
         {
             return;
         }
 
-        if (isLoading(mc.currentScreen))
+        if (isLoading(mc.screen))
         {
             long deadline = System.nanoTime() + BUDGET;
 
@@ -74,7 +74,7 @@ public class DashboardWarmup
 
         /* Out in the world: a screen of any kind is either the user waiting on something or the
          * dashboard itself being used — neither is a moment to spend on building */
-        if (mc.currentScreen != null || mc.isPaused())
+        if (mc.screen != null || mc.isPaused())
         {
             return;
         }

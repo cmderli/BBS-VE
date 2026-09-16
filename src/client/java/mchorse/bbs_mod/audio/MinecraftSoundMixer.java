@@ -7,9 +7,9 @@ import mchorse.bbs_mod.audio.ogg.VorbisReader;
 import mchorse.bbs_mod.audio.wav.WaveWriter;
 import mchorse.bbs_mod.resources.Link;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.Resource;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.resources.Identifier;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -210,11 +210,11 @@ public class MinecraftSoundMixer
 
         try
         {
-            Optional<Resource> resource = MinecraftClient.getInstance().getResourceManager().getResource(location);
+            Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(location);
 
             if (resource.isPresent())
             {
-                try (InputStream stream = resource.get().getInputStream())
+                try (InputStream stream = resource.get().open())
                 {
                     wave = VorbisReader.read(new Link(location.getNamespace(), location.getPath()), stream);
                 }

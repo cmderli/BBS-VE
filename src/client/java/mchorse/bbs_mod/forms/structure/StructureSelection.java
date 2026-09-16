@@ -1,9 +1,9 @@
 package mchorse.bbs_mod.forms.structure;
 
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -104,7 +104,7 @@ public class StructureSelection
             return null;
         }
 
-        return getMax().subtract(min).add(1, 1, 1);
+        return getMax().subtract(min).offset(1, 1, 1);
     }
 
     /** How many blocks the box covers, air included; 0 while a corner is missing. */
@@ -117,7 +117,7 @@ public class StructureSelection
 
     /** The box in world space, block faces included, or null while a corner is missing. */
     @Nullable
-    public static Box getBox()
+    public static AABB getBox()
     {
         BlockPos min = getMin();
 
@@ -128,7 +128,7 @@ public class StructureSelection
 
         BlockPos max = getMax();
 
-        return new Box(min.getX(), min.getY(), min.getZ(), max.getX() + 1, max.getY() + 1, max.getZ() + 1);
+        return new AABB(min.getX(), min.getY(), min.getZ(), max.getX() + 1, max.getY() + 1, max.getZ() + 1);
     }
 
     /**
@@ -146,9 +146,9 @@ public class StructureSelection
         }
 
         Direction.Axis axis = face.getAxis();
-        boolean positive = face.getDirection() == Direction.AxisDirection.POSITIVE;
-        int av = a.getComponentAlongAxis(axis);
-        int bv = b.getComponentAlongAxis(axis);
+        boolean positive = face.getAxisDirection() == Direction.AxisDirection.POSITIVE;
+        int av = a.get(axis);
+        int bv = b.get(axis);
 
         /* The corner on that face; when the box is one block thin there, B is the one that goes */
         boolean moveA = positive ? av > bv : av < bv;
@@ -186,8 +186,8 @@ public class StructureSelection
             return false;
         }
 
-        a = a.offset(face, amount);
-        b = b.offset(face, amount);
+        a = a.relative(face, amount);
+        b = b.relative(face, amount);
 
         return true;
     }

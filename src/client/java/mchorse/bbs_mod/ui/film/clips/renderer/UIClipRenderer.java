@@ -1,6 +1,6 @@
 package mchorse.bbs_mod.ui.film.clips.renderer;
 
-import net.minecraft.client.render.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import mchorse.bbs_mod.graphics.GuiQuadMesh;
 import mchorse.bbs_mod.camera.clips.ClipFactoryData;
 import mchorse.bbs_mod.resources.Link;
@@ -94,7 +94,7 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
      */
     private void renderEnvelope(UIContext context, Envelope envelope, int duration, int x1, int y1, int x2, int y2)
     {
-        Matrix3x2fc matrix = context.batcher.getContext().getMatrices();
+        Matrix3x2fc matrix = context.batcher.getContext().pose();
 
         /* Recorded into the deferred GUI (see UIColorPicker#renderAlphaPreviewQuad for the why): an
          * immediate RenderLayer.draw here is overpainted by the two-phase GUI composite. */
@@ -135,10 +135,10 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
 
                 /* One quad per segment: the two triangles shared an edge and covered exactly this
                  * quadrilateral (QUADS is what the deferred GUI can composite). */
-                builder.vertex(matrix, prevPoint.x, prevPoint.y).color(c);
-                builder.vertex(matrix, prevPoint.x, y2).color(c);
-                builder.vertex(matrix, point.x, y2).color(c);
-                builder.vertex(matrix, point.x, point.y).color(c);
+                builder.addVertex(matrix, prevPoint.x, prevPoint.y).setColor(c);
+                builder.addVertex(matrix, prevPoint.x, y2).setColor(c);
+                builder.addVertex(matrix, point.x, y2).setColor(c);
+                builder.addVertex(matrix, point.x, point.y).setColor(c);
             }
 
             prevKeyframe = keyframe;
@@ -149,10 +149,10 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
         {
             Vector2f point = this.calculateEnvelopePoint(vector, (int) prevKeyframe.getTick(), prevKeyframe.getValue().floatValue(), duration, x1, y1, x2, y2);
 
-            builder.vertex(matrix, point.x, point.y).color(c);
-            builder.vertex(matrix, point.x, y2).color(c);
-            builder.vertex(matrix, x2, y2).color(c);
-            builder.vertex(matrix, x2, point.y).color(c);
+            builder.addVertex(matrix, point.x, point.y).setColor(c);
+            builder.addVertex(matrix, point.x, y2).setColor(c);
+            builder.addVertex(matrix, x2, y2).setColor(c);
+            builder.addVertex(matrix, x2, point.y).setColor(c);
         }
     }
 
@@ -183,10 +183,10 @@ public class UIClipRenderer <T extends Clip> implements IUIClipRenderer<T>
             float y = y1 + height * (1 - MathUtils.clamp(envelope.factor(duration, duration * f), 0F, 1F));
 
             /* The two triangles of each step share an edge and form one quad exactly. */
-            builder.vertex(matrix, prevX, prevY).color(c);
-            builder.vertex(matrix, prevX, y2).color(c);
-            builder.vertex(matrix, x, y2).color(c);
-            builder.vertex(matrix, x, y).color(c);
+            builder.addVertex(matrix, prevX, prevY).setColor(c);
+            builder.addVertex(matrix, prevX, y2).setColor(c);
+            builder.addVertex(matrix, x, y2).setColor(c);
+            builder.addVertex(matrix, x, y).setColor(c);
 
             prevX = x;
             prevY = y;

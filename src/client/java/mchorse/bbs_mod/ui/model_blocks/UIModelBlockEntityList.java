@@ -12,10 +12,10 @@ import mchorse.bbs_mod.ui.framework.elements.utils.RowStyle;
 import mchorse.bbs_mod.ui.utils.icons.Icon;
 import mchorse.bbs_mod.ui.utils.icons.Icons;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -70,17 +70,17 @@ public class UIModelBlockEntityList extends UIList<ModelBlockEntity>
     }
 
     /** Where "near" is measured from: the eye the user is looking through. */
-    private static Vec3d eye()
+    private static Vec3 eye()
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        Camera camera = mc.gameRenderer.getCamera();
+        Minecraft mc = Minecraft.getInstance();
+        Camera camera = mc.gameRenderer.getMainCamera();
 
         if (camera != null)
         {
             return camera.getCameraPos();
         }
 
-        return mc.player == null ? Vec3d.ZERO : mc.player.getEntityPos();
+        return mc.player == null ? Vec3.ZERO : mc.player.getEntityPos();
     }
 
     private double distance(ModelBlockEntity element)
@@ -93,13 +93,13 @@ public class UIModelBlockEntityList extends UIList<ModelBlockEntity>
     @Override
     protected boolean sortElements()
     {
-        Vec3d eye = eye();
+        Vec3 eye = eye();
 
         this.distances.clear();
 
         for (ModelBlockEntity element : this.list)
         {
-            this.distances.put(element, element.getPos().toCenterPos().distanceTo(eye));
+            this.distances.put(element, element.getBlockPos().getCenter().distanceTo(eye));
         }
 
         this.list.sort(Comparator.comparingDouble(this::distance));
@@ -120,7 +120,7 @@ public class UIModelBlockEntityList extends UIList<ModelBlockEntity>
     {
         FontRenderer font = context.batcher.getFont();
         Form form = element.getProperties().getForm();
-        BlockPos pos = element.getPos();
+        BlockPos pos = element.getBlockPos();
         String coords = pos.getX() + ", " + pos.getY() + ", " + pos.getZ();
 
         /* Without a form there is nothing to name the block by, so the coordinates take

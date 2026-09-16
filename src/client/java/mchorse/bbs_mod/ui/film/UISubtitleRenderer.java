@@ -10,8 +10,8 @@ import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3x2fStack;
 
 import java.util.Arrays;
@@ -37,14 +37,14 @@ import java.util.List;
  */
 public class UISubtitleRenderer
 {
-    public static void renderSubtitles(MatrixStack stack, Batcher2D batcher, List<Subtitle> subtitles)
+    public static void renderSubtitles(PoseStack stack, Batcher2D batcher, List<Subtitle> subtitles)
     {
         if (subtitles.isEmpty())
         {
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         /* Overlay placement is authored on a virtual frame Placement.HEIGHT units tall (see
          * UIImageRenderer#getUnitWidth). 1.21.1 gave that canvas its own ortho projection; the
@@ -52,7 +52,7 @@ public class UISubtitleRenderer
          * single scale on the 2D stack instead. */
         float width = UIImageRenderer.getUnitWidth();
         float height = Placement.HEIGHT;
-        float unitScale = mc.getWindow().getScaledHeight() / height;
+        float unitScale = mc.getWindow().getGuiScaledHeight() / height;
 
         for (Subtitle subtitle : subtitles)
         {
@@ -133,7 +133,7 @@ public class UISubtitleRenderer
 
             transform.lerp(subtitle.transform, 1F - subtitle.factor);
 
-            Matrix3x2fStack matrices = batcher.getContext().getMatrices();
+            Matrix3x2fStack matrices = batcher.getContext().pose();
 
             matrices.pushMatrix();
             matrices.scale(unitScale, unitScale);

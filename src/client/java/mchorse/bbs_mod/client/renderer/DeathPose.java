@@ -1,8 +1,8 @@
 package mchorse.bbs_mod.client.renderer;
 
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RotationAxis;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.util.Mth;
+import com.mojang.math.Axis;
 
 /**
  * Vanilla's body falling over, for everything that renders a body itself.
@@ -37,25 +37,25 @@ public class DeathPose
 
         float progress = (deathTime - 1F) / 20F * 1.6F;
 
-        return Math.min(MathHelper.sqrt(progress), 1F) * 90F;
+        return Math.min(Mth.sqrt(progress), 1F) * 90F;
     }
 
     /**
      * Rolls the body onto its side. Goes on AFTER the body yaw, exactly where
      * vanilla puts it, so the body falls sideways relative to itself.
      */
-    public static void apply(MatrixStack matrices, int deathTime, float tickDelta)
+    public static void apply(PoseStack matrices, int deathTime, float tickDelta)
     {
         apply(matrices, deathTime <= 0 ? 0F : deathTime + tickDelta);
     }
 
-    public static void apply(MatrixStack matrices, float deathTime)
+    public static void apply(PoseStack matrices, float deathTime)
     {
         float angle = angle(deathTime);
 
         if (angle != 0F)
         {
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(angle));
+            matrices.rotateAround(Axis.ZP.rotationDegrees(angle));
         }
     }
 }

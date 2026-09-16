@@ -10,7 +10,7 @@ import mchorse.bbs_mod.utils.resources.Pixels;
 import net.irisshaders.iris.pbr.loader.PBRTextureLoader;
 import net.irisshaders.iris.pbr.texture.PBRType;
 import net.irisshaders.iris.targets.backed.NativeImageBackedSingleColorTexture;
-import net.minecraft.resource.ResourceManager;
+import net.minecraft.server.packs.resources.ResourceManager;
 import org.lwjgl.opengl.GL11;
 
 import java.util.Iterator;

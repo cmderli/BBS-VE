@@ -62,13 +62,13 @@ import mchorse.bbs_mod.utils.profiler.BBSProfiler;
 import mchorse.bbs_mod.utils.PlayerUtils;
 import mchorse.bbs_mod.utils.RayTracing;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.GameOptions;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
+import net.minecraft.client.input.KeyEvent;
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.level.Level;
 
 public class UIFilmController extends UIElement implements GizmoViewport
 {
@@ -154,7 +154,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
         {
             Area area = this.panel.preview.getViewport();
             UIContext context = this.getContext();
-            World world = MinecraftClient.getInstance().world;
+            Level world = Minecraft.getInstance().level;
             Camera camera = this.panel.getCamera();
 
             Vector3f rayOffset = new Vector3f();
@@ -169,7 +169,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
             if (result.getType() == HitResult.Type.BLOCK)
             {
-                this.panel.replayEditor.moveReplay(result.getPos().x, result.getPos().y, result.getPos().z);
+                this.panel.replayEditor.moveReplay(result.getLocation().x, result.getLocation().y, result.getLocation().z);
             }
         }).active(hasActor).category(category);
         this.keys().register(Keys.FILM_CONTROLLER_RESTART_ACTIONS, this.panel::restartActions).category(category);
@@ -457,7 +457,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
             if (replacePlayer && this.controlled != null)
             {
-                MCEntity player = Morph.getMorph(MinecraftClient.getInstance().player).entity;
+                MCEntity player = Morph.getMorph(Minecraft.getInstance().player).entity;
 
                 this.playerForm = player.getForm();
                 this.previousEntity = this.controlled;
@@ -662,7 +662,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
             /* fromKeyCode takes the whole KeyInput in 1.21.11; modifiers play no part in the
              * look-up, so the third field is the neutral 0 the UI's own key events carry. */
-            InputUtil.Key utilKey = InputUtil.fromKeyCode(new KeyInput(context.getKeyCode(), context.getScanCode(), 0));
+            InputConstants.Key utilKey = InputConstants.getKey(new KeyEvent(context.getKeyCode(), context.getScanCode(), 0));
 
             if (this.canControlWithKeyboard(utilKey))
             {
@@ -673,22 +673,22 @@ public class UIFilmController extends UIElement implements GizmoViewport
         return super.subKeyPressed(context);
     }
 
-    private boolean canControlWithKeyboard(InputUtil.Key utilKey)
+    private boolean canControlWithKeyboard(InputConstants.Key utilKey)
     {
         if (!ClientNetwork.isIsBBSModOnServer())
         {
             return false;
         }
 
-        GameOptions options = MinecraftClient.getInstance().options;
+        Options options = Minecraft.getInstance().options;
 
-        return options.forwardKey.getDefaultKey() == utilKey
-            || options.backKey.getDefaultKey() == utilKey
-            || options.leftKey.getDefaultKey() == utilKey
-            || options.rightKey.getDefaultKey() == utilKey
-            || options.sneakKey.getDefaultKey() == utilKey
-            || options.sprintKey.getDefaultKey() == utilKey
-            || options.jumpKey.getDefaultKey() == utilKey;
+        return options.keyUp.getDefaultKey() == utilKey
+            || options.keyDown.getDefaultKey() == utilKey
+            || options.keyLeft.getDefaultKey() == utilKey
+            || options.keyRight.getDefaultKey() == utilKey
+            || options.keyShift.getDefaultKey() == utilKey
+            || options.keySprint.getDefaultKey() == utilKey
+            || options.keyJump.getDefaultKey() == utilKey;
     }
 
     public Icon getOrbitModeIcon()
@@ -903,7 +903,7 @@ public class UIFilmController extends UIElement implements GizmoViewport
 
             if (povMode != UIFilmController.CAMERA_MODE_CAMERA && BBSSettings.recordingCameraPreview.get())
             {
-                Recorder.renderCameraPreview(this.panel.getRunner().getPosition(), MinecraftClient.getInstance().gameRenderer.getCamera(), context.matrices());
+                Recorder.renderCameraPreview(this.panel.getRunner().getPosition(), Minecraft.getInstance().gameRenderer.getMainCamera(), context.matrices());
             }
         }
 
@@ -942,18 +942,18 @@ public class UIFilmController extends UIElement implements GizmoViewport
             return;
         }
 
-        net.minecraft.client.render.Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+        net.minecraft.client.render.Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
         double x = center.x - camera.getCameraPos().x;
         double y = center.y - camera.getCameraPos().y;
         double z = center.z - camera.getCameraPos().z;
         float distanceScale = BBSSettings.getScreenSizeScale((float) Math.sqrt(x * x + y * y + z * z));
-        MatrixStack stack = context.matrices();
+        PoseStack stack = context.matrices();
 
-        stack.push();
+        stack.pushPose();
         stack.translate(x, y, z);
         stack.scale(distanceScale, distanceScale, distanceScale);
         Draw.coolerAxes(stack, 0.12F, 0.007F);
-        stack.pop();
+        stack.popPose();
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() was removed by the GPU-pipeline rewrite; this state is now encoded by the RenderLayer/RenderPipeline. */
     }

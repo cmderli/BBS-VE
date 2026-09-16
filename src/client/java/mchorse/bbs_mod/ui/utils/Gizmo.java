@@ -33,18 +33,18 @@ import mchorse.bbs_mod.ui.framework.elements.input.drag.TransformSpace;
 import mchorse.bbs_mod.utils.Axis;
 import mchorse.bbs_mod.utils.MatrixStackUtils;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.MappableRingBuffer;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import net.minecraft.client.renderer.MappableRingBuffer;
+import net.minecraft.client.renderer.RenderPipelines;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.resources.Identifier;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -128,16 +128,16 @@ public class Gizmo
      * and submitted through this RenderLayer (same approach as mchorse.bbs_mod.graphics.Draw, whose public
      * fillBox/arc3D/sphere builders this class reuses). Self-contained here to keep the fix isolated. */
     private static final RenderPipeline GIZMO_PIPELINE = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.POSITION_COLOR_SNIPPET)
-            .withLocation(Identifier.of(BBSMod.MOD_ID, "pipeline/gizmo_position_color_no_depth"))
-            .withVertexFormat(VertexFormats.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/gizmo_position_color_no_depth"))
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
             .withBlend(BlendFunction.TRANSLUCENT)
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .withCull(false)
             .build()
     );
 
-    private static RenderLayer gizmoLayer;
+    private static RenderType gizmoLayer;
 
     /* ---- Interface (UI) pass state ----
      * While set, the gizmo is being drawn from renderInterface/renderStencilInterface: geometry is
@@ -262,12 +262,12 @@ public class Gizmo
      * initialiser: {@link RenderSetup} wants the pipeline already registered, and the class is touched
      * during client bootstrap before that has happened.
      */
-    private static RenderLayer getGizmoLayer()
+    private static RenderType getGizmoLayer()
     {
         if (gizmoLayer == null)
         {
-            gizmoLayer = RenderLayer.of(BBSMod.MOD_ID + "_gizmo_position_color",
-                RenderSetup.builder(GIZMO_PIPELINE).translucent().build());
+            gizmoLayer = RenderType.create(BBSMod.MOD_ID + "_gizmo_position_color",
+                RenderSetup.builder(GIZMO_PIPELINE).sortOnUpload().createRenderSetup());
         }
 
         return gizmoLayer;
@@ -277,7 +277,7 @@ public class Gizmo
      *  Package-private so {@link GizmoPie} submits through the same pipeline the handles do. */
     static BufferBuilder begin()
     {
-        return Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        return Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
     /**
@@ -289,7 +289,7 @@ public class Gizmo
      */
     static void flush(BufferBuilder builder)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built == null)
         {
@@ -313,11 +313,11 @@ public class Gizmo
              * textures. A manual pass gets no such courtesy, so it must follow the same redirect
              * itself; binding the main framebuffer here put the lensed gizmo UNDER the GUI, where the
              * preview's blit painted over it and the handles simply never showed in the form editor. */
-            Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
+            RenderTarget framebuffer = Minecraft.getInstance().getMainRenderTarget();
             boolean redirected = RenderSystem.outputColorTextureOverride != null;
-            GpuTextureView color = redirected ? RenderSystem.outputColorTextureOverride : framebuffer.getColorAttachmentView();
+            GpuTextureView color = redirected ? RenderSystem.outputColorTextureOverride : framebuffer.getColorTextureView();
             GpuTextureView depth = redirected ? RenderSystem.outputDepthTextureOverride
-                : (framebuffer.useDepthAttachment ? framebuffer.getDepthAttachmentView() : null);
+                : (framebuffer.useDepth ? framebuffer.getDepthTextureView() : null);
 
             drawManual(built, color, depth, projectionOverride, OptionalInt.empty());
         }
@@ -334,7 +334,7 @@ public class Gizmo
      */
     private static void flushPick(BufferBuilder builder)
     {
-        BuiltBuffer built = builder.endNullable();
+        MeshData built = builder.build();
 
         if (built != null)
         {
@@ -357,13 +357,13 @@ public class Gizmo
      * {@link MappableRingBuffer}, which issues a GPU fence, and the encoder rejects commands while a
      * pass is open. Same ordering {@link BBSPickerRenderer} uses.</p>
      */
-    private static void drawManual(BuiltBuffer buffer, GpuTextureView color, GpuTextureView depth, Matrix4f projection, OptionalInt clear)
+    private static void drawManual(MeshData buffer, GpuTextureView color, GpuTextureView depth, Matrix4f projection, OptionalInt clear)
     {
         GpuDevice device = RenderSystem.getDevice();
         CommandEncoder encoder = device.createCommandEncoder();
 
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .write(new Matrix4f(), new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
+            .writeTransform(new Matrix4f(), new Vector4f(1F, 1F, 1F, 1F), new Vector3f(), new Matrix4f());
 
         if (projectionRing == null)
         {
@@ -372,7 +372,7 @@ public class Gizmo
 
         projectionRing.rotate();
 
-        GpuBuffer projectionUbo = projectionRing.getBlocking();
+        GpuBuffer projectionUbo = projectionRing.currentBuffer();
 
         try (GpuBuffer.MappedView view = encoder.mapBuffer(projectionUbo, false, true))
         {
@@ -380,10 +380,10 @@ public class Gizmo
         }
 
         VertexFormat format = GIZMO_PIPELINE.getVertexFormat();
-        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.getBuffer());
-        RenderSystem.ShapeIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.getDrawParameters().mode());
-        GpuBuffer indexBuffer = sequential.getIndexBuffer(buffer.getDrawParameters().indexCount());
-        VertexFormat.IndexType indexType = sequential.getIndexType();
+        GpuBuffer vertexBuffer = format.uploadImmediateVertexBuffer(buffer.vertexBuffer());
+        RenderSystem.AutoStorageIndexBuffer sequential = RenderSystem.getSequentialBuffer(buffer.drawState().mode());
+        GpuBuffer indexBuffer = sequential.getBuffer(buffer.drawState().indexCount());
+        VertexFormat.IndexType indexType = sequential.type();
 
         try (RenderPass pass = depth == null
             ? encoder.createRenderPass(() -> "bbs:gizmo_manual", color, clear)
@@ -395,7 +395,7 @@ public class Gizmo
             pass.setUniform("DynamicTransforms", dynamicTransforms);
             pass.setVertexBuffer(0, vertexBuffer);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.getDrawParameters().indexCount(), 1);
+            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1);
         }
         finally
         {
@@ -692,7 +692,7 @@ public class Gizmo
          * sharing one texture would leave both showing the last write. */
         GpuTextureView target = this.sphereHighlight.ensureHighlightTarget(w, h);
 
-        if (BBSPickerRenderer.drawGeometryHighlight(builder.endNullable(), target, this.lastSphereMatrix, lens.projection))
+        if (BBSPickerRenderer.drawGeometryHighlight(builder.build(), target, this.lastSphereMatrix, lens.projection))
         {
             int vw = this.sphereHighlight.getHighlightWidth();
             int vh = this.sphereHighlight.getHighlightHeight();
@@ -798,12 +798,12 @@ public class Gizmo
         this.currentGesture = null;
     }
 
-    public void render(MatrixStack stack)
+    public void render(PoseStack stack)
     {
         this.render(stack, HandleMask.ALL);
     }
 
-    public void render(MatrixStack stack, HandleMask mask)
+    public void render(PoseStack stack, HandleMask mask)
     {
         if (BBSRendering.isIrisShadowPass())
         {
@@ -812,11 +812,11 @@ public class Gizmo
 
         this.mask = mask == null ? HandleMask.ALL : mask;
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.scaleBack(stack);
         this.captureRenderMatrix(stack);
         this.drawGizmo(stack);
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -826,12 +826,12 @@ public class Gizmo
      * (the rotation sphere, the sweep pie, the view ring) composite through the
      * UI pipeline instead of the world shaders, which did not blend them.
      */
-    public void captureVisual(MatrixStack stack)
+    public void captureVisual(PoseStack stack)
     {
         this.captureVisual(stack, HandleMask.ALL);
     }
 
-    public void captureVisual(MatrixStack stack, HandleMask mask)
+    public void captureVisual(PoseStack stack, HandleMask mask)
     {
         if (BBSRendering.isIrisShadowPass())
         {
@@ -840,10 +840,10 @@ public class Gizmo
 
         this.mask = mask == null ? HandleMask.ALL : mask;
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.scaleBack(stack);
         this.captureRenderMatrix(stack);
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -892,7 +892,7 @@ public class Gizmo
 
         try
         {
-            MatrixStack stack = new MatrixStack();
+            PoseStack stack = new PoseStack();
 
             MatrixStackUtils.multiply(stack, this.lastRenderMatrix);
             this.drawGizmo(stack);
@@ -910,7 +910,7 @@ public class Gizmo
         }
     }
 
-    private void drawGizmo(MatrixStack stack)
+    private void drawGizmo(PoseStack stack)
     {
         this.applyBakedRotation(stack);
 
@@ -921,13 +921,13 @@ public class Gizmo
 
         /* The lens rewrites this entry's model-view in place; keep the camera's
          * copy underneath it for the constraint guide, which is drawn without it. */
-        stack.push();
+        stack.pushPose();
 
         GizmoLens lens = new GizmoLens();
         LensSwap swap = this.applyLens(stack, lens);
         float distanceScale = cameraScale * lens.scale;
 
-        stack.push();
+        stack.pushPose();
         this.applyViewShear(stack, lens);
         stack.scale(distanceScale, distanceScale, distanceScale);
 
@@ -953,10 +953,10 @@ public class Gizmo
             Draw.coolerAxes(stack, 0.25F, 0.008F);
         }
 
-        stack.pop();
+        stack.popPose();
 
         this.restoreLens(swap);
-        stack.pop();
+        stack.popPose();
 
         /* Deliberately outside the shear AND outside the lens: the constraint guide is
          * a world-space line showing the axis the drag actually slides along, and that
@@ -982,11 +982,11 @@ public class Gizmo
      * @return what was displaced, to hand back to {@link #restoreLens}, or
      *         {@code null} when the lens came out inactive and nothing was swapped.
      */
-    private LensSwap applyLens(MatrixStack stack, GizmoLens lens)
+    private LensSwap applyLens(PoseStack stack, GizmoLens lens)
     {
         LensSwap swap = new LensSwap(projectionOverride, BBSPickerRenderer.getProjectionOverride());
 
-        if (!lens.set(currentProjection(), stack.peek().getPositionMatrix()))
+        if (!lens.set(currentProjection(), stack.last().pose()))
         {
             return null;
         }
@@ -997,11 +997,11 @@ public class Gizmo
         projectionOverride = new Matrix4f(lens.projection);
         BBSPickerRenderer.setProjectionOverride(lens.projection);
 
-        Matrix4f position = stack.peek().getPositionMatrix();
+        Matrix4f position = stack.last().pose();
 
         position.set(new Matrix4f(lens.viewDelta).mul(position));
 
-        Matrix3f normal = stack.peek().getNormalMatrix();
+        Matrix3f normal = stack.last().normal();
 
         normal.set(lens.viewDelta.get3x3(new Matrix3f()).mul(normal));
 
@@ -1094,14 +1094,14 @@ public class Gizmo
      * correct, and {@link #reorientForSpace} has already handed the frame the swing's
      * inverse so the handles come out exactly square to the screen.
      */
-    private void applyViewShear(MatrixStack stack, GizmoLens lens)
+    private void applyViewShear(PoseStack stack, GizmoLens lens)
     {
         if (this.lastSpace != TransformSpace.VIEW || lens.active)
         {
             return;
         }
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         Vector3f toCamera = matrix.getTranslation(new Vector3f()).negate();
 
         if (toCamera.lengthSquared() < 1.0E-8F)
@@ -1128,7 +1128,7 @@ public class Gizmo
      * among themselves. The translucent sweep pie stays on top of everything and
      * writes no depth, so it can't punch holes in the handles.
      */
-    private void drawOccludedGizmo(MatrixStack stack)
+    private void drawOccludedGizmo(PoseStack stack)
     {
         /* TODO(1.21.11 render): 1.21.1 drew the handles TWICE — a depth-only prime that stamped every
          * handle pixel to the far plane (depthRange(1,1) + depthFunc(ALWAYS) + colorMask off), then a
@@ -1147,9 +1147,9 @@ public class Gizmo
         GizmoPie.draw(stack, this.currentGesture, this.ringDragGesture());
     }
 
-    private float getDistanceScale(MatrixStack stack)
+    private float getDistanceScale(PoseStack stack)
     {
-        Vector3f cameraRelative = stack.peek().getPositionMatrix().getTranslation(new Vector3f());
+        Vector3f cameraRelative = stack.last().pose().getTranslation(new Vector3f());
         Matrix4f proj = currentProjection();
         float fov = proj.m33() == 0 ? (float) (2.0 * Math.atan(1.0 / proj.m11())) : BBSSettings.getFov();
 
@@ -1158,7 +1158,7 @@ public class Gizmo
 
     /** The constraint guide: a world-space line along the dragged axis, drawn by the
      *  scene camera (see {@link #drawGizmo}) and outside the gizmo's distance scale. */
-    private void drawInfiniteLine(MatrixStack stack)
+    private void drawInfiniteLine(PoseStack stack)
     {
         int debugIndex = this.index;
 
@@ -1172,7 +1172,7 @@ public class Gizmo
             return;
         }
 
-        stack.push();
+        stack.pushPose();
         this.orientGuide(stack);
 
         BufferBuilder builder = begin();
@@ -1199,7 +1199,7 @@ public class Gizmo
          * state now — it never depth-tests, so the guide reads on top of the scene as before. */
         flush(builder);
 
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -1218,7 +1218,7 @@ public class Gizmo
      * guide drifted off the line the object actually travels on and never sat still.
      * Reading the same snapshot the drag does pins it there.
      */
-    private void orientGuide(MatrixStack stack)
+    private void orientGuide(PoseStack stack)
     {
         TransformGesture gesture = this.currentGesture;
         GizmoDrag drag = gesture == null ? null : gesture.drag();
@@ -1228,7 +1228,7 @@ public class Gizmo
             return;
         }
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         Vector3f translation = matrix.getTranslation(new Vector3f());
         Matrix3f basis = this.lastCameraView.get3x3(new Matrix3f()).mul(drag.frameBasis(gesture.space()));
 
@@ -1240,9 +1240,9 @@ public class Gizmo
      * in {@link RenderSystem#getModelViewMatrix()} themselves. In the form editor
      * that matrix is identity (the camera lives in the stack), but in the film
      * editor it carries the world camera, so omitting it left the rings adrift. */
-    private static Matrix4f modelView(MatrixStack stack)
+    private static Matrix4f modelView(PoseStack stack)
     {
-        Matrix4f pose = new Matrix4f(stack.peek().getPositionMatrix());
+        Matrix4f pose = new Matrix4f(stack.last().pose());
 
         /* In the interface pass the stack is seeded from the CAPTURED full model-view, and the
          * global one holds whatever the UI left there — folding it in would double the camera. */
@@ -1327,12 +1327,12 @@ public class Gizmo
         return constrained ? channel * 0.25F + 0.3F : channel;
     }
 
-    public void renderStencil(MatrixStack stack)
+    public void renderStencil(PoseStack stack)
     {
         this.renderStencil(stack, HandleMask.ALL);
     }
 
-    public void renderStencil(MatrixStack stack, HandleMask mask)
+    public void renderStencil(PoseStack stack, HandleMask mask)
     {
         if (BBSRendering.isIrisShadowPass())
         {
@@ -1346,11 +1346,11 @@ public class Gizmo
 
         this.mask = mask == null ? HandleMask.ALL : mask;
 
-        stack.push();
+        stack.pushPose();
         MatrixStackUtils.scaleBack(stack);
         this.captureRenderMatrix(stack);
         this.drawStencilAxes(stack);
-        stack.pop();
+        stack.popPose();
     }
 
     /**
@@ -1359,7 +1359,7 @@ public class Gizmo
      * the world-pass {@link #renderStencil} and the UI-pass
      * {@link #renderStencilInterface}.
      */
-    private void drawStencilAxes(MatrixStack stack)
+    private void drawStencilAxes(PoseStack stack)
     {
         this.applyBakedRotation(stack);
 
@@ -1371,11 +1371,11 @@ public class Gizmo
 
         distanceScale *= lens.scale;
 
-        stack.push();
+        stack.pushPose();
         this.applyViewShear(stack, lens);
         stack.scale(distanceScale, distanceScale, distanceScale);
         this.drawStencilHandles(stack);
-        stack.pop();
+        stack.popPose();
 
         this.restoreLens(swap);
     }
@@ -1415,7 +1415,7 @@ public class Gizmo
 
         try
         {
-            MatrixStack stack = new MatrixStack();
+            PoseStack stack = new PoseStack();
 
             MatrixStackUtils.multiply(stack, this.lastRenderMatrix);
             this.drawStencilAxes(stack);
@@ -1428,7 +1428,7 @@ public class Gizmo
         }
     }
 
-    private void captureRenderMatrix(MatrixStack stack)
+    private void captureRenderMatrix(PoseStack stack)
     {
         /* The drag/pick math (computeWorldOrigin, computeWorldAxes, computeScreenCenter)
          * needs the FULL modelview — view * translate(-cam) * gizmoChain. Since 1.21.1 the
@@ -1479,7 +1479,7 @@ public class Gizmo
      * or the handles would be drawn off the frame they slide in. {@code null}
      * is the plain world axes, which is what the hosts without a scene use.
      */
-    public void reorientForSpace(MatrixStack stack, TransformSpace space, Matrix4f cameraView, Matrix3f globalAxes)
+    public void reorientForSpace(PoseStack stack, TransformSpace space, Matrix4f cameraView, Matrix3f globalAxes)
     {
         /* Remembered for the draw passes ({@link #applyViewShear}). Without a camera
          * nothing is reoriented, so the handles keep their placement frame and the
@@ -1497,7 +1497,7 @@ public class Gizmo
             return;
         }
 
-        Matrix4f matrix = stack.peek().getPositionMatrix();
+        Matrix4f matrix = stack.last().pose();
         Vector3f translation = matrix.getTranslation(new Vector3f());
         Matrix3f basis = GizmoDrag.stackBasisForSpace(space, cameraView, globalAxes);
 
@@ -1532,7 +1532,7 @@ public class Gizmo
      * the restored orientation. The live {@link #lastRenderMatrix} is left
      * untouched for pick/projection helpers.
      */
-    private void applyBakedRotation(MatrixStack stack)
+    private void applyBakedRotation(PoseStack stack)
     {
         DragStrategy gesture = this.ringDragGesture();
 
@@ -1545,11 +1545,11 @@ public class Gizmo
 
         if (this.bakedGesture != gesture)
         {
-            this.bakedRotationMatrix.set(stack.peek().getPositionMatrix());
+            this.bakedRotationMatrix.set(stack.last().pose());
             this.bakedGesture = gesture;
         }
 
-        stack.peek().getPositionMatrix().set(this.bakedRotationMatrix);
+        stack.last().pose().set(this.bakedRotationMatrix);
     }
 
     /**
@@ -1747,7 +1747,7 @@ public class Gizmo
     }
 
     /** Draws the gizmo for the eye: the walks above, painted in the handles' own colours. */
-    private void drawAxes(MatrixStack stack)
+    private void drawAxes(PoseStack stack)
     {
         Layout layout = new Layout();
 
@@ -1822,7 +1822,7 @@ public class Gizmo
      * id instead of its colour, so what the cursor lands on is by construction what the eye
      * sees. Ids go in the red channel, the way the pick buffer is read back.
      */
-    private void drawStencilHandles(MatrixStack stack)
+    private void drawStencilHandles(PoseStack stack)
     {
         Layout layout = new Layout();
 

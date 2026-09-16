@@ -3,13 +3,13 @@ package mchorse.bbs_mod.ui.utils;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.ui.framework.elements.utils.Batcher2D;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.PostEffectPipeline;
-import net.minecraft.client.gl.PostEffectProcessor;
-import net.minecraft.client.gl.UniformValue;
-import net.minecraft.client.render.ProjectionMatrix2;
-import net.minecraft.client.util.memory.ObjectAllocator;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.PostChainConfig;
+import net.minecraft.client.renderer.PostChain;
+import net.minecraft.client.renderer.UniformValue;
+import net.minecraft.client.renderer.CachedOrthoProjectionMatrixBuffer;
+import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
+import net.minecraft.resources.Identifier;
 import org.joml.Vector2f;
 
 import java.util.List;
@@ -48,18 +48,18 @@ import java.util.Set;
 public class InterfaceBlur
 {
     /** Screen-sized scratch target: the horizontal pass writes it, the vertical pass reads it back. */
-    private static final Identifier SWAP = Identifier.of(BBSMod.MOD_ID, "swap");
+    private static final Identifier SWAP = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "swap");
 
     /** Vanilla's screen-quad vertex shader; there is nothing mod-specific about a full-screen pass. */
-    private static final Identifier SCREEN_QUAD = Identifier.of("minecraft", "core/screenquad");
+    private static final Identifier SCREEN_QUAD = Identifier.fromNamespaceAndPath("minecraft", "core/screenquad");
 
     /** Vanilla's box blur, minus the alpha averaging — see the shader for why. */
-    private static final Identifier BOX_BLUR = Identifier.of(BBSMod.MOD_ID, "post/box_blur_opaque");
+    private static final Identifier BOX_BLUR = Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "post/box_blur_opaque");
 
-    private static PostEffectProcessor processor;
+    private static PostChain processor;
 
     /** Owned by us because {@link PostEffectProcessor#parseEffect} takes one and ShaderLoader's is private. */
-    private static ProjectionMatrix2 projection;
+    private static CachedOrthoProjectionMatrixBuffer projection;
 
     /** The radius baked into the built effect; a different one means a rebuild. */
     private static float builtRadius = Float.NaN;
@@ -99,7 +99,7 @@ public class InterfaceBlur
         {
             /* Vanilla's "nothing marked yet" sentinel; the field is private, so the constant it
              * compares against is unmapped and cannot be named here. */
-            batcher.getContext().state.blurLayer = Integer.MAX_VALUE;
+            batcher.getContext().guiRenderState.firstStratumAfterBlur = Integer.MAX_VALUE;
         }
 
         marked = true;
@@ -134,7 +134,7 @@ public class InterfaceBlur
 
         marked = false;
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         float radius = BBSSettings.interfaceBlurRadius.get();
 
         if (processor == null || radius != builtRadius)
@@ -148,12 +148,12 @@ public class InterfaceBlur
         /* The frame graph sizes the swap target off the framebuffer and puts the result back into
          * it, so the blend/framebuffer/texture-unit restoration 1.21.1 had to do by hand afterwards
          * has nothing left to undo — a render pass owns its own state now. */
-        processor.render(mc.getFramebuffer(), ObjectAllocator.TRIVIAL);
+        processor.process(mc.getMainRenderTarget(), GraphicsResourceAllocator.UNPOOLED);
 
         return true;
     }
 
-    private static boolean rebuild(MinecraftClient mc, float radius)
+    private static boolean rebuild(Minecraft mc, float radius)
     {
         close();
 
@@ -161,10 +161,10 @@ public class InterfaceBlur
         {
             /* The same near/far/invert ShaderLoader builds its own with, so our passes project
              * their screen quad exactly like every vanilla post effect does. */
-            projection = new ProjectionMatrix2("bbs_interface_blur", 0.1F, 1000F, false);
+            projection = new CachedOrthoProjectionMatrixBuffer("bbs_interface_blur", 0.1F, 1000F, false);
 
-            processor = PostEffectProcessor.parseEffect(pipeline(radius), mc.getTextureManager(),
-                Set.of(PostEffectProcessor.MAIN), Identifier.of(BBSMod.MOD_ID, "interface_blur"), projection);
+            processor = PostChain.load(pipeline(radius), mc.getTextureManager(),
+                Set.of(PostChain.MAIN_TARGET_ID), Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "interface_blur"), projection);
 
             builtRadius = radius;
 
@@ -182,13 +182,13 @@ public class InterfaceBlur
     }
 
     /** Horizontal into the swap, vertical back into the main target — a separable box blur. */
-    private static PostEffectPipeline pipeline(float radius)
+    private static PostChainConfig pipeline(float radius)
     {
-        return new PostEffectPipeline(
-            Map.of(SWAP, new PostEffectPipeline.Targets(Optional.empty(), Optional.empty(), false, 0)),
+        return new PostChainConfig(
+            Map.of(SWAP, new PostChainConfig.InternalTarget(Optional.empty(), Optional.empty(), false, 0)),
             List.of(
-                pass(PostEffectProcessor.MAIN, SWAP, 1F, 0F, radius),
-                pass(SWAP, PostEffectProcessor.MAIN, 0F, 1F, radius)
+                pass(PostChain.MAIN_TARGET_ID, SWAP, 1F, 0F, radius),
+                pass(SWAP, PostChain.MAIN_TARGET_ID, 0F, 1F, radius)
             )
         );
     }
@@ -198,14 +198,14 @@ public class InterfaceBlur
      * order given, so it has to match the shader's declaration — BlurDir then Radius. Bilinear
      * sampling is on because the shader halves its sample count by stepping between pixels.
      */
-    private static PostEffectPipeline.Pass pass(Identifier in, Identifier out, float dirX, float dirY, float radius)
+    private static PostChainConfig.Pass pass(Identifier in, Identifier out, float dirX, float dirY, float radius)
     {
-        return new PostEffectPipeline.Pass(SCREEN_QUAD, BOX_BLUR,
-            List.of(new PostEffectPipeline.TargetSampler("In", in, false, true)),
+        return new PostChainConfig.Pass(SCREEN_QUAD, BOX_BLUR,
+            List.of(new PostChainConfig.TargetInput("In", in, false, true)),
             out,
             Map.of("BlurConfig", List.of(
-                new UniformValue.Vec2fValue(new Vector2f(dirX, dirY)),
-                new UniformValue.FloatValue(radius)
+                new UniformValue.Vec2Uniform(new Vector2f(dirX, dirY)),
+                new UniformValue.FloatUniform(radius)
             ))
         );
     }

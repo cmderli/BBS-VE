@@ -155,7 +155,7 @@ public class UIWelcomeOverlayPanel extends UIOverlayPanel
         String title = UIKeys.ONBOARDING_WELCOME_TITLE.format(UILandingScreen.getVersion()).get();
         /* 1.21.11: the GUI stack is a 2D Matrix3x2fStack, so the push/translate/scale that framed
          * this title lose their third dimension — which they never used. */
-        Matrix3x2fStack stack = context.batcher.getContext().getMatrices();
+        Matrix3x2fStack stack = context.batcher.getContext().pose();
 
         int titleW = font.getWidth(title) * TITLE_SCALE;
         int titleY = card.y - TITLE_GAP - font.getHeight() * TITLE_SCALE;

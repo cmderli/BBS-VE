@@ -4,12 +4,12 @@ import mchorse.bbs_mod.forms.renderers.utils.MatrixCache;
 import mchorse.bbs_mod.mixin.client.LivingEntityRendererInvoker;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.Transform;
-import net.minecraft.client.model.ModelPart;
-import net.minecraft.client.render.entity.LivingEntityRenderer;
-import net.minecraft.client.render.entity.state.LivingEntityRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
@@ -44,13 +44,13 @@ public class MobRigMatrices
     {
         Matrix4f origin = new Matrix4f(baseInverse).mul(parent);
 
-        origin.translate(part.originX / 16F, part.originY / 16F, part.originZ / 16F);
+        origin.translate(part.x / 16F, part.y / 16F, part.z / 16F);
 
         Matrix4f matrix = new Matrix4f(origin);
 
-        if (part.pitch != 0F || part.yaw != 0F || part.roll != 0F)
+        if (part.xRot != 0F || part.yRot != 0F || part.zRot != 0F)
         {
-            matrix.rotate(new Quaternionf().rotationZYX(part.roll, part.yaw, part.pitch));
+            matrix.rotate(new Quaternionf().rotationZYX(part.zRot, part.yRot, part.xRot));
         }
 
         if (part.xScale != 1F || part.yScale != 1F || part.zScale != 1F)
@@ -103,15 +103,15 @@ public class MobRigMatrices
 
             MobPoseApplier.apply(rig, MobPoseApplier.merge(pose, poseOverlay), saved);
 
-            MatrixStack stack = new MatrixStack();
+            PoseStack stack = new PoseStack();
 
             /* Since 1.21.1 the entity carries a scale attribute: vanilla scales the stack by it
              * and hands it to setupTransforms, so the rig has to walk the same chain. The state
              * carries that scale now, and setupTransforms reads the rest off it too. */
-            float entityScale = state.baseScale;
+            float entityScale = state.scale;
 
             stack.scale(entityScale, entityScale, entityScale);
-            invoker.bbs$setupTransforms(state, stack, animationProgress, state.bodyYaw);
+            invoker.bbs$setupTransforms(state, stack, animationProgress, state.bodyRot);
             stack.scale(-1F, -1F, 1F);
             invoker.bbs$scale(state, stack);
             stack.translate(0F, -1.501F, 0F);
@@ -134,7 +134,7 @@ public class MobRigMatrices
      * early-outs, so a bone that would not be drawn does not get a matrix here either and the two
      * paths agree on which bones exist.
      */
-    private static void walk(MatrixCache cache, Matrix4f baseInverse, MobRig rig, MatrixStack stack, ModelPart part)
+    private static void walk(MatrixCache cache, Matrix4f baseInverse, MobRig rig, PoseStack stack, ModelPart part)
     {
         if (part == null || !part.visible)
         {
@@ -152,18 +152,18 @@ public class MobRigMatrices
 
         if (bone != null)
         {
-            put(cache, baseInverse, bone, part, stack.peek().getPositionMatrix());
+            put(cache, baseInverse, bone, part, stack.last().pose());
         }
 
-        stack.push();
+        stack.pushPose();
         /* 1.21.11: ModelPart.rotate(MatrixStack) is applyTransform now; rotate() takes a quaternion. */
-        part.applyTransform(stack);
+        part.translateAndRotate(stack);
 
         for (ModelPart child : children.values())
         {
             walk(cache, baseInverse, rig, stack, child);
         }
 
-        stack.pop();
+        stack.popPose();
     }
 }

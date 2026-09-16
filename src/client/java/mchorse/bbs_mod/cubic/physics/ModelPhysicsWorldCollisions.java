@@ -1,12 +1,12 @@
 package mchorse.bbs_mod.cubic.physics;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ShapeContext;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.Level;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -30,7 +30,7 @@ public final class ModelPhysicsWorldCollisions
     {
     }
 
-    public static void resolve(World world, Vector3f[] pos, Vector3f[] prev, int from, int to, float radius, float friction)
+    public static void resolve(Level world, Vector3f[] pos, Vector3f[] prev, int from, int to, float radius, float friction)
     {
         if (world == null || pos == null || prev == null || from < 0 || to > pos.length || to > prev.length || from >= to || radius <= 0F)
         {
@@ -44,7 +44,7 @@ public final class ModelPhysicsWorldCollisions
             return;
         }
 
-        float f = MathHelper.clamp(friction, 0F, 1F);
+        float f = Mth.clamp(friction, 0F, 1F);
         Vector3f normal = new Vector3f();
         Vector3f sample = new Vector3f();
 
@@ -239,7 +239,7 @@ public final class ModelPhysicsWorldCollisions
         return best;
     }
 
-    private static List<float[]> gatherSolidBoxes(World world, Vector3f[] pos, Vector3f[] prev, int from, int to, float radius)
+    private static List<float[]> gatherSolidBoxes(Level world, Vector3f[] pos, Vector3f[] prev, int from, int to, float radius)
     {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
@@ -258,15 +258,15 @@ public final class ModelPhysicsWorldCollisions
             maxZ = Math.max(maxZ, Math.max(pos[i].z, prev[i].z));
         }
 
-        int bx1 = MathHelper.floor(minX - radius);
-        int by1 = MathHelper.floor(minY - radius);
-        int bz1 = MathHelper.floor(minZ - radius);
-        int bx2 = MathHelper.floor(maxX + radius);
-        int by2 = MathHelper.floor(maxY + radius);
-        int bz2 = MathHelper.floor(maxZ + radius);
+        int bx1 = Mth.floor(minX - radius);
+        int by1 = Mth.floor(minY - radius);
+        int bz1 = Mth.floor(minZ - radius);
+        int bx2 = Mth.floor(maxX + radius);
+        int by2 = Mth.floor(maxY + radius);
+        int bz2 = Mth.floor(maxZ + radius);
 
         List<float[]> boxes = new ArrayList<>();
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
 
         for (int x = bx1; x <= bx2; x++)
         {
@@ -274,9 +274,9 @@ public final class ModelPhysicsWorldCollisions
             {
                 for (int z = bz1; z <= bz2; z++)
                 {
-                    mutable.set(x, y, z);
+                    mutable.setWithOffset(x, y, z);
 
-                    if (!world.isChunkLoaded(mutable))
+                    if (!world.hasChunkAt(mutable))
                     {
                         continue;
                     }
@@ -288,20 +288,20 @@ public final class ModelPhysicsWorldCollisions
                         continue;
                     }
 
-                    if (state.isFullCube(world, mutable))
+                    if (state.isCollisionShapeFullBlock(world, mutable))
                     {
                         boxes.add(new float[] {x, y, z, x + 1F, y + 1F, z + 1F});
                         continue;
                     }
 
-                    VoxelShape shape = state.getCollisionShape(world, mutable, ShapeContext.absent());
+                    VoxelShape shape = state.getCollisionShape(world, mutable, CollisionContext.empty());
 
                     if (shape.isEmpty())
                     {
                         continue;
                     }
 
-                    for (Box box : shape.getBoundingBoxes())
+                    for (AABB box : shape.toAabbs())
                     {
                         boxes.add(new float[] {
                             (float) (x + box.minX), (float) (y + box.minY), (float) (z + box.minZ),
@@ -315,7 +315,7 @@ public final class ModelPhysicsWorldCollisions
         return boxes;
     }
 
-    public static boolean hasFullCubeInAabb(World world, BlockPos.Mutable mutable, int minBX, int minBY, int minBZ, int maxBX, int maxBY, int maxBZ)
+    public static boolean hasFullCubeInAabb(Level world, BlockPos.MutableBlockPos mutable, int minBX, int minBY, int minBZ, int maxBX, int maxBY, int maxBZ)
     {
         if (world == null)
         {
@@ -328,9 +328,9 @@ public final class ModelPhysicsWorldCollisions
             {
                 for (int z = minBZ; z <= maxBZ; z++)
                 {
-                    mutable.set(x, y, z);
+                    mutable.setWithOffset(x, y, z);
 
-                    if (!world.isChunkLoaded(mutable))
+                    if (!world.hasChunkAt(mutable))
                     {
                         continue;
                     }
@@ -342,12 +342,12 @@ public final class ModelPhysicsWorldCollisions
                         continue;
                     }
 
-                    if (block.isFullCube(world, mutable))
+                    if (block.isCollisionShapeFullBlock(world, mutable))
                     {
                         return true;
                     }
 
-                    if (!block.getCollisionShape(world, mutable, ShapeContext.absent()).isEmpty())
+                    if (!block.getCollisionShape(world, mutable, CollisionContext.empty()).isEmpty())
                     {
                         return true;
                     }

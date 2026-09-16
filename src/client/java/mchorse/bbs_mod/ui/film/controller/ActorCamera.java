@@ -5,9 +5,9 @@ import mchorse.bbs_mod.forms.entities.IEntity;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.RayTracing;
 import mchorse.bbs_mod.utils.joml.Matrices;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.level.Level;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 
@@ -49,7 +49,7 @@ public class ActorCamera
         Vector3f rotation = lookRotation(actor, transition);
 
         Vector3f rotate = Matrices.rotation(rotation.x * (back ? 1 : -1), (back ? 0F : MathUtils.PI) - rotation.y);
-        World world = MinecraftClient.getInstance().world;
+        Level world = Minecraft.getInstance().level;
         float distance = DISTANCE;
 
         HitResult result = RayTracing.rayTraceEntity(
@@ -61,7 +61,7 @@ public class ActorCamera
 
         if (result.getType() == HitResult.Type.BLOCK)
         {
-            distance = (float) position.distance(result.getPos().x, result.getPos().y, result.getPos().z) - WALL_MARGIN;
+            distance = (float) position.distance(result.getLocation().x, result.getLocation().y, result.getLocation().z) - WALL_MARGIN;
         }
 
         rotate.mul(distance);

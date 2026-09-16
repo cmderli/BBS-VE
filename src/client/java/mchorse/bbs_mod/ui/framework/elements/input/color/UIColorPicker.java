@@ -21,7 +21,7 @@ import mchorse.bbs_mod.utils.Direction;
 import mchorse.bbs_mod.utils.MathUtils;
 import mchorse.bbs_mod.utils.colors.Color;
 import mchorse.bbs_mod.utils.colors.Colors;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.function.Consumer;
@@ -414,9 +414,9 @@ public class UIColorPicker extends UIElement
      */
     private int readPixelUnderCursor(UIContext context)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        int width = mc.getWindow().getFramebufferWidth();
-        int height = mc.getWindow().getFramebufferHeight();
+        Minecraft mc = Minecraft.getInstance();
+        int width = mc.getWindow().getWidth();
+        int height = mc.getWindow().getHeight();
 
         if (width <= 0 || height <= 0)
         {

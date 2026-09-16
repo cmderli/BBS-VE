@@ -257,7 +257,7 @@ public class UISection extends UIElement
     {
         /* 1.21.11: the GUI stack is a 2D Matrix3x2fStack, so the rotation is a plain
          * screen-space rotate about the translated origin instead of a Z quaternion. */
-        Matrix3x2fStack matrices = context.batcher.getContext().getMatrices();
+        Matrix3x2fStack matrices = context.batcher.getContext().pose();
 
         matrices.pushMatrix();
         matrices.translate(cx, cy);

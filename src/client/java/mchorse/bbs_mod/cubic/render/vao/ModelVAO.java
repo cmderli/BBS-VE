@@ -1,7 +1,7 @@
 package mchorse.bbs_mod.cubic.render.vao;
 
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.util.math.MatrixStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -35,10 +35,10 @@ public class ModelVAO
      * {@code builder} (format POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL). Color/overlay/light are
      * constant per draw (matching the old {@code glVertexAttrib4f}/{@code glVertexAttribI2i} defaults).
      */
-    public void writeImmediate(BufferBuilder builder, MatrixStack stack, float r, float g, float b, float a, int light, int overlay)
+    public void writeImmediate(BufferBuilder builder, PoseStack stack, float r, float g, float b, float a, int light, int overlay)
     {
-        Matrix4f position = stack.peek().getPositionMatrix();
-        Matrix3f normalMatrix = stack.peek().getNormalMatrix();
+        Matrix4f position = stack.last().pose();
+        Matrix3f normalMatrix = stack.last().normal();
 
         float[] vertices = this.data.vertices();
         float[] normals = this.data.normals();
@@ -61,11 +61,11 @@ public class ModelVAO
             normalMatrix.transform(normal);
 
             builder.vertex(vertex.x, vertex.y, vertex.z)
-                .color(r, g, b, a)
-                .texture(texCoords[i * 2], texCoords[i * 2 + 1])
-                .overlay(overlay)
-                .light(lu, lv)
-                .normal(normal.x, normal.y, normal.z);
+                .setColor(r, g, b, a)
+                .setUv(texCoords[i * 2], texCoords[i * 2 + 1])
+                .setUv1(overlay)
+                .setUv2(lu, lv)
+                .setNormal(normal.x, normal.y, normal.z);
         }
     }
 }

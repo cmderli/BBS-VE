@@ -1,11 +1,11 @@
 package mchorse.bbs_mod.forms;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.command.RenderDispatcher;
-import net.minecraft.client.render.state.CameraRenderState;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 /**
@@ -32,35 +32,35 @@ import org.joml.Quaternionf;
  */
 public class QueueDispatch
 {
-    private static RenderDispatcher dispatcher;
+    private static FeatureRenderDispatcher dispatcher;
 
-    private static RenderDispatcher get()
+    private static FeatureRenderDispatcher get()
     {
         if (dispatcher == null)
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
+            Minecraft mc = Minecraft.getInstance();
 
-            dispatcher = new RenderDispatcher(
-                new net.minecraft.client.render.command.OrderedRenderCommandQueueImpl(),
-                mc.getBlockRenderManager(),
+            dispatcher = new FeatureRenderDispatcher(
+                new net.minecraft.client.render.command.SubmitNodeStorage(),
+                mc.getBlockRenderer(),
                 FormUtilsClient.getProvider(),
                 mc.getAtlasManager(),
-                mc.getBufferBuilders().getOutlineVertexConsumers(),
-                mc.getBufferBuilders().getEffectVertexConsumers(),
-                mc.textRenderer
+                mc.renderBuffers().outlineBufferSource(),
+                mc.renderBuffers().crumblingBufferSource(),
+                mc.font
             );
         }
 
         return dispatcher;
     }
 
-    public static OrderedRenderCommandQueue queue()
+    public static SubmitNodeCollector queue()
     {
-        return get().getQueue();
+        return get().getSubmitNodeStorage();
     }
 
     /** The dispatcher itself — {@code ImmediateGui} builds its private GuiRenderer over it. */
-    public static RenderDispatcher dispatcher()
+    public static FeatureRenderDispatcher dispatcher()
     {
         return get();
     }
@@ -72,7 +72,7 @@ public class QueueDispatch
      */
     public static void flush()
     {
-        get().render();
+        get().renderAllFeatures();
     }
 
     /**
@@ -80,15 +80,15 @@ public class QueueDispatch
      */
     public static CameraRenderState cameraState()
     {
-        Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
         CameraRenderState state = new CameraRenderState();
-        Vec3d pos = camera.getCameraPos();
+        Vec3 pos = camera.getCameraPos();
 
         state.initialized = true;
         state.pos = pos;
         state.entityPos = pos;
-        state.blockPos = camera.getBlockPos();
-        state.orientation = new Quaternionf(camera.getRotation());
+        state.blockPos = camera.blockPosition();
+        state.orientation = new Quaternionf(camera.rotation());
 
         return state;
     }

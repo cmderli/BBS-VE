@@ -8,17 +8,17 @@ import mchorse.bbs_mod.forms.FormUtilsClient;
 import mchorse.bbs_mod.mixin.client.CameraInvoker;
 import mchorse.bbs_mod.mixin.client.ParticleManagerInvoker;
 import mchorse.bbs_mod.utils.MathUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.particle.BillboardParticle;
-import net.minecraft.client.particle.BillboardParticleSubmittable;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.particle.SingleQuadParticle;
+import net.minecraft.client.renderer.state.QuadParticleRenderState;
 import net.minecraft.client.particle.Particle;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.entity.Entity;
-import net.minecraft.particle.ParticleEffect;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.core.particles.ParticleOptions;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 
@@ -78,10 +78,10 @@ public class VanillaParticleScene
     /**
      * Spawn a particle at a point given in the preview's own space.
      */
-    public void spawn(ParticleEffect effect, double x, double y, double z, double velocityX, double velocityY, double velocityZ)
+    public void spawn(ParticleOptions effect, double x, double y, double z, double velocityX, double velocityY, double velocityZ)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        ClientWorld world = mc.world;
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel world = mc.level;
 
         if (world == null || this.particles.size() >= MAX_PARTICLES)
         {
@@ -95,7 +95,7 @@ public class VanillaParticleScene
             this.updateOrigin(mc, world);
         }
 
-        Particle particle = ((ParticleManagerInvoker) mc.particleManager).bbs$createParticle(effect,
+        Particle particle = ((ParticleManagerInvoker) mc.particleEngine).bbs$createParticle(effect,
             this.origin.x + x, this.origin.y + y, this.origin.z + z,
             velocityX, velocityY, velocityZ
         );
@@ -106,7 +106,7 @@ public class VanillaParticleScene
         }
     }
 
-    private void updateOrigin(MinecraftClient mc, ClientWorld world)
+    private void updateOrigin(Minecraft mc, ClientLevel world)
     {
         Entity anchor = mc.getCameraEntity();
         double x = anchor == null ? 0D : anchor.getX();
@@ -115,7 +115,7 @@ public class VanillaParticleScene
         /* Above the ceiling there are no blocks to collide with, while the
          * chunk underneath is still loaded, so the particles tick normally.
          * 1.21.9: World.getTopY() (exclusive ceiling) -> HeightLimitView.getTopYInclusive(). */
-        this.origin.set(x, world.getTopYInclusive() + 1 + ORIGIN_HEIGHT, z);
+        this.origin.set(x, world.getMaxY() + 1 + ORIGIN_HEIGHT, z);
     }
 
     public void tick()
@@ -135,7 +135,7 @@ public class VanillaParticleScene
                 /* A particle that throws is dropped rather than taken to the
                  * whole editor. The effect is visible (it disappears), so this
                  * is not a silent failure */
-                particle.markDead();
+                particle.remove();
             }
 
             if (!particle.isAlive())
@@ -190,15 +190,15 @@ public class VanillaParticleScene
         {
             for (Particle particle : this.particles)
             {
-                if (particle instanceof BillboardParticle billboard)
+                if (particle instanceof SingleQuadParticle billboard)
                 {
                     try
                     {
-                        billboard.render(this.submittable, this.camera, transition);
+                        billboard.extractRotatedQuad(this.submittable, this.camera, transition);
                     }
                     catch (Exception e)
                     {
-                        particle.markDead();
+                        particle.remove();
                     }
                 }
             }
@@ -219,25 +219,25 @@ public class VanillaParticleScene
      * One layer per {@link BillboardParticle.RenderType}, built from the render type's own
      * pipeline and atlas, so the geometry looks exactly like the world's particles do.
      */
-    private static class PreviewSubmittable extends BillboardParticleSubmittable
+    private static class PreviewSubmittable extends QuadParticleRenderState
     {
-        private final Map<BillboardParticle.RenderType, RenderLayer> layers = new HashMap<>();
-        private final Set<BillboardParticle.RenderType> used = new LinkedHashSet<>();
+        private final Map<SingleQuadParticle.Layer, RenderType> layers = new HashMap<>();
+        private final Set<SingleQuadParticle.Layer> used = new LinkedHashSet<>();
 
         @Override
-        public void render(BillboardParticle.RenderType renderType, float x, float y, float z, float rotX, float rotY, float rotZ, float rotW, float size, float minU, float maxU, float minV, float maxV, int color, int light)
+        public void add(SingleQuadParticle.Layer renderType, float x, float y, float z, float rotX, float rotY, float rotZ, float rotW, float size, float minU, float maxU, float minV, float maxV, int color, int light)
         {
             VertexConsumer consumer = FormUtilsClient.getProvider().getBuffer(this.layer(renderType));
 
             this.used.add(renderType);
-            this.drawFace(consumer, x, y, z, rotX, rotY, rotZ, rotW, size, minU, maxU, minV, maxV, color, light);
+            this.renderRotatedQuad(consumer, x, y, z, rotX, rotY, rotZ, rotW, size, minU, maxU, minV, maxV, color, light);
         }
 
         public void draw()
         {
             CustomVertexConsumerProvider provider = FormUtilsClient.getProvider();
 
-            for (BillboardParticle.RenderType type : this.used)
+            for (SingleQuadParticle.Layer type : this.used)
             {
                 provider.draw(this.layer(type));
             }
@@ -245,7 +245,7 @@ public class VanillaParticleScene
             this.used.clear();
         }
 
-        private RenderLayer layer(BillboardParticle.RenderType type)
+        private RenderType layer(SingleQuadParticle.Layer type)
         {
             return this.layers.computeIfAbsent(type, (key) ->
             {
@@ -256,14 +256,14 @@ public class VanillaParticleScene
                  * particles pipeline is the migrated clone of the vanilla particle shader with
                  * cull OFF, the same POSITION_TEXTURE_COLOR_LIGHT format and the same
                  * Sampler0/Sampler2 pair — only the atlas differs per render type. */
-                RenderSetup.Builder setup = RenderSetup.builder(BBSShaders.getParticlesPipeline())
-                    .texture("Sampler0", key.textureAtlasLocation())
+                RenderSetup.RenderSetupBuilder setup = RenderSetup.builder(BBSShaders.getParticlesPipeline())
+                    .withTexture("Sampler0", key.textureAtlasLocation())
                     .useLightmap()
-                    .translucent();
+                    .sortOnUpload();
 
                 String name = key.textureAtlasLocation().getPath().replace('/', '_') + (key.translucent() ? "_translucent" : "_opaque");
 
-                return RenderLayer.of(BBSMod.MOD_ID + "_preview_particles_" + name, setup.build());
+                return RenderType.create(BBSMod.MOD_ID + "_preview_particles_" + name, setup.createRenderSetup());
             });
         }
     }

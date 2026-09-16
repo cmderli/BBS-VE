@@ -1,10 +1,10 @@
 package mchorse.bbs_mod.data;
 
 import com.mojang.serialization.DynamicOps;
-import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.RegistryOps;
-import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.core.HolderLookup;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,7 +39,7 @@ public class GameRegistries
     public interface Source
     {
         /** This side's registries, or {@code null} while this side has no game. */
-        RegistryWrapper.WrapperLookup lookup();
+        HolderLookup.Provider lookup();
 
         /** Whether the calling thread is this side's own. */
         boolean isOwnThread();
@@ -50,7 +50,7 @@ public class GameRegistries
     /* RegistryOps carries a per-instance cache of resolved registries, so it is worth keeping one
      * per side rather than building a fresh one for every keyframe of a film save. Weak keys: a
      * registry set dies with its world, and holding it here would keep every world ever loaded. */
-    private static final Map<RegistryWrapper.WrapperLookup, DynamicOps<NbtElement>> OPS =
+    private static final Map<HolderLookup.Provider, DynamicOps<Tag>> OPS =
         Collections.synchronizedMap(new WeakHashMap<>());
 
     /**
@@ -84,13 +84,13 @@ public class GameRegistries
      * The registries owned by the thread this is called on, or the first side that has any when
      * no side claims the thread, or {@code null} when no side has a game.
      */
-    public static RegistryWrapper.WrapperLookup lookup()
+    public static HolderLookup.Provider lookup()
     {
-        RegistryWrapper.WrapperLookup fallback = null;
+        HolderLookup.Provider fallback = null;
 
         for (Source source : SOURCES)
         {
-            RegistryWrapper.WrapperLookup lookup = source.lookup();
+            HolderLookup.Provider lookup = source.lookup();
 
             if (lookup == null)
             {
@@ -117,15 +117,15 @@ public class GameRegistries
      * since {@link RegistryOps} forwards everything else straight through. That also makes the
      * change backwards compatible: data written the old way still reads back.
      */
-    public static DynamicOps<NbtElement> nbtOps()
+    public static DynamicOps<Tag> nbtOps()
     {
-        RegistryWrapper.WrapperLookup lookup = lookup();
+        HolderLookup.Provider lookup = lookup();
 
         if (lookup == null)
         {
             return NbtOps.INSTANCE;
         }
 
-        return OPS.computeIfAbsent(lookup, (key) -> RegistryOps.of(NbtOps.INSTANCE, key));
+        return OPS.computeIfAbsent(lookup, (key) -> RegistryOps.create(NbtOps.INSTANCE, key));
     }
 }

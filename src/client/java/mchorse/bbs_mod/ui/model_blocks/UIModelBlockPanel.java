@@ -60,15 +60,14 @@ import mchorse.bbs_mod.utils.RayTracing;
 import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.pose.Transform;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.client.Camera;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -160,14 +159,14 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
         this.keyDude = new UIElement().noCulling();
         this.keyDude.keys().register(Keys.MODEL_BLOCKS_MOVE_TO, () ->
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            Camera camera = mc.gameRenderer.getCamera();
-            BlockHitResult blockHitResult = RayTracing.rayTrace(mc.world, camera.getCameraPos(), RayTracing.fromVector3f(this.mouseDirection), 512F);
+            Minecraft mc = Minecraft.getInstance();
+            Camera camera = mc.gameRenderer.getMainCamera();
+            BlockHitResult blockHitResult = RayTracing.rayTrace(mc.level, camera.getCameraPos(), RayTracing.fromVector3f(this.mouseDirection), 512F);
 
             if (blockHitResult.getType() != HitResult.Type.MISS)
             {
-                Vec3d hit = blockHitResult.getPos();
-                BlockPos pos = this.modelBlock.getPos();
+                Vec3 hit = blockHitResult.getLocation();
+                BlockPos pos = this.modelBlock.getBlockPos();
 
                 this.modelBlock.getProperties().getTransform().translate.set(hit.x - pos.getX() - 0.5F, hit.y - pos.getY(), hit.z - pos.getZ() - 0.5F);
                 this.fillData();
@@ -241,7 +240,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
         this.global = new UIToggle(UIKeys.MODEL_BLOCKS_GLOBAL, (b) ->
         {
             this.modelBlock.getProperties().setGlobal(b.getValue());
-            MinecraftClient.getInstance().worldRenderer.reload();
+            Minecraft.getInstance().levelRenderer.allChanged();
         });
         this.lookAt = new UIToggle(UIKeys.CAMERA_PANELS_LOOK_AT, (b) -> this.modelBlock.getProperties().setLookAt(b.getValue()));
 
@@ -445,7 +444,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
     {
         if (this.modelBlock != null)
         {
-            BlockPos pos = this.modelBlock.getPos();
+            BlockPos pos = this.modelBlock.getBlockPos();
 
             PlayerUtils.teleport(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D);
             UIUtils.playClick();
@@ -520,7 +519,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
 
         if (drag != null && transform != null)
         {
-            BlockPos pos = this.modelBlock.getPos();
+            BlockPos pos = this.modelBlock.getBlockPos();
 
             drag.setJacobian(GizmoDrag.computeTranslateJacobian(
                 transform,
@@ -563,15 +562,15 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
             && this.getChildren(UIFormPalette.class).isEmpty();
     }
 
-    private void renderGizmo(WorldRenderContext context, Vec3d cameraPos)
+    private void renderGizmo(WorldRenderContext context, Vec3 cameraPos)
     {
         if (!this.canShowGizmo())
         {
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        MatrixStack stack = context.matrices();
+        Minecraft mc = Minecraft.getInstance();
+        PoseStack stack = context.matrices();
 
         /* Capture the on-screen camera frame for the drag math: the gizmo is
          * drawn straight onto Minecraft's world stack, so feeding that same
@@ -589,7 +588,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
 
         /* Record the model-view at the block's gizmo origin so the UI-pass visual
          * and stencil (both read Gizmo#lastRenderMatrix) draw at the right place. */
-        stack.push();
+        stack.pushPose();
         this.applyGizmoOrigin(stack, cameraPos);
         /* Reorient into the active space (GLOBAL world axes / VIEW screen axes);
          * LOCAL keeps the block rotation applied above. The block's transform
@@ -607,7 +606,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
          * axes (UIModelRenderer#getSceneAxes) and follows the block. */
         Gizmo.INSTANCE.reorientForSpace(stack, space == TransformSpace.PARENT ? TransformSpace.GLOBAL : space, this.gizmoCamera.view, null);
         Gizmo.INSTANCE.captureVisual(stack);
-        stack.pop();
+        stack.popPose();
 
         /* TODO(1.21.11 render): RenderSystem.enableDepthTest() removed; depth state
          * is now part of the RenderPipeline backing the gizmo render layer. */
@@ -625,7 +624,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
      * <p>The matrices must sit at the block's centred origin
      * ({@code block + (0.5, 0, 0.5)}, camera-relative).
      */
-    public void renderWorldGizmo(MatrixStack matrices, ModelBlockEntity entity)
+    public void renderWorldGizmo(PoseStack matrices, ModelBlockEntity entity)
     {
         if (!this.isShowingGizmo(entity))
         {
@@ -634,7 +633,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
 
         Transform transform = entity.getProperties().getTransform();
 
-        matrices.push();
+        matrices.pushPose();
         matrices.translate(transform.translate.x, transform.translate.y, transform.translate.z);
 
         if (this.transform.getSpace().isLocal())
@@ -647,7 +646,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
          * composite can't paint over it. */
         Gizmo.INSTANCE.captureVisual(matrices);
 
-        matrices.pop();
+        matrices.popPose();
     }
 
     /**
@@ -657,9 +656,9 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
      * rotation, matching how the form editor's {@code getOrigin} behaves.
      * Caller owns the surrounding {@code push}/{@code pop}.
      */
-    private void applyGizmoOrigin(MatrixStack stack, Vec3d cameraPos)
+    private void applyGizmoOrigin(PoseStack stack, Vec3 cameraPos)
     {
-        BlockPos pos = this.modelBlock.getPos();
+        BlockPos pos = this.modelBlock.getBlockPos();
         Transform transform = this.modelBlock.getProperties().getTransform();
 
         stack.translate(
@@ -690,12 +689,12 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
             return;
         }
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        Minecraft mc = Minecraft.getInstance();
 
         this.gizmoStencil.setup(Link.bbs("stencil_model_block"));
 
-        int w = mc.getWindow().getWidth();
-        int h = mc.getWindow().getHeight();
+        int w = mc.getWindow().getScreenWidth();
+        int h = mc.getWindow().getScreenHeight();
         Texture texture = this.gizmoStencil.getFramebuffer().getMainTexture();
 
         if (texture.width != w || texture.height != h)
@@ -712,7 +711,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
 
         Gizmo.INSTANCE.renderStencilInterface(context, this.gizmoProjection, this.getGizmoArea());
 
-        this.gizmoStencil.pick((int) mc.mouse.getX(), (int) (h - mc.mouse.getY()), Math.round(BBSSettings.gizmoHoverTolerance.get() * BBSModClient.getGUIScale()), Gizmo.STENCIL_MAX);
+        this.gizmoStencil.pick((int) mc.mouseHandler.xpos(), (int) (h - mc.mouseHandler.ypos()), Math.round(BBSSettings.gizmoHoverTolerance.get() * BBSModClient.getGUIScale()), Gizmo.STENCIL_MAX);
         this.gizmoStencil.unbind(this.gizmoStencilMap);
 
         /* TODO(1.21.11 render): Framebuffer.beginWrite(boolean) removed; rebinding the main
@@ -875,7 +874,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
     {
         if (modelBlock != null)
         {
-            ClientNetwork.sendModelBlockForm(modelBlock.getPos(), modelBlock);
+            ClientNetwork.sendModelBlockForm(modelBlock.getBlockPos(), modelBlock);
         }
     }
 
@@ -1062,12 +1061,12 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
     {
         super.renderInWorld(context);
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        Camera camera = mc.gameRenderer.getCamera();
-        Vec3d pos = camera.getCameraPos();
+        Minecraft mc = Minecraft.getInstance();
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 pos = camera.getCameraPos();
 
-        double x = mc.mouse.getX();
-        double y = mc.mouse.getY();
+        double x = mc.mouseHandler.xpos();
+        double y = mc.mouseHandler.ypos();
 
         /* TODO(1.21.11 render): RenderSystem.getProjectionMatrix() and
          * WorldRenderContext.positionMatrix() are removed. The hover ray-pick needs the live
@@ -1077,26 +1076,26 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
         this.mouseDirection.set(CameraUtils.getMouseDirection(
             this.gizmoProjection,
             new Matrix4f(),
-            (int) x, (int) y, 0, 0, mc.getWindow().getWidth(), mc.getWindow().getHeight()
+            (int) x, (int) y, 0, 0, mc.getWindow().getScreenWidth(), mc.getWindow().getScreenHeight()
         ));
         this.hovered = this.getClosestObject(new Vector3d(pos.x, pos.y, pos.z), this.mouseDirection);
 
         /* TODO(1.21.11 render): RenderSystem.enable/disableDepthTest removed; depth state is now
          * encoded by the RenderPipeline backing the Draw.renderBox render layer. */
-        MatrixStack matrices = context.matrices();
+        PoseStack matrices = context.matrices();
 
         for (ModelBlockEntity entity : this.modelBlocks.getList())
         {
-            BlockPos blockPos = entity.getPos();
+            BlockPos blockPos = entity.getBlockPos();
 
             if (!this.isEditing(entity))
             {
-                matrices.push();
+                matrices.pushPose();
                 matrices.translate(blockPos.getX() - pos.x, blockPos.getY() - pos.y, blockPos.getZ() - pos.z);
 
                 /* The frame shows the block's actual hitbox (its body shape),
                  * so shaping the body gives immediate feedback in the world. */
-                Box box = entity.getShape().getBoundingBox();
+                net.minecraft.world.phys.AABB box = entity.getShape().bounds();
 
                 if (this.hovered == entity || entity == this.modelBlock)
                 {
@@ -1107,7 +1106,7 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
                     Draw.renderBox(matrices, box.minX, box.minY, box.minZ, box.maxX - box.minX, box.maxY - box.minY, box.maxZ - box.minZ);
                 }
 
-                matrices.pop();
+                matrices.popPose();
             }
         }
 
@@ -1144,8 +1143,8 @@ public class UIModelBlockPanel extends UIDashboardPanel implements GizmoViewport
 
     private AABB getHitbox(ModelBlockEntity closest)
     {
-        BlockPos pos = closest.getPos();
-        Box box = closest.getShape().getBoundingBox();
+        BlockPos pos = closest.getBlockPos();
+        net.minecraft.world.phys.AABB box = closest.getShape().bounds();
 
         return new AABB(
             pos.getX() + box.minX, pos.getY() + box.minY, pos.getZ() + box.minZ,
