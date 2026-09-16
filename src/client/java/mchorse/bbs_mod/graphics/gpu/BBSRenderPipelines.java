@@ -13,6 +13,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSMod;
 import net.minecraft.client.renderer.BindGroupLayouts;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
 import java.util.List;
@@ -218,6 +219,31 @@ public final class BBSRenderPipelines
     {
         return Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/" + name);
     }
+
+    /* ---- pixel-art seam smoothing ----
+     *
+     * These are vanilla's own interface pipelines with only the fragment shader swapped, which is
+     * exactly how the 1.21.11 code built them (`pixelArtPipeline(RenderPipelines.GUI_TEXTURED, …)`):
+     * blend, depth, vertex format and uniform blocks must stay identical to the draw they stand in
+     * for, or the seam fix would change more than the sampling it is there for.
+     *
+     * 26.2 makes that expressible through a {@link RenderPipeline.Snippet}, and the snippet fields
+     * are private in vanilla — reachable only because Fabric API's
+     * `fabric-transitive-access-wideners-v1` module widens `RenderPipelines.*_SNIPPET` for every
+     * mod. That is verified, not assumed: a pipeline built from `RenderPipelines.ENTITY_SNIPPET`
+     * compiles on this project's own compile classpath. This is the safer of the two ways to define
+     * a pipeline, because a snippet cannot disagree with vanilla about which bind groups the shader
+     * is compiled against. */
+    public static final RenderPipeline PIXEL_ART = RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
+        .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/pixelart"))
+        .withFragmentShader(shader("pixelart"))
+        .build();
+
+    /** The same, for the interface's text: vanilla's vertex shader, BBS's fragment. */
+    public static final RenderPipeline PIXEL_ART_TEXT = RenderPipeline.builder(RenderPipelines.GUI_TEXT_SNIPPET)
+        .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/pixelart_text"))
+        .withFragmentShader(shader("pixelart_text"))
+        .build();
 
     private static RenderPipeline.Builder pipeline(String name)
     {
