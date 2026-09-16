@@ -36,7 +36,9 @@ accessible field net/minecraft/world/entity/LivingEntity useItemRemaining I
 accessible field net/minecraft/world/entity/LivingEntity autoSpinAttackTicks I
 accessible method net/minecraft/world/entity/LivingEntity setLivingEntityFlag (IZ)V
 
-accessible field net/minecraft/client/MinecraftClient framebuffer Lnet/minecraft/client/gl/Framebuffer;
+# Superseded by the GameRenderer pair below: 26.2 moved the main render target off Minecraft, so
+# the 1.21.11 spelling of this entry no longer names anything (validateAccessWidener rejects it).
+# accessible field net/minecraft/client/MinecraftClient framebuffer Lnet/minecraft/client/gl/Framebuffer;
 # mutable field net/minecraft/client/MinecraftClient framebuffer Lnet/minecraft/client/gl/Framebuffer;
 
 # The custom-resolution export redirects the whole frame by swapping the game's main render target
