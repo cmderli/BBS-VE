@@ -64,3 +64,6 @@ run-client*.log
 OrthoCamera-1.20.1
 Iris-1.21.11/
 temp_change_log.md
+
+# mapping tooling: downloaded upstream mappings (yarn jar, client.txt, manifest)
+tools/mappings/.cache/
