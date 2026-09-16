@@ -1,34 +1,87 @@
 package mchorse.bbs_mod.graphics;
 
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderPassDescriptor;
+import com.mojang.blaze3d.systems.RenderSystem;
+import mchorse.bbs_mod.graphics.gpu.BBSGpu;
 import mchorse.bbs_mod.graphics.texture.Texture;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
+import org.joml.Vector4f;
+import org.joml.Vector4fc;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalDouble;
 
+/**
+ * A render target, rebuilt on 26.2 render passes.
+ *
+ * <p>The 1.21.11 class was a thin wrapper over a framebuffer object: {@code glGenFramebuffers},
+ * {@code glFramebufferTexture2D} per attachment, and then {@code bind()} /
+ * {@code glViewport()} / {@code clear()} as ambient state. None of that survives:</p>
+ *
+ * <ul>
+ *   <li><b>Rendering is a pass, not a binding.</b> 26.2 has no "current framebuffer"; a
+ *       {@link RenderPass} is created from a {@link RenderPassDescriptor} that names its
+ *       attachments, and every draw goes into that pass until it is closed. So {@link #apply()}
+ *       now <i>opens</i> a pass and {@link #unbind()} closes it, and the pass has to be handed to
+ *       whatever draws in between ({@link #getPass()}). That is the single biggest call-site
+ *       change in the render port: a draw helper that used to rely on "the framebuffer is bound"
+ *       now needs the pass as a parameter.</li>
+ *   <li><b>Clearing is declared when the pass is created.</b> The clear colour and depth are part
+ *       of the attachment descriptors, because that is what lets a driver keep the attachment in
+ *       tile memory and skip writing it out. {@link #applyClear()} opens a pass that clears;
+ *       {@link #apply()} opens one that loads, which is the distinction the old
+ *       {@code apply()}-then-{@code clear()} pair was making.</li>
+ *   <li><b>Multiple render targets are not a call.</b> {@code glDrawBuffers} is gone; every colour
+ *       attachment is listed in the descriptor, and the pipeline declares how many it writes with
+ *       its colour target states. {@link #attachments(int...)} therefore has nothing left to
+ *       do.</li>
+ *   <li><b>There is no blit.</b> {@code glBlitFramebuffer} has no 26.2 equivalent other than the
+ *       vanilla {@link RenderTarget#blitAndBlendToTexture} on a vanilla target; a BBS-to-BBS blit
+ *       has to be a full-screen quad drawn with a pipeline. {@link #blitTo(Framebuffer)} is
+ *       deliberately absent rather than silently wrong.</li>
+ * </ul>
+ *
+ * <p>Attachments are BBS {@link Texture} objects, not vanilla {@code RenderTarget}s, because the
+ * mod samples the very textures it renders into (the form preview, the film stencil target, the
+ * model-block preview). A vanilla {@code TextureTarget} would allocate its own colour texture and
+ * hand it out only as a {@code GpuTextureView}, which is not the object the rest of BBS binds.</p>
+ */
 public class Framebuffer
 {
-    private static final float[] CLEAR_COLOR = {0F, 0F, 0F, 0F};
-    private static final float[] CLEAR_DEPTH = {1F};
+    private static final Vector4fc CLEAR_COLOR = new Vector4f(0F, 0F, 0F, 0F);
+    private static final double CLEAR_DEPTH = 1D;
 
-    public int id;
-    public List<Texture> textures = new ArrayList<>();
+    public final List<Texture> textures = new ArrayList<>();
     public final List<Renderbuffer> renderbuffers = new ArrayList<>();
 
     private boolean deleteTextures;
     private boolean advancedClearing;
 
-    public Framebuffer()
-    {
-        this.id = GL30.glGenFramebuffers();
-    }
+    private RenderPass pass;
+    private int width;
+    private int height;
 
+    public Framebuffer()
+    {}
+
+    /**
+     * Kept for the call sites that used it to mean "clear each attachment with its own clear
+     * value". With render passes there is only one way to clear, so this is now documentation
+     * rather than a switch.
+     */
     public Framebuffer enableAdvancedClearing()
     {
         this.advancedClearing = true;
 
         return this;
+    }
+
+    public boolean isAdvancedClearing()
+    {
+        return this.advancedClearing;
     }
 
     public Framebuffer deleteTextures()
@@ -40,139 +93,284 @@ public class Framebuffer
 
     public Texture getMainTexture()
     {
-        return this.textures.get(0);
+        return this.textures.isEmpty() ? null : this.textures.get(0);
+    }
+
+    public Renderbuffer getDepthBuffer()
+    {
+        return this.renderbuffers.isEmpty() ? null : this.renderbuffers.get(0);
+    }
+
+    public int getWidth()
+    {
+        return this.width;
+    }
+
+    public int getHeight()
+    {
+        return this.height;
     }
 
     /**
-     * Attach a texture as one of the attachment buffers
+     * Attach a texture as a colour attachment.
+     *
+     * <p>{@code index} is the attachment's position in the pass, which is what a pipeline's
+     * {@code withColorTargetState(index, ...)} refers to. It is passed explicitly now because the
+     * old {@code GL_COLOR_ATTACHMENT0 + i} arithmetic was the only thing that ordered them.</p>
      */
-    public Framebuffer attach(Texture texture, int attachment)
+    public Framebuffer attachColor(Texture texture, int index)
     {
-        this.textures.add(texture);
+        while (this.textures.size() <= index)
+        {
+            this.textures.add(null);
+        }
 
-        this.bind();
-        texture.bind();
-
-        GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment, texture.target, texture.id, 0);
+        this.textures.set(index, texture);
+        this.updateSizeFrom(texture);
 
         return this;
     }
 
+    /** Transitional overload that decodes the legacy GL attachment enum. */
+    @Deprecated
+    public Framebuffer attach(Texture texture, int attachment)
+    {
+        return this.attachColor(texture, Math.max(0, attachment - 0x8CE0 /* GL_COLOR_ATTACHMENT0 */));
+    }
+
     /**
-     * Attach a renderbuffer as one of the attachment buffers
+     * Attach a depth attachment. Only one is possible: a pipeline has a single depth target.
      */
     public void attach(Renderbuffer renderbuffer)
     {
-        this.renderbuffers.add(renderbuffer);
-        renderbuffer.bind();
-
-        GL30.glFramebufferRenderbuffer(GL30.GL_FRAMEBUFFER, renderbuffer.target, GL30.GL_RENDERBUFFER, renderbuffer.id);
-    }
-
-    public void attachments(int count)
-    {
-        int[] attachments = new int[count];
-
-        for (int i = 0; i < count; i++)
+        if (this.renderbuffers.isEmpty())
         {
-            attachments[i] = GL30.GL_COLOR_ATTACHMENT0 + i;
-        }
-
-        this.attachments(attachments);
-    }
-
-    public void attachments(int... attachments)
-    {
-        GL30.glDrawBuffers(attachments);
-    }
-
-    public void applyClear()
-    {
-        this.apply();
-        this.clear();
-    }
-
-    public void apply()
-    {
-        Texture texture = this.getMainTexture();
-
-        /* TODO(1.21.11 render): 1.21.1 routes this through RenderSystem.viewport and NEVER raw
-         * GL11.glViewport — both Minecraft and Sodium keep their own record of the viewport, and
-         * Sodium 0.8+ skips a glViewport call whose arguments match its record
-         * (GlStateManagerMixin#skipRedundantViewport, @WrapWithCondition on GlStateManager._viewport).
-         * A raw call sets the GPU without updating either record, so the next legitimate restore back
-         * to the previous viewport looks redundant to Sodium and is swallowed — leaving the whole UI
-         * drawn into this framebuffer's viewport. RenderSystem.viewport() no longer exists here (a
-         * RenderPass carries its own viewport), so the raw call stands until this framebuffer path is
-         * rebuilt on render passes. */
-        GL11.glViewport(0, 0, texture.width, texture.height);
-        this.bind();
-    }
-
-    public void clear()
-    {
-        if (this.advancedClearing)
-        {
-            int i = 0;
-
-            for (Texture texture : this.textures)
-            {
-                if (texture.getFormat().isColor())
-                {
-                    if (texture.isClearable())
-                    {
-                        GL30.glClearBufferfv(GL30.GL_COLOR, i, CLEAR_COLOR);
-                    }
-
-                    i += 1;
-                }
-                else if (texture.isClearable())
-                {
-                    GL30.glClearBufferfv(GL30.GL_DEPTH, 0, CLEAR_DEPTH);
-                }
-            }
+            this.renderbuffers.add(renderbuffer);
         }
         else
         {
-            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+            this.renderbuffers.set(0, renderbuffer);
         }
     }
 
-    public void bind()
+    /**
+     * No-op: 26.2 takes the colour attachment list from the pass descriptor and the written-target
+     * count from the pipeline. Kept so the old call sites read as what they meant.
+     */
+    public void attachments(int count)
+    {}
+
+    public void attachments(int... attachments)
+    {}
+
+    private void updateSizeFrom(Texture texture)
     {
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.id);
+        if (texture != null && texture.width > 0 && texture.height > 0)
+        {
+            this.width = texture.width;
+            this.height = texture.height;
+        }
     }
 
-    public void unbind()
+    /**
+     * Open the pass that renders into this target, keeping its contents.
+     *
+     * <p>Anything drawn after this call must be recorded into {@link #getPass()}; the pass is only
+     * submitted when {@link #unbind()} closes it.</p>
+     */
+    public RenderPass apply()
     {
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
+        return this.begin(false);
     }
 
-    public void resize(int w, int h)
+    /** Open the pass and clear every attachment that asked to be clearable. */
+    public RenderPass applyClear()
     {
+        return this.begin(true);
+    }
+
+    private RenderPass begin(boolean clear)
+    {
+        if (this.pass != null)
+        {
+            throw new IllegalStateException("A BBS framebuffer pass is already open; close it with unbind() before opening another");
+        }
+
+        if (this.textures.isEmpty())
+        {
+            throw new IllegalStateException("Cannot render into a framebuffer with no colour attachment");
+        }
+
+        BBSGpu.assertOnRenderThread();
+
+        RenderPassDescriptor descriptor = RenderPassDescriptor.create(() -> "bbs framebuffer");
+        boolean hasColor = false;
+
         for (Texture texture : this.textures)
         {
-            texture.bind();
-            texture.setSize(w, h);
+            if (texture == null || !texture.isValid())
+            {
+                /* A hole in the middle of the list still needs a placeholder so that the later
+                 * attachments keep their index — that is what the unused slots were for under GL
+                 * too. */
+                descriptor.withUnusedColorAttachment();
+
+                continue;
+            }
+
+            Optional<Vector4fc> clearValue = clear && texture.isClearable()
+                ? Optional.of(CLEAR_COLOR)
+                : Optional.empty();
+
+            descriptor.withColorAttachment(texture.view(), clearValue);
+            hasColor = true;
+            this.updateSizeFrom(texture);
+        }
+
+        if (!hasColor)
+        {
+            throw new IllegalStateException("Cannot create a render pass whose only attachments are unused color slots");
         }
 
         for (Renderbuffer renderbuffer : this.renderbuffers)
         {
-            renderbuffer.bind();
-            renderbuffer.resize(w, h);
-            renderbuffer.unbind();
+            if (renderbuffer != null && renderbuffer.isValid())
+            {
+                descriptor.withDepthAttachment(renderbuffer.view(), clear ? OptionalDouble.of(CLEAR_DEPTH) : OptionalDouble.empty());
+            }
         }
+
+        this.pass = BBSGpu.encoder().createRenderPass(descriptor);
+
+        return this.pass;
+    }
+
+    /** The open pass, or {@code null}. Draws have to go through it. */
+    public RenderPass getPass()
+    {
+        return this.pass;
+    }
+
+    public boolean isPassOpen()
+    {
+        return this.pass != null;
+    }
+
+    /**
+     * Clear outside a pass.
+     *
+     * <p>1.21.11 could clear at any moment; here a clear is either declared when the pass opens
+     * ({@link #applyClear()}) or issued through the encoder while no pass is active. Calling this
+     * with a pass open is a programming error, and says so, because the encoder would reject the
+     * command anyway with a much worse message.</p>
+     */
+    public void clear()
+    {
+        if (this.pass != null)
+        {
+            throw new IllegalStateException("Clears must be declared when the pass opens (use applyClear()); a pass is already open");
+        }
+
+        Texture color = this.getMainTexture();
+        Renderbuffer depth = this.getDepthBuffer();
+
+        if (color == null || !color.isValid())
+        {
+            return;
+        }
+
+        if (depth != null && depth.isValid())
+        {
+            BBSGpu.encoder().clearColorAndDepthTextures(color.gpuTexture, CLEAR_COLOR, depth.texture.gpuTexture, CLEAR_DEPTH);
+        }
+        else
+        {
+            BBSGpu.encoder().clearColorTexture(color.gpuTexture, CLEAR_COLOR);
+        }
+    }
+
+    /** Alias of {@link #apply()} for the 1.21.11 call sites. */
+    public void bind()
+    {
+        this.apply();
+    }
+
+    /** Close and submit the open pass. */
+    public void unbind()
+    {
+        if (this.pass != null)
+        {
+            this.pass.close();
+            this.pass = null;
+        }
+    }
+
+    /**
+     * Resize every attachment.
+     *
+     * <p>26.2 textures cannot be resized, so this reallocates them and their contents are lost —
+     * the same thing {@code glTexImage2D(..., null)} did on 1.21.11, but now it is visible in the
+     * API instead of hidden behind a mutable name.</p>
+     */
+    public void resize(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        this.width = width;
+        this.height = height;
+
+        for (Texture texture : this.textures)
+        {
+            if (texture != null)
+            {
+                texture.setSize(width, height);
+            }
+        }
+
+        for (Renderbuffer renderbuffer : this.renderbuffers)
+        {
+            renderbuffer.resize(width, height);
+        }
+    }
+
+    /**
+     * Point the game's own main render pass at this target.
+     *
+     * <p>1.21.11 did this by swapping {@code MinecraftClient.framebuffer} through an access
+     * widener, which is how BBS renders the interface at a custom resolution and scales it. 26.2
+     * offers a supported hook instead: the pass that draws the main target reads
+     * {@link RenderSystem#outputColorTextureOverride} and friends, so no mixin is needed.</p>
+     */
+    public void overrideMainOutput()
+    {
+        RenderSystem.outputColorTextureOverride = this.getMainTexture() == null ? null : this.getMainTexture().view();
+
+        Renderbuffer depth = this.getDepthBuffer();
+
+        RenderSystem.outputDepthTextureOverride = depth == null ? null : depth.view();
+    }
+
+    public static void clearMainOutputOverride()
+    {
+        RenderSystem.outputColorTextureOverride = null;
+        RenderSystem.outputDepthTextureOverride = null;
     }
 
     public void delete()
     {
-        GL30.glDeleteFramebuffers(this.id);
+        this.unbind();
 
         if (this.deleteTextures)
         {
             for (Texture texture : this.textures)
             {
-                texture.delete();
+                if (texture != null)
+                {
+                    texture.delete();
+                }
             }
 
             this.textures.clear();
