@@ -1,16 +1,18 @@
 package mchorse.bbs_mod.ui.utils;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
@@ -130,9 +132,9 @@ public class Gizmo
     private static final RenderPipeline GIZMO_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/gizmo_position_color_no_depth"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
             .withBlend(BlendFunction.TRANSLUCENT)
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
             .withCull(false)
             .build()
     );
@@ -277,7 +279,7 @@ public class Gizmo
      *  Package-private so {@link GizmoPie} submits through the same pipeline the handles do. */
     static BufferBuilder begin()
     {
-        return Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        return Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
     /**
@@ -340,7 +342,7 @@ public class Gizmo
         {
             /* In the interface pass the captured full model-view is baked into the vertices, so the
              * pass applies identity; the world pass keeps handing the global through as before. */
-            BBSPickerRenderer.drawColorId(GIZMO_PIPELINE, built, interfacePass ? new Matrix4f() : RenderSystem.getModelViewMatrix());
+            BBSPickerRenderer.drawColorId(GIZMO_PIPELINE, built, interfacePass ? new Matrix4f() : RenderSystem.getModelViewMatrixCopy());
         }
     }
 
@@ -1246,7 +1248,7 @@ public class Gizmo
 
         /* In the interface pass the stack is seeded from the CAPTURED full model-view, and the
          * global one holds whatever the UI left there — folding it in would double the camera. */
-        return interfacePass ? pose : new Matrix4f(RenderSystem.getModelViewMatrix()).mul(pose);
+        return interfacePass ? pose : new Matrix4f(RenderSystem.getModelViewMatrixCopy()).mul(pose);
     }
 
     /**
@@ -1517,7 +1519,7 @@ public class Gizmo
             }
         }
 
-        Matrix3f ambient = new Matrix4f(RenderSystem.getModelViewMatrix()).get3x3(new Matrix3f());
+        Matrix3f ambient = new Matrix4f(RenderSystem.getModelViewMatrixCopy()).get3x3(new Matrix3f());
 
         matrix.set(new Matrix4f(ambient.invert().mul(basis)).setTranslation(translation));
     }

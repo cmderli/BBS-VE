@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.particles;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.graphics.Draw;
@@ -154,7 +155,7 @@ public class UIParticleSchemeRenderer extends UIModelRenderer
         Matrix4f matrix = new Matrix4f(InverseView.get()).invert();
         final float alpha = 0.5F;
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         this.calculate(0, 0, a, b, c, d);
         builder.addVertex(matrix, this.vector.x, this.vector.y, this.vector.z).setColor(0, 1, 0, alpha);

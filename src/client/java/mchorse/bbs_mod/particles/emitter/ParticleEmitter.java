@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.particles.emitter;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.camera.Camera;
@@ -457,7 +458,7 @@ public class ParticleEmitter
              * via GameRenderer::getPositionTexColorProgram with culling disabled; the migrated particles pipeline
              * has cull off too, and the components' renderUI writes a full-bright light so the lightmap sampler
              * (the only difference from the original POSITION_TEXTURE_COLOR format) leaves the colour unchanged. */
-            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.PARTICLE);
+            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.PARTICLE);
 
             for (IComponentParticleRender render : list)
             {
@@ -495,7 +496,7 @@ public class ParticleEmitter
             Matrix4f matrix = stack.last().pose();
 
             this.bindTexture();
-            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
 
             for (Particle particle : this.particles)
             {

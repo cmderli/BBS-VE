@@ -1,5 +1,7 @@
 package mchorse.bbs_mod.forms;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import mchorse.bbs_mod.utils.colors.Color;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -124,7 +126,7 @@ public class CustomVertexConsumerProvider extends MultiBufferSource.BufferSource
              * themselves; there is no longer a global func to "force back" here.
              *
              * TODO(1.21.11 render): verify at runtime. If UI vertex-consumer draws still
-             * leak a depth func that hides later UI, encode DepthTestFunction.NO_DEPTH_TEST
+             * leak a depth func that hides later UI, encode CompareOp.ALWAYS_PASS
              * on the affected BBS UI RenderLayer pipelines (see BBSShaders) rather than
              * trying to mutate global state from here.
              */

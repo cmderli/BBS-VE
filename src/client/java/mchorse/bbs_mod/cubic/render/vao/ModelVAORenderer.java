@@ -2,6 +2,7 @@ package mchorse.bbs_mod.cubic.render.vao;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.BBSShaders;
@@ -32,7 +33,7 @@ public class ModelVAORenderer
      */
     public static Matrix4f captureModelView(PoseStack stack)
     {
-        return new Matrix4f(RenderSystem.getModelViewMatrix()).mul(stack.last().pose());
+        return new Matrix4f(RenderSystem.getModelViewMatrixCopy()).mul(stack.last().pose());
     }
 
     /**
@@ -47,7 +48,7 @@ public class ModelVAORenderer
      */
     public static void render(ModelVAO modelVAO, PoseStack stack, float r, float g, float b, float a, int light, int overlay, boolean cull)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
 
         modelVAO.writeImmediate(builder, stack, r, g, b, a, light, overlay);
 
@@ -71,7 +72,7 @@ public class ModelVAORenderer
      */
     public static void renderPicking(ModelVAO modelVAO, PoseStack stack, float r, float g, float b, float a, int light, int overlay, RenderPipeline picker)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
 
         modelVAO.writeImmediate(builder, stack, r, g, b, a, light, overlay);
 
@@ -81,7 +82,7 @@ public class ModelVAORenderer
         {
             /* Identity-free: the camera is already baked into the vertices by writeImmediate, so the pass
              * gets the global model-view, the same argument the cubic/BOBJ picking draws pass. */
-            BBSPickerRenderer.draw(picker, built, RenderSystem.getModelViewMatrix());
+            BBSPickerRenderer.draw(picker, built, RenderSystem.getModelViewMatrixCopy());
         }
     }
 }

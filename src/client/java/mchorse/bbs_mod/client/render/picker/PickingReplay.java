@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.client.render.picker;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import mchorse.bbs_mod.client.BBSShaders;
@@ -63,7 +64,7 @@ public class PickingReplay
 
             BBSPickerRenderer.setSampler0(texture.textureView(), texture.sampler());
 
-            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.NEW_ENTITY);
+            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.NEW_ENTITY);
 
             for (FormRenderCapture.Captured single : entry.getValue())
             {
@@ -74,7 +75,7 @@ public class PickingReplay
 
             if (built != null)
             {
-                BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrix());
+                BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrixCopy());
             }
         }
     }
@@ -104,14 +105,14 @@ public class PickingReplay
         VertexFormat.Mode mode = captured.params().mode();
         int count = captured.params().vertexCount();
 
-        if (mode == VertexFormat.DrawMode.QUADS)
+        if (mode == PrimitiveTopology.QUADS)
         {
             for (int v = 0; v < count; v++)
             {
                 emitVertex(captured, v, consumer);
             }
         }
-        else if (mode == VertexFormat.DrawMode.TRIANGLES)
+        else if (mode == PrimitiveTopology.TRIANGLES)
         {
             for (int v = 0; v + 2 < count; v += 3)
             {

@@ -11,6 +11,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.textures.GpuSampler;
 import net.minecraft.client.renderer.MappableRingBuffer;
@@ -210,7 +211,7 @@ public class ScreenQuadPass
                 .putMat4f(new Matrix4f().ortho(0F, quad.targetWidth, quad.targetHeight, 0F, -1000F, 1000F));
         }
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
         builder.vertex(quad.x, quad.y + quad.h, 0F).setUv(quad.u1, quad.v2).setColor(quad.color);
         builder.vertex(quad.x + quad.w, quad.y + quad.h, 0F).setUv(quad.u2, quad.v2).setColor(quad.color);

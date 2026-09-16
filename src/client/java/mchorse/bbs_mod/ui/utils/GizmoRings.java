@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.utils;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.graphics.Draw;
@@ -133,7 +134,7 @@ public class GizmoRings
      */
     private BufferBuilder tessellate()
     {
-        return new BufferBuilder(this.scratchAllocator, VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        return new BufferBuilder(this.scratchAllocator, PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
     /**

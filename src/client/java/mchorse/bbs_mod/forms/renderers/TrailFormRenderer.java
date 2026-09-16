@@ -1,5 +1,7 @@
 package mchorse.bbs_mod.forms.renderers;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import mchorse.bbs_mod.graphics.InverseView;
 import com.mojang.blaze3d.systems.RenderSystem;
 import mchorse.bbs_mod.BBSModClient;
@@ -17,7 +19,7 @@ import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.framework.UIContext;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.RenderPipelines;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -57,9 +59,9 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
     private static final RenderPipeline AXES_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/trail_axes"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
             .withCull(false)
             .build()
     );
@@ -146,7 +148,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
             axisOffset *= scale;
             outlineOffset *= scale;
 
-            BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+            BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
             Draw.fillBox(builder, stack, -outlineOffset, -outlineSize, -outlineOffset, outlineOffset, outlineSize, outlineOffset, 0, 0, 0);
             Draw.fillBox(builder, stack, -axisOffset, -axisSize, -axisOffset, axisOffset, axisSize, axisOffset, 0, 1, 0);
@@ -182,7 +184,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
              * (view * translate(-cam) * formChain). Without it camInverse over-rotates the
              * sampled point and the recorded world position ends up depending on the camera,
              * which makes the trail smear whenever the camera moves rather than the object. */
-            Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(stack.last().pose());
+            Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrixCopy()).mul(stack.last().pose());
 
             Vector4f top = new Vector4f(0F, 1F, 0F, 1F);
             Vector4f bottom = new Vector4f(0F, -1F, 0F, 1F);
@@ -265,10 +267,10 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
          * identity, so m stays the plain view and nothing changes. */
         Matrix4f m = stack.last().pose();
 
-        m.set(RenderSystem.getModelViewMatrix()).invert();
+        m.set(RenderSystem.getModelViewMatrixCopy()).invert();
         m.mul(new Matrix4f(camInverse).invert());
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
 
         for (it = trails.iterator(); it.hasNext(); last = trail)
         {
@@ -366,7 +368,7 @@ public class TrailFormRenderer extends FormRenderer<TrailForm> implements ITicka
                 FormTranslucentQueue.submit(built,
                     new BBSShaders.ModelVariant(FormTranslucentQueue.PASS_SINGLE, true, true),
                     texture, 1F, null,
-                    new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
+                    new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(origin));
             }
             else
             {

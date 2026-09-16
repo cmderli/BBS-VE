@@ -671,7 +671,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
              * CustomVertexConsumerProvider#draw(RenderLayer)); only reached outside picking. */
             Vector3f armorOrigin = stack.last().pose().getTranslation(new Vector3f());
 
-            FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(armorOrigin));
+            FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(armorOrigin));
 
             ActorEntityRenderer.armorRenderer.renderArmorSlot(stack, consumers, target, type.slot, type, light);
             consumers.draw();
@@ -721,7 +721,7 @@ public class ModelFormRenderer extends FormRenderer<ModelForm> implements ITicka
                  * sorted pass; only reached outside picking. */
                 Vector3f itemOrigin = stack.last().pose().getTranslation(new Vector3f());
 
-                FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(itemOrigin));
+                FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(itemOrigin));
 
                 consumers.setSubstitute(BBSRendering.getColorConsumer(color));
 

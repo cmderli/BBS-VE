@@ -180,9 +180,9 @@ public class VanillaParticleScene
          * rewrite), so the VIEW transform must ride the global model-view the layer snapshots at
          * draw — exactly the swap the 1.21.1 scene did around its sheets. Dropping it left the
          * particles drawn under whatever matrix the UI had current: nowhere near the viewport. */
-        Matrix4f previousModelView = new Matrix4f(RenderSystem.getModelViewMatrix());
+        Matrix4f previousModelView = new Matrix4f(RenderSystem.getModelViewMatrixCopy());
 
-        RenderSystem.getModelViewMatrix().set(previewCamera.view);
+        RenderSystem.getModelViewMatrixCopy().set(previewCamera.view);
 
         rendering = true;
 
@@ -209,7 +209,7 @@ public class VanillaParticleScene
         {
             rendering = false;
 
-            RenderSystem.getModelViewMatrix().set(previousModelView);
+            RenderSystem.getModelViewMatrixCopy().set(previousModelView);
         }
     }
 

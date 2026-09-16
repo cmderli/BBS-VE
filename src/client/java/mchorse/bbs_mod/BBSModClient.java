@@ -126,6 +126,7 @@ import net.minecraft.client.Camera;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.KeyMapping;
@@ -814,7 +815,7 @@ public class BBSModClient implements ClientModInitializer
                     stack.last().normal().rotate(camera.rotation());
                     stack.translate(0F, 0F, -d);
 
-                    BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+                    BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
                     float fov = Minecraft.getInstance().options.fov().get();
                     float dd = d * (float) Math.pow(fov / 40F, 2F);

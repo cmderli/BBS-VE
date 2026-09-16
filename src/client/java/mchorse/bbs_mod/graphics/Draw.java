@@ -1,8 +1,10 @@
 package mchorse.bbs_mod.graphics;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSSettings;
@@ -50,9 +52,9 @@ public class Draw
     private static final RenderPipeline POSITION_COLOR_TRIS = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/draw_position_color"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .build()
     );
@@ -61,9 +63,9 @@ public class Draw
     private static final RenderPipeline POSITION_COLOR_TRIS_NO_DEPTH = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/draw_position_color_no_depth"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
             .withCull(false)
             .build()
     );
@@ -74,9 +76,9 @@ public class Draw
     private static final RenderPipeline POSITION_COLOR_LINES = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/draw_position_color_lines"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.DEBUG_LINES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.DEBUG_LINES)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .build()
     );
@@ -173,7 +175,7 @@ public class Draw
 
     public static void renderBox(PoseStack stack, double x, double y, double z, double w, double h, double d, float r, float g, float b, float a)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         renderBox(builder, stack, x, y, z, w, h, d, r, g, b, a);
 
@@ -307,7 +309,7 @@ public class Draw
         axisSize *= scale;
         axisOffset *= scale * thickness;
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         fillBox(builder, stack, 0, -axisOffset, -axisOffset, axisSize, axisOffset, axisOffset, Colors.RED);
         fillBox(builder, stack, -axisOffset, 0, -axisOffset, axisOffset, axisSize, axisOffset, Colors.GREEN);

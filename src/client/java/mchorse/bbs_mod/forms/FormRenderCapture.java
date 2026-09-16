@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.forms;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import com.mojang.logging.LogUtils;
@@ -273,7 +274,7 @@ public class FormRenderCapture
                 emitVertex(captured, v, consumer);
             }
         }
-        else if (source == VertexFormat.DrawMode.TRIANGLES && target == VertexFormat.DrawMode.QUADS)
+        else if (source == PrimitiveTopology.TRIANGLES && target == PrimitiveTopology.QUADS)
         {
             for (int v = 0; v + 2 < count; v += 3)
             {
@@ -283,7 +284,7 @@ public class FormRenderCapture
                 emitVertex(captured, v + 2, consumer);
             }
         }
-        else if (source == VertexFormat.DrawMode.QUADS && target == VertexFormat.DrawMode.TRIANGLES)
+        else if (source == PrimitiveTopology.QUADS && target == PrimitiveTopology.TRIANGLES)
         {
             for (int v = 0; v + 3 < count; v += 4)
             {

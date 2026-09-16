@@ -2,6 +2,7 @@ package mchorse.bbs_mod.forms.renderers;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.client.BBSRendering;
@@ -288,7 +289,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
                 + " | " + FramebufferDebug.bindings());
         }
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, format);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, format);
 
         /* Front */
         this.fill(format, builder, matrix, quad.p3.x, quad.p3.y, color, uvQuad.p3.x, uvQuad.p3.y, overlay, light, entry, 1F);
@@ -320,7 +321,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
                 /* The camera is already folded into the vertices (they were built against the stack's
                  * position matrix), so the pass only needs the global model-view — the same argument the
                  * cubic/BOBJ picking draws pass. */
-                BBSPickerRenderer.draw(picker, built, RenderSystem.getModelViewMatrix());
+                BBSPickerRenderer.draw(picker, built, RenderSystem.getModelViewMatrixCopy());
             }
             else if (deferrable)
             {
@@ -342,7 +343,7 @@ public class BillboardFormRenderer <T extends BillboardForm> extends FormRendere
                 FormTranslucentQueue.submit(built,
                     new BBSShaders.ModelVariant(FormTranslucentQueue.PASS_SINGLE, depthWrite, true),
                     texture, color.a, null,
-                    new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(matrix.getTranslation(new Vector3f())), tinted);
+                    new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(matrix.getTranslation(new Vector3f())), tinted);
             }
             else
             {

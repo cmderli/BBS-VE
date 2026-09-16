@@ -102,7 +102,7 @@ public class VanillaParticleFormRenderer extends FormRenderer<VanillaParticleFor
          * carries the view rotation that InverseView is meant to cancel. Fold the global
          * model-view back in (identity, hence a no-op, in the form editor where the camera
          * lives in the stack) so the emitter's world position and direction come out right. */
-        matrix.mul(RenderSystem.getModelViewMatrix());
+        matrix.mul(RenderSystem.getModelViewMatrixCopy());
         matrix.mul(context.stack.last().pose());
 
         Vector3d translation = new Vector3d(matrix.getTranslation(Vectors.TEMP_3F));

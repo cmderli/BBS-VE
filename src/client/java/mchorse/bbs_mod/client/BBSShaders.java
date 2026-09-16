@@ -1,8 +1,10 @@
 package mchorse.bbs_mod.client;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
 import mchorse.bbs_mod.BBSMod;
@@ -629,9 +631,9 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/model" + variant.suffix() + (world ? "_world" : "")))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.NEW_ENTITY, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.NEW_ENTITY, PrimitiveTopology.QUADS)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withDepthWrite(variant.depthWrite())
             .withCull(variant.cull())
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
@@ -701,9 +703,9 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/billboard"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.TRIANGLES)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(true)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
@@ -734,8 +736,8 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/particles" + (world ? "_world" : "") + (blend ? "" : "_opaque")))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.PARTICLE, VertexFormat.DrawMode.QUADS)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withVertexFormat(DefaultVertexFormat.PARTICLE, PrimitiveTopology.QUADS)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
@@ -782,9 +784,9 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/multilink"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.QUADS)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
@@ -819,9 +821,9 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/selection"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.QUADS)
             .withoutBlend()
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
             .withCull(false)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
@@ -893,9 +895,9 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/subtitles"))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, PrimitiveTopology.QUADS)
             .withBlend(BLEND)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
@@ -920,7 +922,7 @@ public class BBSShaders
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/" + name))
             .withVertexShader(shader)
             .withFragmentShader(shader)
-            .withVertexFormat(format, VertexFormat.DrawMode.QUADS)
+            .withVertexFormat(format, PrimitiveTopology.QUADS)
             /* Blend MUST be off for every picker pipeline. The geometry pickers encode an object index in
              * the exact vertex colour, and a blended pixel is a corrupt id. picker_preview writes the
              * highlight colour into an off-screen target that is later composited by the caller's blit:
@@ -928,7 +930,7 @@ public class BBSShaders
              * alpha a SECOND time and any highlight below full opacity came out dark (it looked right only
              * at alpha 1, where the square is a no-op). */
             .withoutBlend()
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)

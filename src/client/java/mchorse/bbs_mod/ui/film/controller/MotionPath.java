@@ -23,6 +23,7 @@ import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import net.minecraft.client.Camera;
 import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -138,7 +139,7 @@ public class MotionPath
         float halfWidth = config.width.get() * 0.5F;
 
         /* Depth/blend/cull and the program all live in the Draw pipeline the flush below submits to. */
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         /* The interpolated curve: a camera-facing ribbon with a dot on every
          * tick (so the spacing shows speed), the exact endpoints kept. */

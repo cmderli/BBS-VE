@@ -174,7 +174,7 @@ public class BlockFormRenderer extends FormRenderer<BlockForm>
         {
             Vector3f origin = context.stack.last().pose().getTranslation(new Vector3f());
 
-            FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
+            FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(origin));
         }
 
         consumers.setSubstitute(BBSRendering.getColorConsumer(color));

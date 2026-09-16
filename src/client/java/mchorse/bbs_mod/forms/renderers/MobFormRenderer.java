@@ -337,7 +337,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
             this.setupTarget(context);
         }
 
-        Matrix4f cached = new Matrix4f(RenderSystem.getModelViewMatrix());
+        Matrix4f cached = new Matrix4f(RenderSystem.getModelViewMatrixCopy());
 
         context.stack.pushPose();
 
@@ -394,7 +394,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
              * bodies, ghost textures) into the deferred sorted pass. */
             Vector3f origin = context.stack.last().pose().getTranslation(new Vector3f());
 
-            FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin));
+            FormTranslucentQueue.setSortOrigin(new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(origin));
 
             this.renderEntity(context.stack, context.getTransition(), context.light, context.overlay, null);
 
@@ -410,7 +410,7 @@ public class MobFormRenderer extends FormRenderer<MobForm> implements ITickable
 
         /* Restore the shared model-view in case a command renderer touched it — the 2D UI batch
          * inherits it when a MobForm is nested as a body part inside a list preview. */
-        RenderSystem.getModelViewMatrix().set(cached);
+        RenderSystem.getModelViewMatrixCopy().set(cached);
     }
 
     /**

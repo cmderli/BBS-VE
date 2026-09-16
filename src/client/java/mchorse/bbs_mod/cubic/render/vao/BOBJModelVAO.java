@@ -1,6 +1,7 @@
 package mchorse.bbs_mod.cubic.render.vao;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.bobj.BOBJArmature;
@@ -311,7 +312,7 @@ public class BOBJModelVAO
     /** The same draw with a colour overlay on it (null = none); see {@code FormOverlay}. */
     public void render(PoseStack stack, float r, float g, float b, float a, StencilMap stencilMap, int light, int overlay, boolean cull, Color tint)
     {
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.NEW_ENTITY);
 
         Matrix4f position = stack.last().pose();
         Matrix3f normalMatrix = stack.last().normal();
@@ -368,7 +369,7 @@ public class BOBJModelVAO
                  * Route through the picker_models pipeline (Target + UV2.x sub-index -> index colour) into the
                  * StencilFormFramebuffer target, same as the cubic immediate path. Target/Sampler0 are set by
                  * ModelFormRenderer before the render; model-view is identity (camera baked into the vertices). */
-                BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrix());
+                BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrixCopy());
             }
             else if (ModelPreviewRenderer.ACTIVE && ModelPreviewRenderer.TEXTURE != null)
             {

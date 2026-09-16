@@ -1,9 +1,11 @@
 package mchorse.bbs_mod.forms.renderers;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
@@ -48,9 +50,9 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
     private static final RenderPipeline SHADOW_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/label_shadow"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
             .withBlend(BlendFunction.TRANSLUCENT)
-            .withDepthTestFunction(DepthTestFunction.LEQUAL_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.LESS_THAN_OR_EQUAL)
             .withCull(false)
             .build()
     );
@@ -181,7 +183,7 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
         {
             Vector3f origin = context.stack.last().pose().getTranslation(new Vector3f());
 
-            FormTranslucentQueue.beginGroup(new Matrix4f(RenderSystem.getModelViewMatrix()).transformPosition(origin), false);
+            FormTranslucentQueue.beginGroup(new Matrix4f(RenderSystem.getModelViewMatrixCopy()).transformPosition(origin), false);
         }
 
         if (this.form.max.get() <= 10)
@@ -376,7 +378,7 @@ public class LabelFormRenderer extends FormRenderer<LabelForm>
         context.stack.translate(0, 0, -0.2F);
 
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         fillQuad(
             builder, context.stack,

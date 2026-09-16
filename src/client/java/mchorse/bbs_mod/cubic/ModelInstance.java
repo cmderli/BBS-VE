@@ -40,6 +40,7 @@ import mchorse.bbs_mod.utils.joml.Matrices;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.Transform;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
@@ -607,7 +608,7 @@ public class ModelInstance implements IModelInstance
                  * entity RenderLayer (POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL + QUADS). During an in-panel
                  * preview (ModelPreviewRenderer.ACTIVE) it goes to entityCutoutNoCull(adopted model texture);
                  * the world path still targets the not-yet-ported BBS model layer (no-op until VARIANT 2). */
-                BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.NEW_ENTITY);
+                BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.NEW_ENTITY);
                 CubicRenderer.processRenderModel(renderProcessor, builder, stack, model);
 
                 /* The subdivided welded quads are held back in the renderer's patch buffer during
@@ -634,7 +635,7 @@ public class ModelInstance implements IModelInstance
                          * BBSPicker UBO can't ride the immediate RenderLayer path, so it goes through
                          * BBSPickerRenderer; the model-view is identity here (the camera is baked into the
                          * vertices, same as the visible draw above). Target/Sampler0 were set by the renderer. */
-                        BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrix());
+                        BBSPickerRenderer.draw(BBSShaders.getPickerModelsProgram(), built, RenderSystem.getModelViewMatrixCopy());
                     }
                     else if (ModelPreviewRenderer.ACTIVE && ModelPreviewRenderer.TEXTURE != null)
                     {

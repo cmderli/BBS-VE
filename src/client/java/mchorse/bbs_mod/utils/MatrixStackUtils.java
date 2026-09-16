@@ -59,7 +59,7 @@ public class MatrixStackUtils
 
         position.getScale(scale);
 
-        RenderSystem.getModelViewMatrix().get3x3(billboardView);
+        RenderSystem.getModelViewMatrixCopy().get3x3(billboardView);
         billboardView.invert();
 
         position.m00(billboardView.m00()).m01(billboardView.m01()).m02(billboardView.m02());

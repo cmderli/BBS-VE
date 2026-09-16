@@ -1,5 +1,7 @@
 package mchorse.bbs_mod.client.render.picker;
 
+import com.mojang.blaze3d.platform.CompareOp;
+
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
@@ -11,8 +13,8 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.platform.DepthTestFunction;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.client.BBSShaders;
 import mchorse.bbs_mod.graphics.texture.AdoptedTexture;
@@ -78,9 +80,9 @@ public class BBSPickerRenderer
     private static final RenderPipeline GIZMO_HIGHLIGHT_PIPELINE = RenderPipelines.register(
         RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
             .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/gizmo_sphere_highlight"))
-            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.DrawMode.TRIANGLES)
+            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, PrimitiveTopology.TRIANGLES)
             .withoutBlend()
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthTestFunction(CompareOp.ALWAYS_PASS)
             .withCull(false)
             .withUniform("Projection", UniformType.UNIFORM_BUFFER)
             .build()
@@ -572,7 +574,7 @@ public class BBSPickerRenderer
          * blit-flip cancel to identity -> the highlight matches the model. WHITE vertex colour (* texel = texel). */
         int color = Colors.WHITE;
 
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.DrawMode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        BufferBuilder builder = Tesselator.getInstance().begin(PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
         builder.vertex(0F, (float) h, 0F).setUv(0F, 0F).setColor(color);
         builder.vertex((float) w, (float) h, 0F).setUv(1F, 0F).setColor(color);
