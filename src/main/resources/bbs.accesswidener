@@ -85,3 +85,31 @@ accessible field net/minecraft/client/MinecraftClient framebuffer Lnet/minecraft
 # which hands the frame's only blur to the dashboard's tint rather than to the overlay panel that
 # comes up over it. InterfaceBlur clears the mark so the topmost claimant wins.
 # accessible field net/minecraft/client/gui/render/state/GuiRenderState blurLayer I
+#
+# 26.2: the package moved to renderer.state.gui and the field is `firstStratumAfterBlur` (verified
+# with javap against the 26.2 jar). There is still no public way to clear it — blurBeforeThisStratum
+# only sets it — so the widener entry is the only route.
+accessible field net/minecraft/client/renderer/state/gui/GuiRenderState firstStratumAfterBlur I
+
+# 26.2 made the HUD's hidden flag private and left only isHidden() and toggle(). UIScreen has to
+# force the HUD hidden while a BBS screen is open and restore it on close; toggle() cannot express
+# "set to false" without racing whatever else pressed F1.
+accessible field net/minecraft/client/gui/Hud isHidden Z
+
+# The colour overlay's layer twin (FormOverlay#withOverlay): 26.2 has no public way to read what a
+# RenderType was built from, and the twin is the original RenderSetup re-created with ONE texture
+# (the overlay swatch) named as Sampler1. RenderType.create(String, RenderSetup) is already public
+# through Fabric's transitive access wideners; everything below is what the setup itself is made of.
+# (These are the 26.2 spellings of the entries commented out above for the 1.21.11 RenderLayer.)
+accessible field net/minecraft/client/renderer/rendertype/RenderType state Lnet/minecraft/client/renderer/rendertype/RenderSetup;
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup pipeline Lcom/mojang/blaze3d/pipeline/RenderPipeline;
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup textures Ljava/util/Map;
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup textureTransform Lnet/minecraft/client/renderer/rendertype/TextureTransform;
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup outputTarget Lnet/minecraft/client/renderer/rendertype/OutputTarget;
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup outlineProperty Lnet/minecraft/client/renderer/rendertype/RenderSetup$OutlineProperty;
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup useLightmap Z
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup useOverlay Z
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup affectsCrumbling Z
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup sortOnUpload Z
+accessible field net/minecraft/client/renderer/rendertype/RenderSetup layeringTransform Lnet/minecraft/client/renderer/rendertype/LayeringTransform;
+accessible class net/minecraft/client/renderer/rendertype/RenderSetup$TextureBinding

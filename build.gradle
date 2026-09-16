@@ -81,9 +81,16 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-	// Sodium/Iris for 26.2 exist (Sodium 0.9.2, Iris 1.11.4) but both are rewritten against the
-	// 1.21.5+ GPU abstraction and the shader-mod hooks BBS used on 1.21.11 no longer exist in
-	// the same shape. They come back only once utils/iris and utils/sodium are ported.
+	// Iris, compile-only, for the shaderpack integration (utils/iris and the ten iris mixins).
+	//
+	// 26.2's Iris has no Vulkan support and its API moved, so the integration is being ported as a
+	// GL-backend feature rather than dropped: the classes are compiled against the real 1.11.4 jar
+	// so their call sites stay honest, and runtime behaviour on Vulkan is guarded separately.
+	// compileOnly because nothing here may force Iris on a user who does not run it.
+	compileOnly "maven.modrinth:iris:1.11.4+26.2-fabric"
+
+	// Sodium is deliberately absent: 26.2's Sodium is rewritten onto Blaze3D and no longer exposes
+	// the vertex-writer hook BBS's consumer used, so utils/sodium is reduced instead of ported.
 }
 
 processResources {
