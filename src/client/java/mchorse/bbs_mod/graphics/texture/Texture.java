@@ -101,7 +101,14 @@ public class Texture
 
         CountDownLatch done = new CountDownLatch(1);
 
-        BBSGpu.encoder().copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0);
+        /* SUBMIT. A CommandEncoder only records - the queue reaches the GPU at submit(), and skipping it
+         * meant the copy never ran at all: the completion callback never fired and the latch below waited
+         * out its five seconds, so every video frame and every screenshot read-back timed out and returned
+         * null. The upload path (see the class note) has always submitted; this one did not. */
+        CommandEncoder encoder = BBSGpu.encoder();
+
+        encoder.copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0);
+        encoder.submit();
 
         try
         {
@@ -196,7 +203,11 @@ public class Texture
 
         CountDownLatch done = new CountDownLatch(1);
 
-        BBSGpu.encoder().copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0, x, y, width, height);
+        /* Submitted for the same reason as pixelsFromTexture above. */
+        CommandEncoder encoder = BBSGpu.encoder();
+
+        encoder.copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0, x, y, width, height);
+        encoder.submit();
 
         try
         {

@@ -625,6 +625,7 @@ public class BBSRendering
      * same line the freeze investigation needs: it says the stage was ENTERED, so a stage that never prints
      * its exit line is the one that hung.</p>
      */
+    private static int pxProbe;
     private static long dbgT;
     private static int dbgFrames;
 
@@ -1072,7 +1073,7 @@ public class BBSRendering
     {
         dbgEnter("captureAndRestore");
 
-        if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 150 == 0 && customSize && framebuffer != null)
+        if (Boolean.getBoolean("bbs.debugRecording") && pxProbe++ < 2 && customSize && framebuffer != null)
         {
             dbgSamplePixels("framebuffer", framebuffer.getColorTexture());
         }
@@ -1142,8 +1143,9 @@ public class BBSRendering
                             + " view=" + (texture.view() != null));
                     }
 
-                    if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 150 == 0)
+                    if (Boolean.getBoolean("bbs.debugRecording") && pxProbe < 3)
                     {
+                        pxProbe += 2;
                         dbgSamplePixels("snapshot", texture.gpuTexture);
                     }
                 }
