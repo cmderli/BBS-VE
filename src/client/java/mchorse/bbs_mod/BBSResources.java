@@ -20,7 +20,11 @@ public class BBSResources
     {
         setupWatchdog();
 
-        BBSModClient.getFormCategories().setup();
+        /* The watchdog starts now, but the palette cannot be built yet: 26.2 binds item components
+         * only once a world has been joined, and building the palette makes a default ItemStack.
+         * ensureInitialized() makes this the first build when nothing has asked for the palette
+         * yet, and a no-op once a UI already has. */
+        BBSModClient.getFormCategories().ensureInitialized();
     }
 
     public static void setupWatchdog()

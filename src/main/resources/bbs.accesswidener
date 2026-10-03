@@ -129,3 +129,7 @@ accessible class net/minecraft/client/renderer/rendertype/RenderSetup$TextureBin
 # model-parts byte to make every cosmetic layer visible (the 26.2 spelling of the entry
 # commented out above).
 accessible field net/minecraft/world/entity/Avatar DATA_PLAYER_MODE_CUSTOMISATION Lnet/minecraft/network/syncher/EntityDataAccessor;
+
+# ClientPlayerEntityFilmSneakMixin reads the raw id: Entity#getId() throws while the id is
+# still unassigned in 26.2, and that hook runs on the main menu render path.
+accessible field net/minecraft/world/entity/Entity id I

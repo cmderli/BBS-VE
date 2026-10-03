@@ -233,7 +233,22 @@ public class BBSModClient implements ClientModInitializer
         VanillaRigs.clear();
 
         getModels().forgetFolder(CemSourcePack.NAME + "/");
-        getFormCategories().setup();
+
+        /* Rebuilding the palette before it has ever been built is both impossible and pointless.
+         *
+         * Impossible, because setup() puts a default ItemStack into the item form and item
+         * components only exist once a world was joined - the client reloads its packs during
+         * startup, so this runs before that and setup() would throw "Components not bound yet"
+         * (and take the whole resource reload down with it). Pointless, because the first build
+         * happens at the join and therefore already sees the pack state this reload produced.
+         *
+         * The state is checked directly rather than inferred from cemSourcePack: this listener is
+         * what sets cemSourcePack on the reload that first runs it, so a null check there lets the
+         * very first call through - which is the one that fails. */
+        if (getFormCategories().isInitialized())
+        {
+            getFormCategories().setup();
+        }
     }
 
     public static TextureManager getTextures()
@@ -602,8 +617,6 @@ public class BBSModClient implements ClientModInitializer
         selectors.read();
         films = new Films();
 
-        BBSResources.init();
-
         /* While the dashboard is open or a model block is held, model blocks
          * are targetable as at least a full cube even with a tiny hitbox. */
         ModelBlock.editingCheck = () ->
@@ -866,6 +879,20 @@ public class BBSModClient implements ClientModInitializer
                 videoRecorder.recordFrame();
             }
         });
+
+        /* The form palette cannot be built during client initialization any more.
+         *
+         * ExtraFormSection puts the default ItemStack into its item form, and since item components
+         * became registered data, ItemStack(Holder, int) reads the holder's component map. Vanilla
+         * binds those maps only once the client has taken the server's registries, i.e. when a world
+         * is joined - measured, not assumed: constructing one at onInitializeClient, at
+         * CLIENT_STARTED and even on the first client tick all throw "Components not bound yet".
+         *
+         * So the palette is built here instead, which is both the first moment it can be and early
+         * enough for everything that reads it: the tick handler flushes user forms before this
+         * fires, but UserFormSection is never initiated before a join, so there is nothing to
+         * flush. */
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> BBSResources.init());
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
         {

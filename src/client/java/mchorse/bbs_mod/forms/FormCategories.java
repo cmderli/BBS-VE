@@ -35,6 +35,14 @@ public class FormCategories implements IWatchDogListener
     private long lastUpdate;
 
     /**
+     * Whether {@link #setup()} has ever run.
+     *
+     * <p>This cannot be guessed from {@code sections}, which is reset on every reload and can be
+     * empty for reasons other than "not set up yet".</p>
+     */
+    private boolean initialized;
+
+    /**
      * Adds a section — a top-level tab — to the form palette.
      *
      * <p>Without this, an addon's forms worked but had nowhere to be picked from: the list of
@@ -47,8 +55,41 @@ public class FormCategories implements IWatchDogListener
 
     /* Setup */
 
+    /**
+     * Builds the palette if it has not been built yet.
+     *
+     * <p>26.2 cannot build it during client initialization. {@code ExtraFormSection} makes the
+     * default {@code ItemStack} for its item form, and since item components became registered
+     * data, the {@code ItemStack(Holder, int)} constructor reads the holder's component map — which
+     * vanilla only binds once the client has received the server's registries
+     * ({@code RegistryDataCollector.collectGameRegistries}). Constructing one earlier throws
+     * "Components not bound yet", and this is not a timing detail that can be waited out: it fails
+     * at {@code onInitializeClient}, at {@code CLIENT_STARTED} and on the first client tick too,
+     * because no world is connected yet. A world join is the first moment it can work.</p>
+     *
+     * <p>{@code BBSResources.init()} is therefore called on world join, and it calls this. The
+     * second caller is {@link #setup()} itself, which sets the flag before building: the flag has
+     * to be up before the sections are initiated, or a section that reaches back for the palette
+     * would recurse.</p>
+     */
+    public void ensureInitialized()
+    {
+        if (!this.initialized)
+        {
+            this.setup();
+        }
+    }
+
+    /** Whether the palette has been built at least once. */
+    public boolean isInitialized()
+    {
+        return this.initialized;
+    }
+
     public void setup()
     {
+        this.initialized = true;
+
         this.sections.clear();
         this.sections.add(this.recentForms);
         this.sections.add(this.userForms);
