@@ -12,5 +12,7 @@ kept separate so that document stays readable.
 | `26.2-1.21.11-to-26.2-api-delta.md` | The per-symbol delta for everything the port touches, in `1.21.11 name \| 26.2 name \| status \| evidence` form: the render/vertex/pipeline API, the GUI extraction rewrite, `LevelRenderer`, render states, entity and model rendering, mixins, post-processing, custom shaders, and the capability audit — plus a correction worth reading: stencil was never a vanilla API in either version, so BBS's stencil-named picking is a raw read-back problem. |
 | `26.2-gui-text-reference.md`, `26.2-gui-text-reference-exhaustive.md` | The interface text-rendering path in 26.2 (extraction, glyph atlases, the `GuiRenderer` submit path), which is what BBS's `Batcher2D` and its text drawing have to move onto. |
 
+| `26.2-mixin-preflight-2026-10-03.log` | Launch log after the mixin selectors were re-pointed, kept as the evidence that every BBS mixin now applies: `Mixin apply for mod bbs failed` appears 0 times where the reported crash had 2. The 10 `bbs.iris.mixins.json` warnings in it are the intended state with Iris absent. |
+
 These are working notes, not reviewed documentation: treat a claim as verified only where it cites
 a command or a source, and prefer `../26.2-vulkan-port.md` where the two disagree.

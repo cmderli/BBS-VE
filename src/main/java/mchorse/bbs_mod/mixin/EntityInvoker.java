@@ -16,6 +16,9 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(Entity.class)
 public interface EntityInvoker
 {
-    @Invoker("setFlag")
+    /* Yarn's Entity#setFlag is official Entity#setSharedFlag. Only the name drifted - the
+     * (int, boolean) shape and the flag indices are unchanged - so the index constants on
+     * EntityState stay valid. */
+    @Invoker("setSharedFlag")
     public void bbs$setFlag(int index, boolean value);
 }

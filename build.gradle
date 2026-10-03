@@ -295,3 +295,30 @@ tasks.register("apiCheck") {
 tasks.named("build") {
 	dependsOn tasks.named("apiCheck")
 }
+
+/* Mixin selector audit.
+ *
+ * Mixin target strings are plain strings, so nothing in the toolchain notices when one points at a
+ * member that no longer exists - and 26.2 ships unobfuscated, which means there is no refmap to
+ * remap them through either. A dead selector then fails at mixin APPLY, and because bbs.mixins.json
+ * is required:true with defaultRequire:1, that aborts class transformation and the game dies before
+ * the main menu. That is exactly how the 1.21.11 -> 26.2 port first crashed.
+ *
+ * tools/mixin-audit/audit.py checks every @Mixin target, injection selector (including selectors
+ * held in a named constant), nested @At target, @Accessor/@Invoker and @Shadow member against the
+ * resolved Minecraft jar. It needs only java and python3, both already present for the build. */
+tasks.register("mixinAudit", Exec) {
+	group = "verification"
+	description = "Checks every mixin selector against the resolved Minecraft jar."
+
+	dependsOn tasks.named("classes"), tasks.named("clientClasses")
+
+	commandLine "python3", rootProject.file("tools/mixin-audit/audit.py").absolutePath
+
+	/* No mixins compile until the class trees exist, and the audit is a read-only scan. */
+	outputs.upToDateWhen { false }
+}
+
+tasks.named("check") {
+	dependsOn tasks.named("mixinAudit")
+}

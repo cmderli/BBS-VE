@@ -15,9 +15,10 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(LivingEntity.class)
 public interface LivingEntityRollAccessor
 {
-    /* The same field yarn has renamed twice: fallFlyingTicks on 1.21.1, glidingTicks since 1.21.11.
-     * Aiming at the old name is not a no-op — remapJar warns ("Cannot remap fallFlyingTicks..."),
-     * and an accessor whose target does not exist takes the client down at mixin APPLY. */
-    @Accessor("glidingTicks")
+    /* The field behind this has been renamed twice: fallFlyingTicks on 1.21.1, glidingTicks in the
+     * Yarn names for 1.21.11, and fallFlyTicks in 26.2's official names. Aiming at a name that does
+     * not exist is not a no-op - an accessor whose target is missing takes the client down at mixin
+     * APPLY, which is exactly what an out-of-date name here does. */
+    @Accessor("fallFlyTicks")
     public void bbs$setRoll(int roll);
 }

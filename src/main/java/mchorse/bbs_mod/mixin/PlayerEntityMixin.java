@@ -18,7 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Player.class)
 public class PlayerEntityMixin
 {
-    @Inject(method = "writeCustomData", at = @At("TAIL"))
+    /* Yarn's writeCustomData/readCustomData are official addAdditionalSaveData/readAdditionalSaveData. */
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
     public void onWriteCustomDataToNbt(ValueOutput view, CallbackInfo info)
     {
         if (this instanceof IMorphProvider provider)
@@ -27,7 +28,7 @@ public class PlayerEntityMixin
         }
     }
 
-    @Inject(method = "readCustomData", at = @At("TAIL"))
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
     public void onReadCustomDataFromNbt(ValueInput view, CallbackInfo info)
     {
         if (this instanceof IMorphProvider provider)

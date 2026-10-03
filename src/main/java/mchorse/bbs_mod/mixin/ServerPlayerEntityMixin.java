@@ -13,7 +13,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ServerPlayer.class)
 public class ServerPlayerEntityMixin
 {
-    @Inject(method = "dropItem", at = @At("RETURN"))
+    /* Yarn's dropItem(ItemStack, boolean, boolean) is official drop(ItemStack, boolean, boolean).
+     * The name matters twice over here: ServerPlayer also has a void drop(boolean) overload, so
+     * the descriptor is pinned as well to keep the target unambiguous. */
+    @Inject(method = "drop(Lnet/minecraft/world/item/ItemStack;ZZ)Lnet/minecraft/world/entity/item/ItemEntity;", at = @At("RETURN"))
     public void onDropItem(CallbackInfoReturnable<ItemEntity> info)
     {
         ItemEntity entity = info.getReturnValue();

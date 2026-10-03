@@ -8,6 +8,8 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(PrimaryLevelData.class)
 public interface LevelPropertiesAccessor
 {
-    @Accessor("levelInfo")
+    /* Yarn called this field levelInfo, which is where the bbs$setLevelInfo method name comes from.
+     * 26.2 calls the field settings. */
+    @Accessor("settings")
     public void bbs$setLevelInfo(LevelSettings info);
 }

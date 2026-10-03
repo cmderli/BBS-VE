@@ -27,8 +27,13 @@ public class WorldChunkMixin
      * (run later in this method) drops container contents into the world and clears the block entity, so
      * serializing any later would capture empty data. The replaced block state, on the other hand, is read
      * from the return value rather than from getBlockState - by the time the change is recorded the chunk
-     * already holds the new state, and on Connector the injection even lands after the section write. */
-    private static final String SET_BLOCK_STATE = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Lnet/minecraft/block/BlockState;";
+     * already holds the new state, and on Connector the injection even lands after the section write.
+     *
+     * This descriptor is a plain string constant, so the Yarn->official rename could not see it: it still
+     * read net/minecraft/util/math/BlockPos and net/minecraft/block/BlockState. Nothing remaps it either
+     * (26.2 ships unobfuscated, so the jar carries no refmap), which left the selector matching nothing
+     * and the whole mixin failing at APPLY. */
+    private static final String SET_BLOCK_STATE = "setBlockState(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;I)Lnet/minecraft/world/level/block/state/BlockState;";
 
     @Inject(method = SET_BLOCK_STATE, at = @At("HEAD"))
     private void captureReplacedBlockEntity(BlockPos pos, BlockState state, int moved, CallbackInfoReturnable<BlockState> info, @Share("replaced") LocalRef<CompoundTag> replaced)

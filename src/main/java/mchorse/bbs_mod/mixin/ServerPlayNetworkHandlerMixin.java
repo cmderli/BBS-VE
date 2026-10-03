@@ -5,7 +5,6 @@ import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.actions.types.blocks.InteractBlockActionClip;
 import mchorse.bbs_mod.actions.types.chat.CommandActionClip;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
@@ -26,8 +25,13 @@ public class ServerPlayNetworkHandlerMixin
     @Shadow
     public ServerPlayer player;
 
-    @Inject(method = "parse", at = @At("HEAD"))
-    public void onParse(String command, CallbackInfoReturnable<ParseResults<CommandSourceStack>> info)
+    /* parseCommand is what both command entry points call - performUnsignedChatCommand for a
+     * command typed in chat and performSignedChatCommand for a signed one - exactly once each
+     * before Commands.performCommand. Watching it therefore records each executed command once,
+     * which is what the original target did. The returns type stays raw because that is how the
+     * method is declared. */
+    @Inject(method = "parseCommand", at = @At("HEAD"))
+    public void onParse(String command, CallbackInfoReturnable<ParseResults> info)
     {
         BBSMod.getActions().addAction(this.player, () ->
         {
@@ -39,7 +43,11 @@ public class ServerPlayNetworkHandlerMixin
         });
     }
 
-    @Redirect(method = "onPlayerInteractBlock", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerPlayerInteractionManager;interactBlock(Lnet/minecraft/server/network/ServerPlayerEntity;Lnet/minecraft/world/World;Lnet/minecraft/item/ItemStack;Lnet/minecraft/util/Hand;Lnet/minecraft/util/hit/BlockHitResult;)Lnet/minecraft/util/ActionResult;"))
+    /* The handler is official handleUseItemOn(ServerboundUseItemOnPacket), and the implementation
+     * it delegates to is official ServerPlayerGameMode#useItemOn. Both names in this target were
+     * still Yarn (onPlayerInteractBlock, ServerPlayerInteractionManager#interactBlock) and every
+     * type in the descriptor had moved, so the whole string was rebuilt from 26.2 bytecode. */
+    @Redirect(method = "handleUseItemOn", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayerGameMode;useItemOn(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/InteractionHand;Lnet/minecraft/world/phys/BlockHitResult;)Lnet/minecraft/world/InteractionResult;"))
     private InteractionResult redirectOnBlockInteract(ServerPlayerGameMode manager, ServerPlayer player, Level world, ItemStack stack, InteractionHand hand, BlockHitResult hitResult)
     {
         BBSMod.getActions().addAction(this.player, () ->

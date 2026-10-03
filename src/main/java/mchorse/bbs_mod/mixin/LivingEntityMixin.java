@@ -8,6 +8,7 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -24,8 +25,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(LivingEntity.class)
 public class LivingEntityMixin
 {
-    @Inject(method = "applyDamage", at = @At("HEAD"))
-    public void onApplyDamage(ServerLevel world, DamageSource source, float amount, CallbackInfo info)
+    /* Yarn's applyDamage(ServerWorld, DamageSource, float) is official
+     * hurtServer(ServerLevel, DamageSource, float) - and it now returns boolean, which the
+     * callback signature has to mirror. It is the single entry point for every source of
+     * damage on the server, which is what this hook needs. */
+    @Inject(method = "hurtServer", at = @At("HEAD"))
+    public void onApplyDamage(ServerLevel world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> info)
     {
         Entity attacker = source.getEntity();
 
@@ -42,8 +47,10 @@ public class LivingEntityMixin
         }
     }
 
-    @Inject(method = "getBaseDimensions", at = @At("RETURN"), cancellable = true)
-    public void onGetBaseDimensions(CallbackInfoReturnable<EntityDimensions> info)
+    /* Yarn's getBaseDimensions() is official getDimensions(Pose) - the pose argument is new,
+     * and MorphHitbox only cares about the returned box, so it is ignored here. */
+    @Inject(method = "getDimensions", at = @At("RETURN"), cancellable = true)
+    public void onGetBaseDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> info)
     {
         EntityDimensions dimensions = MorphHitbox.override((LivingEntity) (Object) this, info.getReturnValue());
 

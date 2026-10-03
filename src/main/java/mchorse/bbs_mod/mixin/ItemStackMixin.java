@@ -35,7 +35,8 @@ public class ItemStackMixin
         }
     }
 
-    @Inject(method = "useOnBlock", at = @At("HEAD"))
+    /* Yarn's useOnBlock(ItemUsageContext) is official useOn(UseOnContext). */
+    @Inject(method = "useOn", at = @At("HEAD"))
     public void onUseOnBlock(UseOnContext context, CallbackInfoReturnable<InteractionResult> info)
     {
         if (context.getPlayer() instanceof ServerPlayer player)
