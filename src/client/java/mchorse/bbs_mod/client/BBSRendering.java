@@ -682,6 +682,20 @@ public class BBSRendering
 
     public static void onRenderBeforeScreen()
     {
+        /* Pin the window framebuffer for the whole interface phase, but ONLY when an editor is open.
+         *
+         * The render target oscillates between BBS's export target and the client's once per frame (measured:
+         * "main=1280x720" alternating with "main=854x480 ... caller=toggleFramebuffer"), and the interface is
+         * extracted into whichever happens to be bound. Once the window is larger than the export size the
+         * dashboard is therefore rasterised into the export-sized target and only fills that part of the window -
+         * and because the layout and the hit test use the window, the buttons stop matching the cursor as well.
+         *
+         * Gated on a menu being open so the world/export path is untouched: with an editor up there is nothing to
+         * capture for the export, and captureAndRestore's own restore still covers the recording path. */
+        if (UIScreen.getCurrentMenu() != null)
+        {
+            toggleFramebuffer(false);
+        }
 
         /* On 1.21.1 InGameHud.render DREW the interface, into whatever was bound — our export framebuffer,
          * because the restore below sat at that method's TAIL, after the drawing. That is why a world
