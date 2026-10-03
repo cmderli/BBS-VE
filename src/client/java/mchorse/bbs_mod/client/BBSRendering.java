@@ -569,26 +569,17 @@ public class BBSRendering
             return;
         }
 
-        /* Redirect the world render into our export target ONLY when the interface is not going to share it.
+        /* Redirect the world into our export target. This is what customSize is for, and the snapshot the film
+         * preview and the export read is taken from this target.
          *
-         * canReplaceFramebuffer() deliberately excludes the case of a BBS editor being open ("Excluded while a
-         * BBS editor is open so the film panel's own UI keeps rendering at the real window size"), but the swap
-         * itself did not honour that: with customSize on it reassigned mc.framebuffer for the whole frame. The
-         * interface is laid out for the WINDOW — menu=1280x675 GUI units against window=2560x1350, i.e. 2560x1350
-         * physical pixels at the GUI scale of 2 — while this target is sized in export pixels
-         * (getVideoWidth x getVideoHeight). Sharing the two is what produced the two reported symptoms together:
-         * the interface drawn small into the top-left, and buttons that answer only at their full-screen
-         * position. The layout and the hit test both used the window while the pixels landed in the smaller
-         * target.
+         * The interface must NOT be drawn through it, though: it is laid out for the WINDOW (menu=1280x675 GUI
+         * units against window=2560x1350, i.e. 2560x1350 physical at the GUI scale of 2) while this target is
+         * sized in export pixels (getVideoWidth x getVideoHeight). Sharing them is what produced the interface
+         * drawn into the top-left with buttons that only answer at their full-screen position.
          *
-         * With an editor open the world renders at window size instead. That gives up the export resolution
-         * while an editor is visible — which is what the exclusion in canReplaceFramebuffer() already accepts —
-         * and keeps the interface on the framebuffer it was laid out for. */
-        if (UIScreen.getCurrentMenu() != null)
-        {
-            return;
-        }
-
+         * The swap is therefore bounded to the WORLD phase by restoring it at the head of the interface phase —
+         * see onRenderBeforeScreen. Reverting the swap here instead (the previous attempt) left the snapshot
+         * with no world to capture whenever an editor was open, and the preview went black. */
         toggleFramebuffer(true);
     }
 
@@ -654,6 +645,7 @@ public class BBSRendering
 
     public static void onRenderBeforeScreen()
     {
+
         /* On 1.21.1 InGameHud.render DREW the interface, into whatever was bound — our export framebuffer,
          * because the restore below sat at that method's TAIL, after the drawing. That is why a world
          * recording carried the hotbar, the health bar and everything else. On 1.21.11 InGameHud.render only
@@ -732,29 +724,29 @@ public class BBSRendering
      * portable equivalent, and that is what Vulkan gets — the raw-GL {@code glBlitFrameBuffer} below
      * needs a GL context that simply does not exist there, where calling it aborts the JVM.</p>
      */
-    private static void blitIntoSnapshot(Texture texture, int w, int h)
+    private static boolean blitIntoSnapshot(Texture texture, int w, int h)
     {
         if (BBSGpu.isVulkan())
         {
-            blitIntoSnapshotDeviceNeutral(texture, w, h);
-
-            return;
+            return blitIntoSnapshotDeviceNeutral(texture, w, h);
         }
 
         blitIntoSnapshotGl(texture, w, h);
+
+        return true;
     }
 
     /**
      * The 26.2 device path: draw the framebuffer's colour texture over a fullscreen quad into the
      * snapshot. Backend-neutral, so it works on both, and the alpha drop lives in the shader.
      */
-    private static void blitIntoSnapshotDeviceNeutral(Texture texture, int w, int h)
+    private static boolean blitIntoSnapshotDeviceNeutral(Texture texture, int w, int h)
     {
         GpuTexture source = framebuffer.getColorTexture();
 
         if (source == null || texture.view() == null)
         {
-            return;
+            return false;
         }
 
         /* One view per colour texture, cached. Allocating one per frame and closing it is what broke the
@@ -783,7 +775,7 @@ public class BBSRendering
             .uv(0F, 0F, 1F, 1F)
             .texture(snapshotSourceView, sampler);
 
-        ScreenQuadPass.draw("bbs:film_snapshot", quad);
+        return ScreenQuadPass.draw("bbs:film_snapshot", quad);
     }
 
     /**
@@ -874,26 +866,20 @@ public class BBSRendering
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
         if (customSize)
         {
-            /* Skipped while a BBS editor is open, for the reason onWorldRenderBegin() documents: the interface
-             * and the world export must not share one render target, and the editor draws at window size. There
-             * is nothing to snapshot then either — the interface is not part of a world recording, and the preview
-             * block shows whatever the world frames captured. */
-            if (UIScreen.getCurrentMenu() != null)
-            {
-                toggleFramebuffer(false);
-
-                renderRecordingOverlay();
-
-                if (pendingExportResolutionAction != null)
-                {
-                    Runnable action = pendingExportResolutionAction;
-
-                    pendingExportResolutionAction = null;
-                    Minecraft.getInstance().execute(action);
-                }
-
-                return;
-            }
+            /* An open editor still wants the snapshot — that is the picture in the preview block — but it must
+             * not draw through the export target, because the interface is laid out for the WINDOW: menu=1280x675
+             * GUI units against window=2560x1350, i.e. 2560x1350 physical pixels at the GUI scale of 2, while the
+             * target is sized in export pixels (getVideoWidth x getVideoHeight). Sharing them is what produced the
+             * interface drawn into the top-left with buttons that only answered at their full-screen position.
+             *
+             * So: capture while the world target is still bound, then hand the window framebuffer back before the
+             * interface draws. This is the one point in the frame that is both after the world render and before
+             * the interface, which is why the restore lives here rather than in onRenderBeforeScreen — that hook
+             * runs after onWorldRenderEnd, and restoring there was both too late and unconditional.
+             *
+             * toggleFramebuffer is a no-op when it is already off, so the later, unconditional restore at the end
+             * of this method costs nothing. */
+            boolean menuOpen = UIScreen.getCurrentMenu() != null;
 
             {
                 /* The snapshot IS the recording, so it is sized in video pixels — not in the physical pixels the
@@ -922,6 +908,14 @@ public class BBSRendering
                 if (!Boolean.getBoolean("bbs.skipSnapshot"))
                 {
                     blitIntoSnapshot(texture, w, h);
+                }
+
+                /* AFTER the capture — the blit reads framebuffer — and still BEFORE the interface draws.
+                 * toggleFramebuffer is a no-op when it is already off, so the unconditional restore at the
+                 * end of this method costs nothing. */
+                if (menuOpen)
+                {
+                    toggleFramebuffer(false);
                 }
             }
         }
