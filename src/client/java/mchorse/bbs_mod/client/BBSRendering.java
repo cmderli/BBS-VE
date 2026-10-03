@@ -616,8 +616,37 @@ public class BBSRendering
 
     /* Rendering */
 
+    /**
+     * Diagnostic-only timing for -Dbbs.debugRecording, used to find where a recording stalls.
+     *
+     * <p>Every probe here is a pair of nanoTime calls and one println per frame, and the println is on the
+     * same line the freeze investigation needs: it says the stage was ENTERED, so a stage that never prints
+     * its exit line is the one that hung.</p>
+     */
+    private static long dbgT;
+    private static int dbgFrames;
+
+    private static void dbgEnter(String stage)
+    {
+        if (Boolean.getBoolean("bbs.debugRecording"))
+        {
+            dbgT = System.nanoTime();
+
+            System.out.println("[BBS stage] -> " + stage + " (frame " + dbgFrames + ")");
+        }
+    }
+
+    private static void dbgExit(String stage)
+    {
+        if (Boolean.getBoolean("bbs.debugRecording"))
+        {
+            System.out.println("[BBS stage] <- " + stage + " took " + (System.nanoTime() - dbgT) / 1_000_000 + " ms");
+        }
+    }
+
     public static void onWorldRenderBegin()
     {
+        dbgEnter("onWorldRenderBegin");
         /* NOTE(ortho lifetime): the ortho flag must NOT be reset here. On 1.21.1 the orbit camera armed
          * it from Camera#update, which ran INSIDE renderWorld — after this HEAD hook — so a HEAD reset
          * was safe. On 1.21.11 Camera#update moved to GameRenderer.render's updateCamera, BEFORE
@@ -660,6 +689,8 @@ public class BBSRendering
 
         if (!customSize)
         {
+            dbgExit("onWorldRenderBegin (no customSize)");
+
             return;
         }
 
@@ -834,14 +865,23 @@ public class BBSRendering
      */
     private static boolean blitIntoSnapshot(Texture texture, int w, int h)
     {
-        if (BBSGpu.isVulkan())
+        dbgEnter("blitIntoSnapshot " + w + "x" + h);
+
+        try
         {
-            return blitIntoSnapshotDeviceNeutral(texture, w, h);
+            if (BBSGpu.isVulkan())
+            {
+                return blitIntoSnapshotDeviceNeutral(texture, w, h);
+            }
+
+            blitIntoSnapshotGl(texture, w, h);
+
+            return true;
         }
-
-        blitIntoSnapshotGl(texture, w, h);
-
-        return true;
+        finally
+        {
+            dbgExit("blitIntoSnapshot");
+        }
     }
 
     /**
@@ -969,6 +1009,7 @@ public class BBSRendering
 
     private static void captureAndRestore()
     {
+        dbgEnter("captureAndRestore");
         /* Snapshot only when we actually redirected the world into our framebuffer this frame (film panel
          * open / recording). Outside that, mc.framebuffer was never swapped, so our framebuffer holds nothing
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
@@ -1039,6 +1080,8 @@ public class BBSRendering
         /* AFTER the restore: mc.framebuffer points back at the screen, so the operator overlay
          * shows up there and never lands in the exported file. */
         renderRecordingOverlay();
+        dbgExit("captureAndRestore");
+        dbgFrames++;
 
         if (pendingExportResolutionAction != null)
         {
