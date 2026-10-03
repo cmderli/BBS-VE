@@ -460,6 +460,23 @@ public class Texture
         int pixelsBits = pixels.bits;
         TextureFormat target = pixelsBits == 4 ? TextureFormat.RGBA_U8 : TextureFormat.RGB_U8;
 
+        /* Vulkan cannot create an RGB8 image at all: VkImageCreateInfo rejects a three-channel UNORM
+         * format for this usage set, and VulkanGpuTexture surfaces that as
+         * "VK_ERROR_INITIALIZATION_FAILED: Failed to create image". (26.2's GL backend refuses the same
+         * format for its own reasons - see BBSRendering#getTexture - so RGB8_UNORM is unusable on both
+         * and RGB_U8 must not reach the device.)
+         *
+         * Every three-channel upload therefore goes to RGBA8 and is widened below, by uploading with a
+         * row length of one texel rather than three bytes per pixel: writeToTexture derives the layout
+         * from the TEXTURE's format, so an RGBA8 destination told three bytes per texel would take one
+         * texel from each RGBA group and shear the image. */
+        boolean widen = pixelsBits != 4 && BBSGpu.isVulkan();
+
+        if (widen)
+        {
+            target = TextureFormat.RGBA_U8;
+        }
+
         if (!this.isValid() || this.width != pixels.width || this.height != pixels.height || this.format != target)
         {
             this.format = target;
@@ -472,9 +489,43 @@ public class Texture
         /* writeToTexture reads from the buffer's current position (the backend takes its native
          * address), and Pixels does not promise where that is. */
         source.position(0);
-        source.limit(this.width * this.height * this.format.blockSize());
 
-        encoder.writeToTexture(this.gpuTexture, source, 0, 0, x, y, pixels.width, pixels.height);
+        if (widen)
+        {
+            /* The command takes its byte count from width * height * the TEXTURE's block size, so an RGBA8
+             * destination needs RGBA bytes: expand 3-channel source into a scratch buffer rather than let
+             * it read past the end (or, with a matching limit, shear the image). */
+            int count = pixels.width * pixels.height;
+            ByteBuffer expanded = MemoryUtil.memAlloc(count * 4);
+
+            for (int i = 0; i < count; i++)
+            {
+                int at = i * 3;
+
+                expanded.put(source.get(at));
+                expanded.put(source.get(at + 1));
+                expanded.put(source.get(at + 2));
+                expanded.put((byte) 0xFF);
+            }
+
+            expanded.flip();
+
+            try
+            {
+                encoder.writeToTexture(this.gpuTexture, expanded, 0, 0, x, y, pixels.width, pixels.height);
+            }
+            finally
+            {
+                MemoryUtil.memFree(expanded);
+            }
+        }
+        else
+        {
+            source.limit(this.width * this.height * this.format.blockSize());
+
+            encoder.writeToTexture(this.gpuTexture, source, 0, 0, x, y, pixels.width, pixels.height);
+        }
+
         encoder.submit();
     }
 

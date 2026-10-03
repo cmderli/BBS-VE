@@ -44,6 +44,7 @@ import mchorse.bbs_mod.ui.film.replays.UIReplaysEditor;
 import mchorse.bbs_mod.ui.film.utils.UIFilmUndoHandler;
 import mchorse.bbs_mod.ui.film.utils.undo.UIUndoHistoryOverlay;
 import mchorse.bbs_mod.ui.framework.UIContext;
+import mchorse.bbs_mod.ui.framework.UIScreen;
 import mchorse.bbs_mod.ui.onboarding.TourAnchors;
 import mchorse.bbs_mod.ui.framework.elements.utils.ScrollMemory;
 import mchorse.bbs_mod.ui.framework.elements.utils.UIUndoKeys;
@@ -856,6 +857,22 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
     private void applyPreviewSizeToBBS()
     {
         if (this.recorder.isExporting())
+        {
+            return;
+        }
+
+        /* Nothing to size while the dashboard is up.
+         *
+         * This is called from resize(), from update(), and from six settings callbacks, all of which run
+         * continuously — so it kept writing a new custom size, and applyExportSizeToBBS wrote a different one,
+         * several times a second (measured: true/604x286, false, true/1514x784, true/0x0, true/1514x784, ...).
+         * Every flip rebuilt the render target, which is what produced "VK_ERROR_INITIALIZATION_FAILED: Failed to
+         * create image" on Vulkan; GL tolerated the churn and hid it.
+         *
+         * It was also pointless. The snapshot is only taken with no menu open (see captureAndRestore), so with
+         * the dashboard up this size was never used for anything but the churn. Recording and the unit tests
+         * that really need the export size go through applyExportSizeToBBS, which is untouched. */
+        if (UIScreen.getCurrentMenu() != null)
         {
             return;
         }
