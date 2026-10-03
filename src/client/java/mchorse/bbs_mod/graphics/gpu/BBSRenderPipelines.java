@@ -181,6 +181,28 @@ public final class BBSRenderPipelines
         .withCull(false)
         .build();
 
+    /**
+     * A textured quad copied from one texture into another, device-neutrally.
+     *
+     * <p>This exists to replace a raw-GL framebuffer blit: 26.2 has no backend-neutral blit-with-scaling,
+     * and {@code CommandEncoder.copyTextureToTexture} only copies 1:1. Drawing a fullscreen quad through
+     * a render pass is the portable equivalent, and it is what the film snapshot uses so the preview and
+     * the video export work on Vulkan as well as GL.</p>
+     *
+     * <p>Opaque blend state and no depth: the destination is a fresh colour target being overwritten, not
+     * composited into.</p>
+     */
+    public static final RenderPipeline BLIT = pipeline("blit")
+        .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+        .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+        .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+        .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+        .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+        .withColorTargetState(new ColorTargetState(Optional.empty(), GpuFormat.RGBA8_UNORM, ColorTargetState.WRITE_ALL))
+        .withDepthStencilState(Optional.empty())
+        .withCull(false)
+        .build();
+
     /* ---- particles ----
      *
      * PARTICLE's element order (Position, UV0, Color, UV2) is what BBS's particle emitter writes,

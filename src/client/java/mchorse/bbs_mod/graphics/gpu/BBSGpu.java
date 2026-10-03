@@ -113,6 +113,17 @@ public final class BBSGpu
         return RenderSystem.getSamplerCache().getClampToEdge(mode);
     }
 
+    /** Nearest (no interpolation) and linear, clamped — for one-to-one copies and for rescales. */
+    public static GpuSampler nearestSampler()
+    {
+        return RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST);
+    }
+
+    public static GpuSampler linearSampler()
+    {
+        return RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
+    }
+
     public static GpuSampler clampToEdge(FilterMode mode, boolean mipmapped)
     {
         return RenderSystem.getSamplerCache().getClampToEdge(mode, mipmapped);

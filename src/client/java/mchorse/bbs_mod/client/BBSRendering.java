@@ -4,7 +4,9 @@ import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import mchorse.bbs_mod.graphics.InverseView;
+import mchorse.bbs_mod.client.render.ScreenQuadPass;
 import mchorse.bbs_mod.graphics.gpu.BBSGpu;
+import mchorse.bbs_mod.graphics.gpu.BBSRenderPipelines;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
@@ -65,6 +67,10 @@ import org.lwjgl.system.MemoryStack;
 import org.slf4j.Logger;
 
 import com.mojang.blaze3d.opengl.GlStateManager;
+import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.textures.GpuSampler;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 
@@ -225,6 +231,11 @@ public class BBSRendering
          * the window can't physically reach the requested resolution, comes out stretched in the
          * file. Excluded while a BBS editor is open so the film panel's own UI keeps rendering at the
          * real window size. */
+        if (Boolean.getBoolean("bbs.disableCustomSize"))
+        {
+            return false;
+        }
+
         return customSize && (renderingWorld || (toggleFramebuffer && UIScreen.getCurrentMenu() == null));
     }
 
@@ -692,7 +703,74 @@ public class BBSRendering
      * through {@link GlStateManager} so its cache stays truthful (touching that state behind it desyncs the cache
      * — the same trap {@link mchorse.bbs_mod.graphics.texture.Texture#bind()} documents).</p>
      */
+    /**
+     * Copy the frame in {@link #framebuffer} into the BBS snapshot {@link #texture}.
+     *
+     * <p>Two implementations behind one call, because 26.2 offers no backend-neutral blit-with-scaling:
+     * {@code CommandEncoder.copyTextureToTexture} is 1:1, and the snapshot is a rescale (the world may be
+     * rendered larger than the export size). A fullscreen textured quad through a render pass is the
+     * portable equivalent, and that is what Vulkan gets — the raw-GL {@code glBlitFrameBuffer} below
+     * needs a GL context that simply does not exist there, where calling it aborts the JVM.</p>
+     */
     private static void blitIntoSnapshot(Texture texture, int w, int h)
+    {
+        if (BBSGpu.isVulkan())
+        {
+            blitIntoSnapshotDeviceNeutral(texture, w, h);
+
+            return;
+        }
+
+        blitIntoSnapshotGl(texture, w, h);
+    }
+
+    /**
+     * The 26.2 device path: draw the framebuffer's colour texture over a fullscreen quad into the
+     * snapshot. Backend-neutral, so it works on both, and the alpha drop lives in the shader.
+     */
+    private static void blitIntoSnapshotDeviceNeutral(Texture texture, int w, int h)
+    {
+        GpuTexture source = framebuffer.getColorTexture();
+
+        if (source == null || texture.view() == null)
+        {
+            return;
+        }
+
+        /* One view per colour texture, cached. Allocating one per frame and closing it is what broke the
+         * interface: a GpuTextureView OWNS the image it wraps — closing the view destroys the underlying
+         * texture — so the frame after the first snapshot had lost the framebuffer it had just rendered
+         * into. The symptoms were an interface drawn into one corner and every later texture creation
+         * failing with VK_ERROR_INITIALIZATION_FAILED, neither of which pointed at this line.
+         *
+         * Closing it is right for a texture BBS owns (see Texture.pixelsFromTexture) and wrong for a
+         * borrow: this view stays valid as long as the framebuffer's colour texture does, i.e. until the
+         * framebuffer is resized or released. */
+        if (snapshotSourceView == null || snapshotSourceTexture != source)
+        {
+            snapshotSourceView = BBSGpu.device().createTextureView(source);
+            snapshotSourceTexture = source;
+        }
+
+        /* The snapshot is the export resolution and the framebuffer is the render resolution; when they
+         * differ this is a rescale, so the sampler has to interpolate. At 1:1 it is a copy either way. */
+        GpuSampler sampler = framebuffer.width == w && framebuffer.height == h
+            ? BBSGpu.nearestSampler()
+            : BBSGpu.linearSampler();
+
+        ScreenQuadPass.Quad quad = new ScreenQuadPass.Quad(BBSRenderPipelines.BLIT, texture.view(), w, h)
+            .rect(0F, 0F, w, h)
+            .uv(0F, 0F, 1F, 1F)
+            .texture(snapshotSourceView, sampler);
+
+        ScreenQuadPass.draw("bbs:film_snapshot", quad);
+    }
+
+    /**
+     * The GL fast path, unchanged: bind the two attachments to private FBOs and blit. Kept because it is
+     * one driver call rather than a pass, and because it is the path the GL backend has always used.
+     */
+    private static void blitIntoSnapshotGl(Texture texture, int w, int h)
     {
         int sourceWidth = framebuffer.width;
         int sourceHeight = framebuffer.height;
@@ -765,43 +843,12 @@ public class BBSRendering
         }
     }
 
-    /**
-     * Whether the GL-only snapshot path has already complained. It is reached once per frame while a
-     * film panel is open, so the message must not repeat.
-     */
-    private static boolean snapshotUnsupportedWarned;
+    /** Borrowed view of the framebuffer's colour texture, cached; see blitIntoSnapshotDeviceNeutral. */
+    private static GpuTextureView snapshotSourceView;
+    private static GpuTexture snapshotSourceTexture;
 
     private static void captureAndRestore()
     {
-        /* This whole path is raw OpenGL and there is no GL context on the Vulkan backend, so calling it
-         * there is not a wrong picture — it is a native crash with no Java stack and no crash report.
-         * That is exactly how "press 0 in a world" died: HMCL launches with --graphicsBackend vulkan,
-         * opening the dashboard builds the film panel, and the panel's preview asks for this snapshot.
-         *
-         * blitIntoSnapshot is one of the GL-backend-only sites listed in the port document (§6.2): it
-         * binds its own FBOs through GL30, casts the colour attachment to GlTexture for its name, and
-         * reads GL state with glGetInteger/glGetBooleanv. None of that has a meaning on Vulkan.
-         *
-         * So skip it and say so once. The honest cost: on Vulkan the film preview and the video export
-         * have no snapshot to show or write, so those two features stay unavailable until this is ported
-         * (the replacement is a render-pass blit, or a pixelsFromTexture round-trip like the read-back
-         * paths in §6.2). Failing that way is strictly better than taking the game down. */
-        if (BBSGpu.isVulkan())
-        {
-            if (!snapshotUnsupportedWarned)
-            {
-                snapshotUnsupportedWarned = true;
-
-                LOGGER.warn("[BBS film] The film snapshot needs OpenGL and this client runs the Vulkan backend"
-                    + " ({}); the preview and the video export will be empty. Set Graphics API to prefer"
-                    + " OpenGL, or port BBSRendering.blitIntoSnapshot off raw GL.", BBSGpu.backend());
-            }
-
-            toggleFramebuffer(false);
-
-            return;
-        }
-
         /* Snapshot only when we actually redirected the world into our framebuffer this frame (film panel
          * open / recording). Outside that, mc.framebuffer was never swapped, so our framebuffer holds nothing
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
@@ -826,7 +873,15 @@ public class BBSRendering
                 texture.setSize(w, h);
             }
 
-            blitIntoSnapshot(texture, w, h);
+            /* -Dbbs.skipSnapshot=true leaves the snapshot untouched, which isolates the rest of the frame
+             * from it: the preview then shows the previous contents and nothing else changes. Kept as a
+             * diagnostic because it is the quickest way to tell whether a rendering problem is the
+             * snapshot's or something else. */
+            if (!Boolean.getBoolean("bbs.skipSnapshot"))
+            {
+                blitIntoSnapshot(texture, w, h);
+            }
+
         }
 
         toggleFramebuffer(false);
