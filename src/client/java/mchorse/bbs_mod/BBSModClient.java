@@ -1118,6 +1118,37 @@ public class BBSModClient implements ClientModInitializer
         BBSMod.events.post(new BBSClientReadyEvent());
     }
 
+    /**
+     * Stop whatever export is running. Safe to call from anywhere, including a screen's key handler.
+     *
+     * <p>This exists because a running export has no keybind path back to it once a screen is open:
+     * {@code UIBaseMenu#handleKey} returns true for every event an enabled menu consumes, so the key never
+     * reaches Minecraft's keybind handling and {@code keyRecordVideo.consumeClick()} cannot fire. A caller that
+     * sees the key event first - a mixin on {@code Screen#keyPressed}, or BBS's own UI - can use this instead.</p>
+     *
+     * @return whether an export was actually running
+     */
+    public static boolean cancelAnyExport()
+    {
+        if (worldExportSession.isExporting())
+        {
+            worldExportSession.cancel();
+
+            return true;
+        }
+
+        VideoRecorder recorder = getVideoRecorder();
+
+        if (recorder != null && recorder.isRecording())
+        {
+            recorder.stopRecording();
+
+            return true;
+        }
+
+        return false;
+    }
+
     private void keyRecordVideo(Minecraft mc)
     {
         if (worldExportSession.isExporting())

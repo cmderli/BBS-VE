@@ -37,6 +37,7 @@
         "PlayerEntityFilmPoseMixin",
         "PlayerEntityRendererArmMixin",
         "RenderPassProbeMixin",
+        "ScreenKeyMixin",
         "RenderTargetProbeMixin",
         "RenderTickCounterAccessor",
         "RenderTickCounterMixin",
