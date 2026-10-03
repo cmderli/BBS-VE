@@ -94,6 +94,56 @@ public final class BBSGpu
         RenderSystem.assertOnRenderThread();
     }
 
+    /* Read-back completion.
+     *
+     * A read-back is recorded with CommandEncoder.copyTextureToBuffer, which takes a Runnable that the
+     * backend is supposed to run once the copy has completed. On Vulkan that callback is NOT tied to a
+     * fence the caller can wait on: VulkanCommandEncoder hands it to its DestructionQueue
+     * (queueForDestroy), and a DestructionQueue only runs its entries from rotate(), which happens once
+     * per submit(), for the generation that has just retired (the queue has two slots, and submit()
+     * first waits for the submit two generations back - see MAX_SUBMITS_IN_FLIGHT).
+     *
+     * So after the submit that carries the copy, the callback needs ANOTHER submit before it can run at
+     * all. Waiting for it right after submitting - which is the obvious reading of the API, and what the
+     * read-back paths here did - can therefore never succeed: the render thread is parked on the latch,
+     * nothing pumps the queue, and every read-back answers "timed out" and returns null. That is the
+     * difference between "the GPU never finished" and "nobody asked the engine to notice it finished",
+     * and it is invisible from the outside: the pixels are on the GPU and correct.
+     *
+     * Pumping two more submits reproduces exactly what the frame loop would have done, and each submit()
+     * waits for the generation two back, so by the time the callback runs the copy itself has completed.
+     * Extra submits are what a frame boundary does anyway (empty submission, pool reset, ring rotation),
+     * and the loop stops as soon as the callback has fired, so backends that deliver it synchronously
+     * (OpenGL reads the pixels inline) pay nothing. */
+
+    /**
+     * Submit whatever the encoder has recorded, then drive the backend until {@code done} counts down.
+     *
+     * @return whether the completion callback ran before {@code timeoutMs} elapsed.
+     */
+    public static boolean submitAndAwait(CommandEncoder encoder, java.util.concurrent.CountDownLatch done, long timeoutMs)
+    {
+        encoder.submit();
+
+        /* The most the queue can need is one rotation per slot; three is the honest bound, and the loop
+         * leaves early the moment the callback lands. */
+        for (int pump = 0; pump < 3 && done.getCount() > 0; pump++)
+        {
+            encoder.submit();
+        }
+
+        try
+        {
+            return done.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+
+            return false;
+        }
+    }
+
     /* Samplers.
      *
      * In 1.21.11 filtering and wrapping were properties of the texture object itself

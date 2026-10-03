@@ -101,30 +101,22 @@ public class Texture
 
         CountDownLatch done = new CountDownLatch(1);
 
-        /* SUBMIT. A CommandEncoder only records - the queue reaches the GPU at submit(), and skipping it
-         * meant the copy never ran at all: the completion callback never fired and the latch below waited
-         * out its five seconds, so every video frame and every screenshot read-back timed out and returned
-         * null. The upload path (see the class note) has always submitted; this one did not. */
+        /* SUBMIT - and then keep submitting until the completion callback has actually run. A
+         * CommandEncoder only records: skipping the first submit meant the copy never reached the GPU at
+         * all (the completion callback never fired and the latch waited out its five seconds). The extra
+         * submits are the second half of the same trap: on Vulkan the completion callback is delivered by
+         * the backend's destruction queue, which only runs on a later submit, so a read-back that blocks
+         * the render thread immediately after its own submit can never be told the copy finished. Both
+         * halves are explained at BBSGpu#submitAndAwait. */
         CommandEncoder encoder = BBSGpu.encoder();
 
         encoder.copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0);
-        encoder.submit();
 
-        try
+        if (!BBSGpu.submitAndAwait(encoder, done, 5000))
         {
-            /* A generous ceiling: the copy is a handful of microseconds of GPU work, and the only
-             * way this times out is a lost device, in which case returning garbage pixels would be
-             * worse than returning none. */
-            if (!done.await(5, TimeUnit.SECONDS))
-            {
-                buffer.close();
-
-                return null;
-            }
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
+            /* A generous ceiling: the copy is a handful of microseconds of GPU work, and the only way
+             * this times out is a lost device, in which case returning garbage pixels would be worse
+             * than returning none. */
             buffer.close();
 
             return null;
@@ -203,24 +195,14 @@ public class Texture
 
         CountDownLatch done = new CountDownLatch(1);
 
-        /* Submitted for the same reason as pixelsFromTexture above. */
+        /* Submitted, and pumped, for the same reason as pixelsFromTexture above - see BBSGpu#submitAndAwait
+         * for why one submit is not enough on Vulkan. */
         CommandEncoder encoder = BBSGpu.encoder();
 
         encoder.copyTextureToBuffer(gpuTexture, buffer, 0, done::countDown, 0, x, y, width, height);
-        encoder.submit();
 
-        try
+        if (!BBSGpu.submitAndAwait(encoder, done, 5000))
         {
-            if (!done.await(5, TimeUnit.SECONDS))
-            {
-                buffer.close();
-
-                return null;
-            }
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
             buffer.close();
 
             return null;
