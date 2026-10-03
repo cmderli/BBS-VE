@@ -347,11 +347,28 @@ public class VideoRecorder
             return false;
         }
 
+        long t0 = System.nanoTime();
+
         Pixels pixels = Texture.pixelsFromTexture(texture);
+
+        long t1 = System.nanoTime();
 
         if (pixels == null)
         {
+            if (Boolean.getBoolean("bbs.debugRecording"))
+            {
+                System.out.println("[BBS video] read-back returned null after " + (t1 - t0) / 1_000_000 + " ms");
+            }
+
             return false;
+        }
+
+        if (Boolean.getBoolean("bbs.debugRecording") && this.counter % 20 == 0)
+        {
+            System.out.println("[BBS video] frame " + this.counter
+                + " readback=" + (t1 - t0) / 1_000_000 + " ms"
+                + " size=" + pixels.width + "x" + pixels.height
+                + " bytes=" + (this.textureWidth * this.textureHeight * 4));
         }
 
         try
@@ -375,9 +392,18 @@ public class VideoRecorder
             target.put(source);
             target.flip();
 
+            long t2 = System.nanoTime();
+
             try
             {
                 this.channel.write(target);
+
+                if (Boolean.getBoolean("bbs.debugRecording") && this.counter % 20 == 0)
+                {
+                    System.out.println("[BBS video] frame " + this.counter
+                        + " copy+write=" + (System.nanoTime() - t2) / 1_000_000 + " ms"
+                        + " total=" + (System.nanoTime() - t0) / 1_000_000 + " ms");
+                }
 
                 return true;
             }
