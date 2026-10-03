@@ -854,34 +854,61 @@ public class BBSRendering
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
         if (customSize)
         {
-            /* The snapshot IS the recording, so it is sized in video pixels — not in the physical pixels the
-             * world was just rendered at. On a HiDPI display those are not the same number: WindowMixin reports
-             * the framebuffer size as getVideoWidth() * getOriginalFramebufferScale(), so on a Retina Mac
-             * (scale 2) the framebuffer is twice the export size in each axis. Sizing the snapshot from
-             * framebuffer.textureWidth therefore handed VideoRecorder a texture four times the buffer it had
-             * allocated (getVideoWidth() * getVideoHeight() * 3), and glGetTexImage — which downloads the whole
-             * level, there is no size to pass it — wrote straight past the end of it. Every export on a Mac
-             * died there, inside the driver's pixel-store loop (SIGBUS). */
-            Texture texture = getTexture();
-            int w = getVideoWidth();
-            int h = getVideoHeight();
-
-            if (texture.width != w || texture.height != h)
+            /* With a BBS editor open the interface is drawn through this same framebuffer, and the interface is
+             * laid out for the WINDOW — measured, menu=427x240 GUI units against window=854x480, i.e. 854x480
+             * physical pixels at the GUI scale of 2 — while {@link #framebuffer} may still be sized for the world
+             * (getVideoWidth x getVideoHeight, 504x248 here). Left that way the interface renders into the
+             * smaller target and is composited into the top-left of the window, and because the layout, the
+             * projection and the hit test use the window size while the pixels only ever land in that corner,
+             * every button misses the cursor.
+             *
+             * The size is stale because nothing in this path ever sets it: setCustomSize only records a size,
+             * and toggleFramebuffer(true) sizes the framebuffer while canReplaceFramebuffer() still holds — i.e.
+             * in WORLD pixels. Whatever the world left behind is what an editor would inherit, so bring it up to
+             * the window before the interface is drawn into it.
+             *
+             * No snapshot in this case, and that is not an omission: the interface is not part of a world
+             * recording, and the preview block draws the snapshot the world frames left behind. This is the same
+             * exclusion toggleFramebuffer(false) makes for the film panel. */
+            if (UIScreen.getCurrentMenu() != null)
             {
-                /* 26.2 has no texture binding to bracket a resize with: setSize reallocates the
-                 * device texture itself. */
-                texture.setSize(w, h);
-            }
+                Minecraft mc = Minecraft.getInstance();
 
-            /* -Dbbs.skipSnapshot=true leaves the snapshot untouched, which isolates the rest of the frame
-             * from it: the preview then shows the previous contents and nothing else changes. Kept as a
-             * diagnostic because it is the quickest way to tell whether a rendering problem is the
-             * snapshot's or something else. */
-            if (!Boolean.getBoolean("bbs.skipSnapshot"))
+                if (framebuffer.width != mc.getWindow().getWidth() || framebuffer.height != mc.getWindow().getHeight())
+                {
+                    resizeFramebuffer(framebuffer);
+                }
+            }
+            else
             {
-                blitIntoSnapshot(texture, w, h);
-            }
+                /* The snapshot IS the recording, so it is sized in video pixels — not in the physical pixels the
+                 * world was just rendered at. On a HiDPI display those are not the same number: WindowMixin reports
+                 * the framebuffer size as getVideoWidth() * getOriginalFramebufferScale(), so on a Retina Mac
+                 * (scale 2) the framebuffer is twice the export size in each axis. Sizing the snapshot from
+                 * framebuffer.textureWidth therefore handed VideoRecorder a texture four times the buffer it had
+                 * allocated (getVideoWidth() * getVideoHeight() * 3), and glGetTexImage — which downloads the whole
+                 * level, there is no size to pass it — wrote straight past the end of it. Every export on a Mac
+                 * died there, inside the driver's pixel-store loop (SIGBUS). */
+                Texture texture = getTexture();
+                int w = getVideoWidth();
+                int h = getVideoHeight();
 
+                if (texture.width != w || texture.height != h)
+                {
+                    /* 26.2 has no texture binding to bracket a resize with: setSize reallocates the
+                     * device texture itself. */
+                    texture.setSize(w, h);
+                }
+
+                /* -Dbbs.skipSnapshot=true leaves the snapshot untouched, which isolates the rest of the frame
+                 * from it: the preview then shows the previous contents and nothing else changes. Kept as a
+                 * diagnostic because it is the quickest way to tell whether a rendering problem is the
+                 * snapshot's or something else. */
+                if (!Boolean.getBoolean("bbs.skipSnapshot"))
+                {
+                    blitIntoSnapshot(texture, w, h);
+                }
+            }
         }
 
         toggleFramebuffer(false);
