@@ -832,6 +832,14 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
      */
     public static void applyExportSizeToBBS()
     {
+        /* Not while a BBS editor is open: there the target belongs to the panel preview, sized by
+         * applyPreviewSizeToBBS. Two writers with different values is what rebuilt the render target several
+         * times a second; leaving this one to the export gave the preview nothing to draw. */
+        if (UIScreen.getCurrentMenu() != null)
+        {
+            return;
+        }
+
         int w = Math.max(2, BBSSettings.videoWidth.get());
         int h = Math.max(2, BBSSettings.videoHeight.get());
         if (w % 2 != 0) w++;
@@ -861,22 +869,19 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
             return;
         }
 
-        /* Nothing to size while the dashboard is up.
+        /* This IS the size the render target must have while the editor is open, and the panel preview is the
+         * thing the snapshot exists for, so it must not be skipped.
          *
-         * This is called from resize(), from update(), and from six settings callbacks, all of which run
-         * continuously — so it kept writing a new custom size, and applyExportSizeToBBS wrote a different one,
-         * several times a second (measured: true/604x286, false, true/1514x784, true/0x0, true/1514x784, ...).
-         * Every flip rebuilt the render target, which is what produced "VK_ERROR_INITIALIZATION_FAILED: Failed to
-         * create image" on Vulkan; GL tolerated the churn and hid it.
+         * Skipping it here is what broke the preview. The guard was added to stop this writer fighting
+         * applyExportSizeToBBS, which wrote a different size several times a second (measured: true/604x286,
+         * false, true/1514x784, true/0x0, ...) and rebuilt the render target on every flip — the source of the
+         * Vulkan "Failed to create image" churn. But the snapshot is only taken when customSize is true (see
+         * captureAndRestore), so returning early here meant customSize stayed false, no snapshot was ever
+         * captured, and UIFilmPreview drew an empty texture: the camera viewport went black.
          *
-         * It was also pointless. The snapshot is only taken with no menu open (see captureAndRestore), so with
-         * the dashboard up this size was never used for anything but the churn. Recording and the unit tests
-         * that really need the export size go through applyExportSizeToBBS, which is untouched. */
-        if (UIScreen.getCurrentMenu() != null)
-        {
-            return;
-        }
-
+         * The churn is fixed at its other end instead — applyExportSizeToBBS no longer writes while an editor
+         * is open, leaving this the single writer. setCustomSize is already a no-op when nothing changes, so
+         * being called from resize(), update() and the settings callbacks costs nothing. */
         int w;
         int h;
 
