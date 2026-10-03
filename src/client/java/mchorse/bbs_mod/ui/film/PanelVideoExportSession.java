@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.film;
 
+import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.actions.ActionState;
 import mchorse.bbs_mod.audio.AudioRenderer;
@@ -39,13 +40,13 @@ public class PanelVideoExportSession extends VideoExportSession
         this.editor = editor;
     }
 
-    public boolean start(int duration, int textureId, int width, int height)
+    public boolean start(int duration, Texture texture, int width, int height)
     {
         this.duration = duration;
 
         long delayMs = (long) (Math.max(0F, BBSSettings.videoDelay.get()) * 1000F);
 
-        return this.begin(textureId, width, height, delayMs);
+        return this.begin(texture, width, height, delayMs);
     }
 
     @Override

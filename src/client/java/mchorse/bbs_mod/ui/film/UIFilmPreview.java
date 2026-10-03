@@ -46,7 +46,6 @@ import mchorse.bbs_mod.utils.colors.Colors;
 import mchorse.bbs_mod.utils.joml.Vectors;
 import mchorse.bbs_mod.utils.MathUtils;
 import net.minecraft.client.Minecraft;
-import com.mojang.blaze3d.opengl.GlTexture;
 import org.joml.Matrix3x2fc;
 import org.joml.Matrix4f;
 import org.joml.Vector2i;
@@ -213,13 +212,9 @@ public class UIFilmPreview extends UIElement
             UIFilmPanel.applyExportSizeToBBS();
             BBSRendering.scheduleAfterNextExportFrame(() ->
             {
-                /* TODO(26.2): Texture has no GL name any more — the still-raw-GL recorder is fed the
-                 * OpenGL backend's own name (see UIFilmRecorder#startRecording); Texture#pixelsFromTexture
-                 * is what the read-back on the other end has to become. */
                 Texture video = BBSRendering.getTexture();
-                int textureId = video.gpuTexture instanceof GlTexture gl ? gl.glId() : 0;
 
-                this.panel.recorder.startRecording(duration, textureId, BBSRendering.getVideoWidth(), BBSRendering.getVideoHeight());
+                this.panel.recorder.startRecording(duration, video);
             });
         });
         this.recordVideo.tooltip(UIKeys.CAMERA_TOOLTIPS_RECORD);

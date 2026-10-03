@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.film;
 
+import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.audio.MinecraftSoundCapture;
@@ -39,7 +40,7 @@ public abstract class VideoExportSession
     protected long warmupEndsAtMs;
 
     protected File audioFile;
-    protected int textureId;
+    protected Texture texture;
     protected int width;
     protected int height;
 
@@ -98,14 +99,14 @@ public abstract class VideoExportSession
      * (which may abort or set {@link #audioFile}); on success either records
      * immediately or enters the warm-up delay.
      */
-    protected final boolean begin(int textureId, int width, int height, long delayMs)
+    protected final boolean begin(Texture texture, int width, int height, long delayMs)
     {
         if (this.isExporting() || this.getRecorder().isRecording())
         {
             return false;
         }
 
-        this.textureId = textureId;
+        this.texture = texture;
         this.width = width;
         this.height = height;
         this.audioFile = null;
@@ -190,7 +191,7 @@ public abstract class VideoExportSession
 
         try
         {
-            recorder.startRecording(movieName, muxAudioFile, this.textureId, this.width, this.height);
+            recorder.startRecording(movieName, muxAudioFile, this.texture, this.width, this.height);
         }
         catch (Exception e)
         {
@@ -425,7 +426,7 @@ public abstract class VideoExportSession
         this.state = State.IDLE;
         this.warmupEndsAtMs = 0L;
         this.audioFile = null;
-        this.textureId = 0;
+        this.texture = null;
         this.width = 0;
         this.height = 0;
         this.movieName = null;

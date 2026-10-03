@@ -876,8 +876,13 @@ public class BBSModClient implements ClientModInitializer
             if (videoRecorder.isRecording() && BBSRendering.canRender)
             {
                 minecraftSoundCapture.captureFrame();
-                videoRecorder.recordFrame();
             }
+
+            /* The frame is NOT captured here. VideoRecorder reads the BBS snapshot texture, and on the world
+             * recording path BBSRendering defers the snapshot blit until onRenderAfterInterface (the interface
+             * has to be composited first, so the hotbar ends up in the file) — this hook runs before that, so
+             * reading here saw an empty snapshot. The recorder is driven from the end of captureAndRestore
+             * instead; see BBSRendering#recordExportFrame. */
         });
 
         /* The form palette cannot be built during client initialization any more.

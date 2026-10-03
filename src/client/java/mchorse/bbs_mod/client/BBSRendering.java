@@ -20,6 +20,7 @@ import mchorse.bbs_mod.client.renderer.MorphRenderer;
 import mchorse.bbs_mod.forms.FormRenderLast;
 import mchorse.bbs_mod.forms.renderers.utils.RecolorVertexConsumer;
 import mchorse.bbs_mod.forms.structure.StructureWand;
+import mchorse.bbs_mod.utils.VideoRecorder;
 import mchorse.bbs_mod.utils.sodium.SodiumUtils;
 import mchorse.bbs_mod.graphics.ScreenPixelProbe;
 import mchorse.bbs_mod.resources.Link;
@@ -213,11 +214,26 @@ public class BBSRendering
     public static File getVideoFolder()
     {
         File movies = new File(BBSMod.getSettingsFolder().getParentFile(), "movies");
-        File exportPath = new File(BBSSettings.videoExportPath.get());
+        String configured = BBSSettings.videoExportPath.get();
 
-        if (exportPath.isDirectory())
+        /* A blank setting must mean "use the default", which is what the default value of "" implies.
+         *
+         * It did not: new File("") is the CURRENT DIRECTORY, and isDirectory() answers true for it, so the
+         * guard below accepted it and the export folder became "". mkdirs() then fails and
+         * ProcessBuilder.directory(new File("")) throws
+         *
+         *     IOException: Cannot run program "ffmpeg" (in directory ""): Failed to access working directory
+         *
+         * which aborts the recording before a single frame is captured — no video, and nothing in the log that
+         * names the folder, so it reads as "export silently does nothing". */
+        if (configured != null && !configured.isBlank())
         {
-            movies = exportPath;
+            File exportPath = new File(configured);
+
+            if (exportPath.isDirectory())
+            {
+                movies = exportPath;
+            }
         }
 
         movies.mkdirs();
@@ -986,6 +1002,7 @@ public class BBSRendering
                 int w = getVideoWidth();
                 int h = getVideoHeight();
 
+
                 if (texture.width != w || texture.height != h)
                 {
                     /* 26.2 has no texture binding to bracket a resize with: setSize reallocates the
@@ -1014,6 +1031,11 @@ public class BBSRendering
 
         toggleFramebuffer(false);
 
+        /* The snapshot is now filled for this frame, so this is where the recorder reads it. It cannot live at
+         * the world-render hook: the world recording defers the capture until after the interface is composited,
+         * so a read there saw an untouched snapshot (measured: "captured frame is 0x0"). */
+        recordExportFrame();
+
         /* AFTER the restore: mc.framebuffer points back at the screen, so the operator overlay
          * shows up there and never lands in the exported file. */
         renderRecordingOverlay();
@@ -1023,6 +1045,23 @@ public class BBSRendering
             Runnable action = pendingExportResolutionAction;
             pendingExportResolutionAction = null;
             Minecraft.getInstance().execute(action);
+        }
+    }
+
+    /**
+     * Hand the freshly captured snapshot to the recorder, one frame at a time.
+     *
+     * <p>This is the only point in the frame where the snapshot is guaranteed to hold the frame that was just
+     * rendered, on both the panel path (captureAndRestore runs before the interface) and the world-recording
+     * path (the deferred capture in onRenderAfterInterface).</p>
+     */
+    private static void recordExportFrame()
+    {
+        VideoRecorder recorder = BBSModClient.getVideoRecorder();
+
+        if (recorder != null && recorder.isRecording() && canRender)
+        {
+            recorder.recordFrame();
         }
     }
 
@@ -1065,7 +1104,17 @@ public class BBSRendering
      */
     private static void renderRecordingOverlay()
     {
-        if (!BBSSettings.recordingOverlays.get() || UIScreen.getCurrentMenu() != null)
+        /* Drawn with a BBS menu open as well. It used to bail out there, which meant the one overlay that
+         * names the stop key was hidden in precisely the state that needs it: starting an export from the film
+         * panel installs UIFilmRecorder, and the export then has to be cancelled — the film panel may be
+         * waiting on prepared frames and never reach its own completion check, so without this the recording
+         * runs until something else stops it. The keybinds cannot help either: Minecraft routes keys to the
+         * open screen, so every BBS keybind is dead until the export ends.
+         *
+         * Safe to draw here: captureAndRestore has already handed mc.framebuffer back to the client, and the
+         * menu is composited from that same target afterwards — this is the same point the recording overlay
+         * has always used. */
+        if (!BBSSettings.recordingOverlays.get())
         {
             return;
         }

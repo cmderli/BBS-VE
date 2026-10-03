@@ -12,7 +12,6 @@ import mchorse.bbs_mod.utils.StringUtils;
 import mchorse.bbs_mod.utils.WorldExportWindowSession;
 import mchorse.bbs_mod.utils.clips.Clips;
 import net.minecraft.client.Minecraft;
-import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.platform.Window;
 
 import java.io.File;
@@ -63,15 +62,12 @@ public class WorldVideoExportSession extends VideoExportSession
 
         long delayMs = (long) (Math.max(0F, BBSSettings.videoDelay.get()) * 1000F);
 
-        /* TODO(26.2): a Texture has no GL name any more. VideoExportSession's int textureId reaches
-         * VideoRecorder, which reads the frame back with glGetTexImage, so it can only be fed the
-         * OpenGL backend's own name (GlTexture#glId); an unsized snapshot answers 0. Replacing that
-         * read-back with Texture.pixelsFromTexture(Texture) is what removes the int textureId and
-         * this cast — until then this path is GL-backend-only (it breaks under Prefer Vulkan). */
+        /* The snapshot the recorder reads every frame. VideoExportSession carries it through to
+         * VideoRecorder, which reads it with Texture.pixelsFromTexture — the device-neutral path, so this
+         * works under Vulkan as well as OpenGL. */
         Texture snapshot = BBSRendering.getTexture();
-        int textureId = snapshot.gpuTexture instanceof GlTexture gl ? gl.glId() : 0;
 
-        boolean started = this.begin(textureId, size.width, size.height, delayMs);
+        boolean started = this.begin(snapshot, size.width, size.height, delayMs);
 
         if (!started)
         {

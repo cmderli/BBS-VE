@@ -1,5 +1,6 @@
 package mchorse.bbs_mod.ui.film;
 
+import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.camera.utils.TimeUtils;
 import mchorse.bbs_mod.client.BBSRendering;
@@ -9,7 +10,7 @@ import mchorse.bbs_mod.ui.framework.UIContext;
 import mchorse.bbs_mod.ui.framework.elements.UIElement;
 import mchorse.bbs_mod.ui.utils.Area;
 import mchorse.bbs_mod.ui.utils.UIUtils;
-import com.mojang.blaze3d.opengl.GlTexture;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -68,24 +69,12 @@ public class UIFilmRecorder extends UIElement
 
     public void startRecording(int duration, Texture texture)
     {
-        /* TODO(26.2): a Texture has no GL name any more. The legacy int plumbing below
-         * (PanelVideoExportSession -> VideoExportSession -> VideoRecorder -> glGetTexImage) can only
-         * be fed the OpenGL backend's own name, so that is what this asks for; an unsized texture
-         * answers 0. Replacing that read-back with Texture.pixelsFromTexture(Texture) is what removes
-         * the int textureId and this cast. */
-        int id = texture.gpuTexture instanceof GlTexture gl ? gl.glId() : 0;
-
-        this.startRecording(duration, id, texture.width, texture.height);
-    }
-
-    public void startRecording(int duration, int id, int w, int h)
-    {
         if (this.editor.isRunning() || duration <= 0)
         {
             return;
         }
 
-        this.session.start(duration, id, w, h);
+        this.session.start(duration, texture, texture.width, texture.height);
     }
 
     /**
@@ -143,7 +132,15 @@ public class UIFilmRecorder extends UIElement
         @Override
         protected boolean subKeyPressed(UIContext context)
         {
-            if (context.isPressed(GLFW.GLFW_KEY_ESCAPE))
+            /* Esc has always cancelled, and it is the only way out — see the class note on UIExit.
+             *
+             * The record key is honoured here too, because it CANNOT reach the keybind handler while a BBS
+             * screen is up: Minecraft routes key events to the screen first, so
+             * BBSModClient's `keyRecordVideo.consumeClick()` never fires. Before this, starting an export from
+             * the film panel left the user with no way to stop it — F4 was swallowed by the screen, every
+             * other keybind with it, and the only keys that still answered were the ones Minecraft itself
+             * handles while a screen is open (Esc, F2, F3). Which is exactly the reported symptom. */
+            if (context.isPressed(GLFW.GLFW_KEY_ESCAPE) || context.isPressed(KeyMappingHelper.getBoundKeyOf(BBSModClient.getKeyRecordVideo()).getValue()))
             {
                 this.recorder.cancel();
 

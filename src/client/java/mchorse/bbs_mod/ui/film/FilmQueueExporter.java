@@ -7,7 +7,6 @@ import mchorse.bbs_mod.l10n.keys.IKey;
 import mchorse.bbs_mod.ui.UIKeys;
 import mchorse.bbs_mod.ui.dashboard.panels.tabs.DataTab;
 import mchorse.bbs_mod.ui.framework.UIContext;
-import com.mojang.blaze3d.opengl.GlTexture;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -215,17 +214,9 @@ public class FilmQueueExporter
                 return;
             }
 
-            /* TODO(26.2): Texture has no GL name any more — the still-raw-GL recorder is fed the OpenGL
-             * backend's own name (see UIFilmRecorder#startRecording); Texture#pixelsFromTexture is what
-             * the read-back on the other end has to become. */
             Texture video = BBSRendering.getTexture();
 
-            recorder.startRecording(
-                duration,
-                video.gpuTexture instanceof GlTexture gl ? gl.glId() : 0,
-                BBSRendering.getVideoWidth(),
-                BBSRendering.getVideoHeight()
-            );
+            recorder.startRecording(duration, video);
 
             /* startRecording can decline silently (e.g. concurrent recording).
              * In that case our finished listener never fires, so we bail out
