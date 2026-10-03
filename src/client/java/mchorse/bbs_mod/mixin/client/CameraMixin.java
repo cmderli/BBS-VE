@@ -7,6 +7,7 @@ import mchorse.bbs_mod.items.GunZoom;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3d;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,6 +24,10 @@ public abstract class CameraMixin
     @Shadow protected abstract void setRotation(float yaw, float pitch);
     @Shadow protected abstract void setPosition(double x, double y, double z);
 
+    /** The camera's own position, as the frustum build needs it. */
+    @Shadow public abstract Vec3 position();
+
+
     @Inject(method = "update", at = @At(value = "RETURN"))
     public void onUpdate(DeltaTracker tracker, CallbackInfo ci)
     {
@@ -38,6 +43,27 @@ public abstract class CameraMixin
 
             this.setPosition(position.x, position.y, position.z);
             this.setRotation(yaw, pitch);
+
+            /* Rebuild the CULL FRUSTUM from the camera we just moved.
+             *
+             * 26.2 builds it inside this very method: alignWithEntity puts the camera on the player, then
+             * prepareCullFrustum builds a frustum from that player position and rotation - all of it
+             * before this injection runs at RETURN. Moving the camera afterwards therefore left the
+             * frustum pointing where the PLAYER was looking, and Camera#extractRenderState hands that
+             * same frustum to the level extractor, which is what chooses the visible sections. The film
+             * editor then drew only the wedge of terrain inside the player's first-person view and the
+             * rest of the film camera's view came out as empty sky.
+             *
+             * Rebuilt out of the engine's own two pieces - the culling projection it just used and the
+             * view rotation of the camera as it stands now - so nothing else about the frame changes.
+             * Going through prepareCullFrustum also keeps the ortho widening this class hooks on it. */
+            CameraInvoker invoker = (CameraInvoker) (Object) this;
+
+            invoker.bbs$prepareCullFrustum(
+                invoker.bbs$getViewRotationMatrix(new Matrix4f()),
+                invoker.bbs$createProjectionMatrixForCulling(),
+                this.position()
+            );
         }
     }
 

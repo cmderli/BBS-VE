@@ -1208,12 +1208,20 @@ public class BBSRendering
                      * that matters (a film editor is open) rather than on a bare frame counter, so it cannot
                      * run out before the editor is ever reached. */
                     boolean dumpWanted = Boolean.getBoolean("bbs.dumpSnapshot") && filmPanelShowing();
+
+                    /* One dump per editor session: leaving the film panel re-arms it, so the same build can
+                     * be measured again after moving the camera. */
+                    if (!filmPanelShowing())
+                    {
+                        dumpFrames = 0;
+                    }
+
                     boolean dump = dumpWanted && dumpFrames < 3;
 
                     if (dumpWanted && dumpFrames == 3)
                     {
                         dumpFrames = 4;
-                        System.out.println("[BBS dump] three frames dumped; further dumps off");
+                        System.out.println("[BBS dump] three frames dumped; re-open the film panel to dump again");
                     }
 
                     if (dump)
