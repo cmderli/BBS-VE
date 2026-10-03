@@ -464,6 +464,29 @@ public class BBSRendering
         }
         else
         {
+            /* Give the client's own target the window's real size back before re-binding it.
+             *
+             * BBS binds Window.getWidth/getHeight to the EXPORT size while the world renders, and vanilla creates
+             * and resizes its main render target from exactly those two calls. The client target is therefore
+             * born at the export size and never grows back on its own, because nothing calls
+             * Screen.resize/Window.setGuiScale for it. Measured with a probe on GameRenderer.mainRenderTarget:
+             * every single hand-out was 854x480 while the window was 2560x1350.
+             *
+             * The interface is then extracted into that export-sized target - which is why the dashboard occupied
+             * a block in the top-left at exactly the export width, why ui_scale 1 made the components bigger
+             * inside the block without growing the block, and why clicks only landed at the full-screen position:
+             * the layout and the hit test use the window, the pixels only ever reached the smaller target. */
+            if (clientFramebuffer != null)
+            {
+                int w = mc.getWindow().getWidth();
+                int h = mc.getWindow().getHeight();
+
+                if (clientFramebuffer.width != w || clientFramebuffer.height != h)
+                {
+                    clientFramebuffer.resize(w, h);
+                }
+            }
+
             reassignFramebuffer(clientFramebuffer);
 
             if (width != 0)
