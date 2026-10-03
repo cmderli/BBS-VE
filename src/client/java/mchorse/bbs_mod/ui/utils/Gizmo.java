@@ -444,7 +444,7 @@ public class Gizmo
             pass.setUniform("DynamicTransforms", dynamicTransforms);
             pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
+            pass.drawIndexed(buffer.drawState().indexCount(), 1, 0, 0, 0);
         }
         finally
         {

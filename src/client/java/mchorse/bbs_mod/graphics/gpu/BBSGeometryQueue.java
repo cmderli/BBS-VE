@@ -166,7 +166,13 @@ public class BBSGeometryQueue implements AutoCloseable
 
         pass.setVertexBuffer(0, info.vertexBuffer().slice());
         pass.setIndexBuffer(info.indexBuffer(), info.indexType());
-        pass.drawIndexed(info.baseVertex(), info.firstIndex(), info.indexCount(), 1, 0);
+
+        /* 26.2's order is drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance); the
+         * 1.21.11 order was (baseVertex, firstIndex, indexCount, instanceCount). Handing the engine the old
+         * one makes it read baseVertex as the index count - and baseVertex is normally 0, so the usual
+         * result is a draw of nothing at all, issued without an error from a pass that still opens, binds
+         * and closes. See ScreenQuadPass#draw for the same correction. */
+        pass.drawIndexed(info.indexCount(), 1, info.firstIndex(), info.baseVertex(), 0);
     }
 
     /** Rewind the staging ring. Call once per frame, after the frame's last pass has closed. */

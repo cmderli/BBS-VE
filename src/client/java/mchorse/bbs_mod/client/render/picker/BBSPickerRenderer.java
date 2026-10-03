@@ -399,7 +399,7 @@ public class BBSPickerRenderer
             pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.bindTexture("Sampler0", sampler0View, sampler0);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
+            pass.drawIndexed(buffer.drawState().indexCount(), 1, 0, 0, 0);
         }
         finally
         {
@@ -478,7 +478,7 @@ public class BBSPickerRenderer
             pass.setUniform("DynamicTransforms", dynamicTransforms);
             pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
+            pass.drawIndexed(buffer.drawState().indexCount(), 1, 0, 0, 0);
         }
         finally
         {
@@ -629,7 +629,7 @@ public class BBSPickerRenderer
             pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.bindTexture("Sampler0", source, pickSampler);
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
+            pass.drawIndexed(buffer.drawState().indexCount(), 1, 0, 0, 0);
         }
         finally
         {
@@ -701,7 +701,7 @@ public class BBSPickerRenderer
                 pass.setUniform("DynamicTransforms", dynamicTransforms);
                 pass.setVertexBuffer(0, vertexBuffer.slice());
                 pass.setIndexBuffer(indexBuffer, indexType);
-                pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
+                pass.drawIndexed(buffer.drawState().indexCount(), 1, 0, 0, 0);
             }
             finally
             {

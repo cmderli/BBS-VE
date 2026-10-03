@@ -261,7 +261,16 @@ public class ScreenQuadPass
 
             pass.setVertexBuffer(0, vertexBuffer.slice());
             pass.setIndexBuffer(indexBuffer, indexType);
-            pass.drawIndexed(0, 0, buffer.drawState().indexCount(), 1, 0);
+
+            /* drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance).
+             *
+             * The argument ORDER is the 26.2 one, and it is not the 1.21.11 one
+             * (baseVertex, firstIndex, indexCount, instanceCount) that this call was ported from. Passing
+             * the old order here means the engine reads the first argument as indexCount - which was the
+             * literal 0 - so the draw is issued with nothing to draw. It does not fail, it does not warn,
+             * and the pass still opens, binds and closes: the target is simply left exactly as it was.
+             * That is why the film snapshot stayed a zeroed texture, and with it the film preview. */
+            pass.drawIndexed(buffer.drawState().indexCount(), 1, 0, 0, 0);
         }
         finally
         {
