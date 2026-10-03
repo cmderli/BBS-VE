@@ -1043,6 +1043,16 @@ public class BBSRendering
                 int w = getVideoWidth();
                 int h = getVideoHeight();
 
+                if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 60 == 0)
+                {
+                    System.out.println("[BBS snap] texBefore=" + texture.width + "x" + texture.height
+                        + " want=" + w + "x" + h
+                        + " fb=" + framebuffer.width + "x" + framebuffer.height
+                        + " stored=" + width + "/" + height
+                        + " valid=" + texture.isValid()
+                        + " menu=" + menuOpen);
+                }
+
 
                 if (texture.width != w || texture.height != h)
                 {
@@ -1058,6 +1068,13 @@ public class BBSRendering
                 if (!Boolean.getBoolean("bbs.skipSnapshot"))
                 {
                     blitIntoSnapshot(texture, w, h);
+
+                    if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 60 == 0)
+                    {
+                        System.out.println("[BBS snap] texAfter=" + texture.width + "x" + texture.height
+                            + " valid=" + texture.isValid()
+                            + " view=" + (texture.view() != null));
+                    }
                 }
 
                 /* AFTER the capture — the blit reads framebuffer — and still BEFORE the interface draws.
