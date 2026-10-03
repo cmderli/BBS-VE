@@ -220,6 +220,11 @@ public final class BBSRenderPipelines
         return Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/" + name);
     }
 
+    /* The vertex shaders vanilla's own interface pipelines draw with. Named here because the
+     * snippets do not all carry them — see the pixel-art section below. */
+    private static final String VANILLA_GUI_TEXTURED_VERTEX = "core/position_tex_color";
+    private static final String VANILLA_GUI_TEXT_VERTEX = "core/text";
+
     /* ---- pixel-art seam smoothing ----
      *
      * These are vanilla's own interface pipelines with only the fragment shader swapped, which is
@@ -229,19 +234,30 @@ public final class BBSRenderPipelines
      *
      * 26.2 makes that expressible through a {@link RenderPipeline.Snippet}, and the snippet fields
      * are private in vanilla — reachable only because Fabric API's
-     * `fabric-transitive-access-wideners-v1` module widens `RenderPipelines.*_SNIPPET` for every
-     * mod. That is verified, not assumed: a pipeline built from `RenderPipelines.ENTITY_SNIPPET`
-     * compiles on this project's own compile classpath. This is the safer of the two ways to define
-     * a pipeline, because a snippet cannot disagree with vanilla about which bind groups the shader
-     * is compiled against. */
+     * `fabric-transitive-access-wideners-v1` module widens `RenderPipelines.*_SNIPPET` for every mod.
+     *
+     * The snippets are NOT uniform about the vertex shader, and that is the trap here. Vanilla's
+     * {@code GUI_TEXTURED_SNIPPET} does carry one (it is built with `core/position_tex_color`), so a
+     * pipeline that starts from it and sets only the fragment shader is complete. Vanilla's
+     * {@code GUI_TEXT_SNIPPET} does not: it is `TEXT_SNIPPET` (which has no shader either) plus the
+     * `IS_GUI` define and an empty depth state. Vanilla's own {@code GUI_TEXT} pipeline therefore
+     * names both shaders explicitly, and so must this one — without a vertex shader,
+     * {@code RenderPipeline.Builder.build()} throws {@code IllegalStateException: Missing vertex
+     * shader}, which as a static initializer failure takes the whole class down and with it every
+     * interface draw that used a pixel-art pipeline.
+     *
+     * Both shaders are named explicitly below even where the snippet already provides one, so that
+     * neither site depends on which snippet happens to carry what. */
     public static final RenderPipeline PIXEL_ART = RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
         .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/pixelart"))
+        .withVertexShader(VANILLA_GUI_TEXTURED_VERTEX)
         .withFragmentShader(shader("pixelart"))
         .build();
 
-    /** The same, for the interface's text: vanilla's vertex shader, BBS's fragment. */
+    /** The same, for the interface's text: vanilla's text vertex shader, BBS's fragment. */
     public static final RenderPipeline PIXEL_ART_TEXT = RenderPipeline.builder(RenderPipelines.GUI_TEXT_SNIPPET)
         .withLocation(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "pipeline/pixelart_text"))
+        .withVertexShader(VANILLA_GUI_TEXT_VERTEX)
         .withFragmentShader(shader("pixelart_text"))
         .build();
 

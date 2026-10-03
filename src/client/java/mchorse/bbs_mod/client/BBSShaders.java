@@ -864,8 +864,23 @@ public class BBSShaders
             .withFragmentShader(Identifier.fromNamespaceAndPath(BBSMod.MOD_ID, "core/" + name))
             .withPolygonMode(prototype.getPolygonMode())
             .withCull(prototype.isCull())
-            .withPrimitiveTopology(prototype.getPrimitiveTopology())
-            .withDepthStencilState(prototype.getDepthStencilState());
+            .withPrimitiveTopology(prototype.getPrimitiveTopology());
+
+        /* A prototype may have no depth state at all, and "no depth state" is not null to the builder:
+         * the DepthStencilState overload wraps its argument in Optional.of, so passing a null throws
+         * NullPointerException inside Optional.of. Vanilla's own gui_text has none — it is built with
+         * the Optional overload and Optional.empty — and this is a static initializer, so that single
+         * null took PixelArt and every pixel-art interface draw down with it. */
+        DepthStencilState depth = prototype.getDepthStencilState();
+
+        if (depth != null)
+        {
+            builder.withDepthStencilState(depth);
+        }
+        else
+        {
+            builder.withDepthStencilState(Optional.empty());
+        }
 
         /* The 1.21.11 builder exposed the prototype's blend/sampler/uniform lists as getters; 26.2
          * keeps them in the colour target states and the bind group layouts, which is what has to be

@@ -20,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Inject BBS's own {@link SpecialGuiElementRenderer} into the otherwise-CLOSED special-element registry.
@@ -33,6 +34,9 @@ import java.util.List;
 @Mixin(GuiRenderer.class)
 public class GuiRendererMixin
 {
+    /** One-shot guard for the opt-in scissor diagnostic (see {@code -Dbbs.debugScissor=true}). */
+    private static final AtomicBoolean WARNED = new AtomicBoolean();
+
     @ModifyVariable(method = "<init>", at = @At("HEAD"), argsOnly = true)
     private static List<PictureInPictureRenderer<?>> bbs$addBbsRenderers(List<PictureInPictureRenderer<?>> original)
     {
@@ -110,11 +114,68 @@ public class GuiRendererMixin
 
         /* Vanilla's own arithmetic with a float scale: bottom-left origin, and a rect that rounds down
          * to nothing still clamps to zero rather than going negative. */
-        pass.enableScissor(
-            (int) (rect.left() * scale),
-            (int) (height - rect.bottom() * scale),
-            Math.max(0, (int) (rect.width() * scale)),
-            Math.max(0, (int) (rect.height() * scale)));
+        int x = (int) (rect.left() * scale);
+        int y = (int) (height - rect.bottom() * scale);
+        int w = Math.max(0, (int) (rect.width() * scale));
+        int h = Math.max(0, (int) (rect.height() * scale));
+
+        /* Clip the rectangle to the pass's own render area, which is the only bound that matters.
+         *
+         * Under GL this was free: an oversized scissor rectangle was silently clipped by the driver, so
+         * the interface could hand over whatever it liked. 26.2's backend validates instead, and
+         * RenderPass#enableScissor throws "Scissor at 0, 40 with size 854x404 is out of bounds for
+         * render area RenderArea[x=0, y=0, width=504, height=248]" — from inside the GUI pass, so the
+         * whole frame dies.
+         *
+         * The window is NOT the right bound here, which is why vanilla's own two Math.min calls against
+         * it are not enough. While a BBS editor is open canReplaceFramebuffer() is false, so the Window
+         * reports the real window size (854x480) and the ordinary GUI scale (2.0), while the pass draws
+         * into the film preview block set by setCustomSize (504x248). Reading the render area off the
+         * pass removes the guesswork: it is the bound the backend itself will enforce, and it is not a
+         * fixed size. */
+        RenderPass.RenderArea area = pass.renderArea;
+        int areaX = area.x();
+        int areaY = area.y();
+        int areaMaxX = areaX + area.width();
+        int areaMaxY = areaY + area.height();
+
+        int minX = Math.max(areaX, x);
+        int minY = Math.max(areaY, y);
+        int maxX = Math.min(areaMaxX, x + w);
+        int maxY = Math.min(areaMaxY, y + h);
+
+        x = minX;
+        y = minY;
+        w = Math.max(0, maxX - minX);
+        h = Math.max(0, maxY - minY);
+
+        /* An empty intersection has to reach the backend rather than the public method: the public one
+         * rejects a zero size outright ("Scissor size must be >0, was 504x0"), and so does vanilla's own
+         * version, so there is no safe fallback to it — its scaling is the thing that was wrong to begin
+         * with. The backends take an empty scissor and Vulkan reads it as "clip everything", which is
+         * exactly what a clip rectangle lying entirely outside the render area means: this draw can show
+         * nothing. Both calls were widened in bbs.accesswidener. */
+        if (w <= 0 || h <= 0)
+        {
+            pass.backend.enableScissor(areaX, areaY, 0, 0);
+
+            info.cancel();
+
+            return;
+        }
+
+        /* Off by default. Which space this rectangle arrives in is not fully settled (see
+         * bbs$scale()), and the clip above is what keeps it safe either way — so the numbers are worth
+         * being able to print, but not worth printing on every launch. */
+        if (Boolean.getBoolean("bbs.debugScissor") && WARNED.compareAndSet(false, true))
+        {
+            System.out.println("[BBS scissor] scale=" + scale
+                + " area=" + areaX + "," + areaY + " " + area.width() + "x" + area.height()
+                + " rect=" + rect.left() + "," + rect.bottom() + " " + rect.width() + "x" + rect.height()
+                + " -> scissor=" + x + "," + y + " " + w + "x" + h);
+        }
+
+        pass.enableScissor(x, y, w, h);
 
         info.cancel();
     }

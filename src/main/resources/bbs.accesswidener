@@ -133,3 +133,14 @@ accessible field net/minecraft/world/entity/Avatar DATA_PLAYER_MODE_CUSTOMISATIO
 # ClientPlayerEntityFilmSneakMixin reads the raw id: Entity#getId() throws while the id is
 # still unassigned in 26.2, and that hook runs on the main menu render path.
 accessible field net/minecraft/world/entity/Entity id I
+
+# GuiRendererMixin has to clamp its scissor rectangle to the pass's real render area. The public
+# RenderPass#enableScissor both rejects a rectangle outside that area and rejects an empty one, so the
+# mixin needs the bounds (and, for an empty clip, the backend) rather than a guess. The area is not a
+# fixed size: it shrinks to the film preview block while a BBS editor is open.
+accessible field com/mojang/blaze3d/systems/RenderPass renderArea Lcom/mojang/blaze3d/systems/RenderPass$RenderArea;
+accessible field com/mojang/blaze3d/systems/RenderPass backend Lcom/mojang/blaze3d/systems/RenderPassBackend;
+# The backend's scissor entry point, so an empty clip can be turned into a genuinely empty scissor:
+# the public RenderPass#enableScissor rejects a zero size, but the backends accept it and Vulkan treats
+# it as "clip everything", which is what an off-screen clip rectangle means.
+accessible method com/mojang/blaze3d/systems/RenderPassBackend enableScissor (IIII)V
