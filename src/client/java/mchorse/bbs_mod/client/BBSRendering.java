@@ -4,6 +4,7 @@ import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import mchorse.bbs_mod.graphics.InverseView;
+import mchorse.bbs_mod.graphics.gpu.BBSGpu;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.BBSSettings;
@@ -764,8 +765,43 @@ public class BBSRendering
         }
     }
 
+    /**
+     * Whether the GL-only snapshot path has already complained. It is reached once per frame while a
+     * film panel is open, so the message must not repeat.
+     */
+    private static boolean snapshotUnsupportedWarned;
+
     private static void captureAndRestore()
     {
+        /* This whole path is raw OpenGL and there is no GL context on the Vulkan backend, so calling it
+         * there is not a wrong picture — it is a native crash with no Java stack and no crash report.
+         * That is exactly how "press 0 in a world" died: HMCL launches with --graphicsBackend vulkan,
+         * opening the dashboard builds the film panel, and the panel's preview asks for this snapshot.
+         *
+         * blitIntoSnapshot is one of the GL-backend-only sites listed in the port document (§6.2): it
+         * binds its own FBOs through GL30, casts the colour attachment to GlTexture for its name, and
+         * reads GL state with glGetInteger/glGetBooleanv. None of that has a meaning on Vulkan.
+         *
+         * So skip it and say so once. The honest cost: on Vulkan the film preview and the video export
+         * have no snapshot to show or write, so those two features stay unavailable until this is ported
+         * (the replacement is a render-pass blit, or a pixelsFromTexture round-trip like the read-back
+         * paths in §6.2). Failing that way is strictly better than taking the game down. */
+        if (BBSGpu.isVulkan())
+        {
+            if (!snapshotUnsupportedWarned)
+            {
+                snapshotUnsupportedWarned = true;
+
+                LOGGER.warn("[BBS film] The film snapshot needs OpenGL and this client runs the Vulkan backend"
+                    + " ({}); the preview and the video export will be empty. Set Graphics API to prefer"
+                    + " OpenGL, or port BBSRendering.blitIntoSnapshot off raw GL.", BBSGpu.backend());
+            }
+
+            toggleFramebuffer(false);
+
+            return;
+        }
+
         /* Snapshot only when we actually redirected the world into our framebuffer this frame (film panel
          * open / recording). Outside that, mc.framebuffer was never swapped, so our framebuffer holds nothing
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
