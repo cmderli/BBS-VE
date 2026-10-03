@@ -38,7 +38,7 @@ public class VideoRecorder
     private WritableByteChannel channel;
     private boolean recording;
 
-    /** Reused 3-byte-per-pixel scratch buffer; ffmpeg is fed bgr24. */
+    /** Reused 4-byte-per-pixel scratch buffer; ffmpeg is fed rgba, the engine's read-back format. */
     private ByteBuffer buffer;
 
     /** The capture target the export reads every frame, or null when not recording. */
@@ -79,9 +79,9 @@ public class VideoRecorder
         this.textureWidth = width;
         this.textureHeight = height;
 
-        int size = width * height * 3;
+        int size = width * height * 4;
 
-        /* Exactly width * height * 3, the bgr24 frame ffmpeg is told to expect. A recording that never
+        /* Exactly width * height * 4, the RGBA frame ffmpeg is told to expect. A recording that never
          * reached stopRecording leaves the previous buffer here, so a stale size is dropped rather than
          * reused - writing a larger frame into it would run off the end. */
         if (this.buffer != null && this.buffer.capacity() != size)
@@ -300,9 +300,9 @@ public class VideoRecorder
      * encoder's completion callback, which is the engine's own read-back and works on Vulkan and OpenGL
      * alike, so there is no longer a platform split.</p>
      *
-     * <p>ffmpeg is fed {@code bgr24} (see {@code BBSSettings.DEFAULT_FFMPEG_ARGUMENTS}, and the format is
-     * user-editable), while the read-back is RGBA8, so the pixels are swizzled here. Keeping the pipe format
-     * rather than switching ffmpeg to rgba means an existing user's saved arguments keep working.</p>
+     * <p>ffmpeg is fed {@code rgba}, matching the read-back, so no conversion happens here. A user whose saved
+     * settings still say {@code -pix_fmt bgr24} must change that to {@code rgba} — the recorder reports the
+     * mismatch once rather than producing colour-swapped footage silently.</p>
      */
     public void recordFrame()
     {
@@ -318,7 +318,7 @@ public class VideoRecorder
     }
 
     /**
-     * Read the capture target back and hand it to ffmpeg as one bgr24 frame.
+     * Read the capture target back and hand it to ffmpeg as one RGBA frame.
      *
      * @return whether a frame was actually written
      */
@@ -359,21 +359,20 @@ public class VideoRecorder
             ByteBuffer source = pixels.getBuffer();
             ByteBuffer target = this.buffer;
 
+            /* Fed to ffmpeg AS-IS. The read-back is RGBA8 and ffmpeg is told rgba, so there is no per-pixel
+             * work here at all - one bulk copy.
+             *
+             * There used to be an RGBA -> BGR swizzle for the old bgr24 pipe, and it was a mistake to keep:
+             * on a 2560x1350 recording it ran four direct-ByteBuffer get/put calls per pixel - about fourteen
+             * million bound-checked calls per frame - on top of the read-back's blocking GPU wait. The frame
+             * loop could not keep up, so the game appeared to freeze: no frames advanced and therefore no
+             * ticks ran. Hence the format change rather than an optimisation of the loop.
+             *
+             * Rows stay in order: the texture's row 0 is the top, and the ffmpeg filter chain starts with
+             * vflip to match the bottom-up frames the old GL read-back produced. */
             target.clear();
             source.rewind();
-
-            /* RGBA -> BGR. Rows are copied in order: the texture's row 0 is the top, and the ffmpeg filter
-             * chain already starts with vflip to match the bottom-up frames the old GL read-back produced. */
-            int count = this.textureWidth * this.textureHeight;
-
-            for (int i = 0; i < count; i++)
-            {
-                target.put(source.get());
-                target.put(source.get());
-                target.put(source.get());
-                source.get();
-            }
-
+            target.put(source);
             target.flip();
 
             try

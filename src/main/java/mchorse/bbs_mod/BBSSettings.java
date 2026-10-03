@@ -34,8 +34,8 @@ import mchorse.bbs_mod.utils.keyframes.KeyframeStyle;
 
 public class BBSSettings {
 
-	public static final String DEFAULT_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt bgr24 -s %WIDTH%x%HEIGHT% -r %FPS% -i - -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p %NAME%.mp4";
-	public static final String DEFAULT_AUDIO_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt bgr24 -s %WIDTH%x%HEIGHT% -r %FPS% -i - -i %AUDIO_TRACK% -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest %NAME%.mp4";
+	public static final String DEFAULT_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt rgba -s %WIDTH%x%HEIGHT% -r %FPS% -i - -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p %NAME%.mp4";
+	public static final String DEFAULT_AUDIO_FFMPEG_ARGUMENTS = "-f rawvideo -pix_fmt rgba -s %WIDTH%x%HEIGHT% -r %FPS% -i - -i %AUDIO_TRACK% -vf %FILTERS% -c:v libx264 -preset ultrafast -tune zerolatency -qp 18 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest %NAME%.mp4";
 	public static final String DEFAULT_MUX_FFMPEG_ARGUMENTS = "-y -i %VIDEO% -i %AUDIO_TRACK% -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -shortest %NAME%.mp4";
 
 	public static ValueColors favoriteColors;
@@ -871,6 +871,16 @@ public class BBSSettings {
 		videoArgumentsAudio = builder.getString("arguments_audio", DEFAULT_AUDIO_FFMPEG_ARGUMENTS);
 		videoArgumentsMux = builder.getString("arguments_mux", DEFAULT_MUX_FFMPEG_ARGUMENTS);
 
+		/* Migrate a saved bgr24 pipe to rgba.
+		 *
+		 * The recorder used to convert every frame to BGR for ffmpeg, and that per-pixel loop over a
+		 * direct ByteBuffer - four bound-checked calls per pixel, millions per frame - is what starved
+		 * the frame loop and froze the game. The read-back is RGBA8, so the frame now goes to ffmpeg
+		 * untouched and the pipe has to say rgba. Without this, an existing settings file keeps bgr24
+		 * and the video comes out with red and blue swapped. */
+		videoArguments = migrateBgr24ToRgba(videoArguments);
+		videoArgumentsAudio = migrateBgr24ToRgba(videoArgumentsAudio);
+
 		builder.category("audio", Icons.SOUND);
 		audioWaveformVisibleInPreview = builder.getBoolean("waveform_visible_preview", true);
 		audioWaveformVisibleInKeyframes = builder.getBoolean("waveform_visible_keyframes", true);
@@ -896,5 +906,30 @@ public class BBSSettings {
 		damageControl = builder.getBoolean("damage_control", true);
 		shaderCurvesEnabled = builder.getBoolean("shader_curves", true);
 		entitySelectorsPropertyWhitelist = builder.getString("entity_selectors_whitelist", "CustomName,Name");
+	}
+
+	/**
+	 * Rewrite a saved {@code -pix_fmt bgr24} to {@code rgba} (see the call site for why).
+	 *
+	 * <p>Only touches the raw-video INPUT format: a user may legitimately have other {@code -pix_fmt}
+	 * occurrences (the encoder's output format, for instance), and those must not change.</p>
+	 */
+	private static ValueString migrateBgr24ToRgba(ValueString value)
+	{
+		String current = value.get();
+
+		if (current == null || !current.contains("rawvideo"))
+		{
+			return value;
+		}
+
+		String migrated = current.replace("-pix_fmt bgr24", "-pix_fmt rgba");
+
+		if (!migrated.equals(current))
+		{
+			value.set(migrated);
+		}
+
+		return value;
 	}
 }
