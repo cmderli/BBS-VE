@@ -2,6 +2,7 @@ package mchorse.bbs_mod.client;
 
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
+import org.joml.Vector4f;
 import mchorse.bbs_mod.graphics.InverseView;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
@@ -269,10 +270,18 @@ public class BBSRendering
         if (texture == null)
         {
             texture = new Texture();
-            /* RGB8 (no alpha) on purpose: the world framebuffer's sky/cleared regions carry a non-opaque alpha
-             * that, if preserved, would make the sky show through as the panel background in the preview blit
-             * (GUI_TEXTURED multiplies texel alpha). Capturing into RGB8 drops it so the preview stays opaque. */
-            texture.setFormat(TextureFormat.RGB_U8);
+            /* RGBA8, with the alpha dealt with at capture time instead of by the format.
+             *
+             * The reason for wanting no alpha has not changed: the world framebuffer's sky/cleared regions carry
+             * a non-opaque alpha that, if preserved, shows through as the panel background in the preview blit
+             * (GUI_TEXTURED multiplies texel alpha). That used to be free, because an RGB8 texture has no alpha
+             * to preserve.
+             *
+             * 26.2 removed that option: GlDevice.createTexture rejects RGB8 ("RGB8_UNORM format cannot be used
+             * to create textures"), because the GL internal/external/type triple GlConst builds for it is not a
+             * combination glTexImage2D accepts. The alpha is therefore forced opaque by the blit itself — see
+             * blitIntoSnapshot. */
+            texture.setFormat(TextureFormat.RGBA_U8);
             texture.setFilter(GL11.GL_NEAREST);
         }
 
@@ -669,8 +678,13 @@ public class BBSRendering
      * <p>1.21.11: {@code Framebuffer.beginWrite()} was removed, so neither end of the blit is bound for us. Both
      * get a private FBO here — the framebuffer's colour attachment as the read source, the snapshot texture as
      * the draw target. The bindings are saved and restored; the modern pipeline rebinds its render-pass targets
-     * afterwards, so this stays isolated. The snapshot being RGB8 (see {@link #getTexture()}) drops the
-     * framebuffer's non-opaque sky alpha along the way, which is what keeps the preview opaque.</p>
+     * afterwards, so this stays isolated.</p>
+     *
+     * <p>The framebuffer's non-opaque sky alpha has to be dropped, or the sky shows through as the panel
+     * background in the preview (the preview blits through GUI_TEXTURED, which multiplies texel alpha). 1.21.1
+     * got that for free from an RGB8 snapshot; 26.2 cannot create an RGB8 texture at all (see
+     * {@link #getTexture()}), so the alpha is pinned here in two steps: clear the destination's alpha to 1, then
+     * blit with the alpha channel masked out so only RGB is copied over it.</p>
      *
      * <p>Unlike a copy, a blit is clipped by the scissor box and filtered through the colour write mask, and at
      * this point in the frame both belong to whoever drew last. They are neutralised around the blit and put back
@@ -708,7 +722,15 @@ public class BBSRendering
             GlStateManager._disableScissorTest();
         }
 
-        GlStateManager._colorMask(0xF);
+        /* Pin the destination's alpha to 1 before copying any colour into it. Only the alpha channel is
+         * writable for the clear, so the RGB already in the snapshot is left alone — it is about to be
+         * overwritten by the blit anyway, but a blit never writes outside its destination rect and this
+         * keeps the two steps independent. */
+        GlStateManager._colorMask(0x8);
+        GlStateManager._clearBuffer(GL11.GL_COLOR, new Vector4f(0F, 0F, 0F, 1F));
+
+        /* And then copy RGB only, so the source's sky alpha cannot land on the 1 that was just written. */
+        GlStateManager._colorMask(0x7);
 
         /* GL_LINEAR only where it actually resamples: at 1:1 — every display that is not HiDPI — a nearest
          * blit is the same copy the snapshot has always been. */
