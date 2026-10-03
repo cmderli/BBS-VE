@@ -110,7 +110,16 @@ public class VideoRecorder
             String params = audioFile == null
                 ? BBSSettings.videoArguments.get()
                 : BBSSettings.videoArgumentsAudio.get();
-            StringBuilder filters = new StringBuilder("vflip");
+            /* No vflip: the frames are fed top-down. The read-back (Texture#pixelsFromTexture) returns the
+             * snapshot's first row first, and that row is the TOP of the frame on both backends - the
+             * snapshot is filled by a device-neutral pass (BBSRendering#blitIntoSnapshot) that samples the
+             * framebuffer with v=0 at its first row. vflip was here for the 1.21.1 raw-GL read-back, whose
+             * rows came out bottom-up; keeping it flipped every exported video upside down.
+             *
+             * "null" rather than an empty filter chain: %FILTERS% is substituted into an argument list that
+             * ends with `-vf %FILTERS% -c:v ...`, so an empty expansion would hand the encoder's own flags
+             * to -vf as the filter string. */
+            StringBuilder filters = new StringBuilder("null");
             float frameRate = (float) BBSRendering.getVideoFrameRate();
 
             int motionBlur = BBSRendering.getMotionBlur();

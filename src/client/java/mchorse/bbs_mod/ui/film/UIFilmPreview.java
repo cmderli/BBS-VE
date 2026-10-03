@@ -470,7 +470,16 @@ public class UIFilmPreview extends UIElement
 
         if (texture != null)
         {
-            context.batcher.texturedBox(texture, Colors.WHITE, area.x, area.y, area.w, area.h, 0, texture.height, texture.width, 0, texture.width, texture.height);
+            /* Upright: v1=0 at the top of the block, v2=height at the bottom.
+             *
+             * The flip that used to be here (v1=height, v2=0) is the 1.21.1 convention, where the snapshot
+             * was filled by a raw GL blit and read back with glGetTexImage — both bottom-up, so the preview
+             * had to flip to stand it up. 26.2's snapshot is filled by a device-neutral pass that samples the
+             * framebuffer's colour texture with v=0 at its first row, and read back through
+             * copyTextureToBuffer, which returns that same row first — so the snapshot is stored with row 0
+             * at the TOP of the frame on both backends, and the old flip displayed it upside down. */
+            context.batcher.texturedBox(texture, Colors.WHITE, area.x, area.y, area.w, area.h,
+                0, 0, texture.width, texture.height, texture.width, texture.height);
         }
 
         this.hud.begin(area);

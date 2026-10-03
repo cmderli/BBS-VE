@@ -76,6 +76,7 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 
@@ -769,6 +770,28 @@ public class BBSRendering
         }
 
         renderingWorld = false;
+
+        /* An open editor takes its snapshot HERE, at the end of the world render.
+         *
+         * This is the only point in a 26.2 frame that is both after the world has landed in our framebuffer
+         * and before the interface is composited into it — and both halves matter:
+         *
+         * - AFTER the world, because the preview must show the frame the film camera just rendered. The hook
+         *   that used to do this for the editor (onRenderBeforeScreen, from the HUD's extract) runs in the
+         *   EXTRACT phase, which 26.2 places BEFORE the world render (Minecraft.renderFrame calls
+         *   GameRenderer.extract, then GameRenderer.render). Measuring the snapshot there produced the
+         *   editor's own interface - world plus dashboard of the previous frame - because the interface is
+         *   drawn into our framebuffer at the end of the frame and nothing had swapped it back yet.
+         * - BEFORE the interface, because the panel preview is the world only; letting the dashboard be
+         *   composited into the export target and then copying it would put the editor inside its own preview.
+         *
+         * The restore that keeps the interface out rides along: captureAndRestore ends with
+         * toggleFramebuffer(false), so the GUI phase draws (and the frame is presented) from the window
+         * framebuffer, at window size, exactly as onRenderBeforeScreen used to arrange one phase later. */
+        if (customSize && UIScreen.getCurrentMenu() != null)
+        {
+            captureAndRestore();
+        }
     }
 
     public static void onRenderBeforeScreen()
@@ -800,8 +823,14 @@ public class BBSRendering
          * out at already follows (see canReplaceFramebuffer).
          *
          * With a BBS menu open the interface must NOT land in the export framebuffer: the film panel draws
-         * its own UI at window size and blits the preview texture into it, so that path captures and restores
-         * right here, before the interface is composited. */
+         * its own UI at window size and blits the preview texture into it. That capture is taken at the end
+         * of the world render instead — see onWorldRenderEnd — because this hook is in the extract phase,
+         * which runs BEFORE the world render and therefore one whole frame too early. */
+        if (customSize && UIScreen.getCurrentMenu() != null)
+        {
+            return;
+        }
+
         if (customSize && UIScreen.getCurrentMenu() == null)
         {
             deferredCapture = true;
@@ -921,6 +950,14 @@ public class BBSRendering
             ? BBSGpu.nearestSampler()
             : BBSGpu.linearSampler();
 
+        /* -Dbbs.debugSnapshot=true reports what went into the blit and what came out of it, once per frame.
+         * Silence here is not evidence: the line is printed whether or not anything else is. */
+        if (Boolean.getBoolean("bbs.debugSnapshot"))
+        {
+            System.out.println("[BBS blit] target=" + w + "x" + h + " source=" + framebuffer.width + "x"
+                + framebuffer.height + " sampler=" + (sampler == BBSGpu.nearestSampler() ? "nearest" : "linear"));
+        }
+
         ScreenQuadPass.Quad quad = new ScreenQuadPass.Quad(BBSRenderPipelines.BLIT, texture.view(), w, h)
             .rect(0F, 0F, w, h)
             .uv(0F, 0F, 1F, 1F)
@@ -1034,7 +1071,19 @@ public class BBSRendering
 
         java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
 
-        BBSGpu.encoder().copyTextureToBuffer(texture, buffer, 0, latch::countDown, 0);
+        /* One submit is NOT enough on Vulkan - the completion callback is delivered by the backend's
+         * destruction queue, which only runs on a later submit, so blocking right after the first one
+         * guarantees the timeout. See BBSGpu#submitAndAwait. */
+        CommandEncoder encoder = BBSGpu.encoder();
+
+        encoder.copyTextureToBuffer(texture, buffer, 0, latch::countDown, 0);
+
+        if (!BBSGpu.submitAndAwait(encoder, latch, 5000))
+        {
+            System.out.println("[BBS px] " + what + ": read-back timed out");
+
+            return;
+        }
 
         try
         {
@@ -1067,6 +1116,101 @@ public class BBSRendering
         {
             buffer.close();
         }
+    }
+
+    /**
+     * Diagnostic: write a whole texture out as raw RGBA8 rows (top row first) plus a one-line report, so the
+     * film snapshot and the framebuffer it is blitted from can be LOOKED at instead of inferred.
+     *
+     * <p>Enabled with {@code -Dbbs.dumpSnapshot=true}. Every attempt reports, success or failure, because a
+     * probe that prints nothing is not evidence (see the investigation notes).</p>
+     *
+     * <p>Read a dump with, e.g.,
+     * {@code ffmpeg -f rawvideo -pix_fmt rgba -s 1514x426 -i /tmp/bbs-snapshot-3.raw /tmp/bbs-snapshot-3.png}.</p>
+     */
+    private static void dbgDumpTexture(String tag, GpuTexture texture)
+    {
+        if (texture == null)
+        {
+            System.out.println("[BBS dump] " + tag + ": texture is null");
+
+            return;
+        }
+
+        int w = texture.getWidth(0);
+        int h = texture.getHeight(0);
+        int size = w * h * texture.getFormat().blockSize();
+        GpuBuffer buffer = BBSGpu.device().createBuffer(
+            () -> "bbs dump",
+            GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+            size
+        );
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        CommandEncoder encoder = BBSGpu.encoder();
+
+        encoder.copyTextureToBuffer(texture, buffer, 0, latch::countDown, 0);
+
+        try
+        {
+            if (!BBSGpu.submitAndAwait(encoder, latch, 5000))
+            {
+                System.out.println("[BBS dump] " + tag + ": read-back timed out (" + w + "x" + h + ")");
+
+                return;
+            }
+
+            java.io.File out = new java.io.File("/tmp/bbs-" + tag + ".raw");
+
+            try (GpuBufferSlice.MappedView mapped = buffer.map(true, false);
+                 java.io.FileOutputStream stream = new java.io.FileOutputStream(out))
+            {
+                java.nio.ByteBuffer data = mapped.data();
+                byte[] bytes = new byte[size];
+
+                data.position(0);
+                data.get(bytes);
+                stream.write(bytes);
+
+                /* A cheap summary alongside the pixels: a flat fill reads as min == max on every channel,
+                 * which is the difference between "the blit wrote nothing" and "the blit wrote the wrong
+                 * thing" in one line. */
+                int minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0, minA = 255, maxA = 0;
+
+                for (int i = 0; i + 3 < size; i += 4)
+                {
+                    int r = bytes[i] & 0xFF, g = bytes[i + 1] & 0xFF, b = bytes[i + 2] & 0xFF, a = bytes[i + 3] & 0xFF;
+
+                    minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+                    minG = Math.min(minG, g); maxG = Math.max(maxG, g);
+                    minB = Math.min(minB, b); maxB = Math.max(maxB, b);
+                    minA = Math.min(minA, a); maxA = Math.max(maxA, a);
+                }
+
+                System.out.println("[BBS dump] " + tag + " " + w + "x" + h + " -> " + out
+                    + " r[" + minR + ".." + maxR + "] g[" + minG + ".." + maxG + "]"
+                    + " b[" + minB + ".." + maxB + "] a[" + minA + ".." + maxA + "]");
+            }
+        }
+        catch (java.io.IOException e)
+        {
+            System.out.println("[BBS dump] " + tag + ": writing failed: " + e);
+        }
+        finally
+        {
+            buffer.close();
+        }
+    }
+
+    /** How many capture frames have been dumped; see {@link #dbgDumpTexture}. */
+    private static int dumpFrames;
+
+    /** Whether the film panel is the panel being looked at — the one that owns the snapshot preview. */
+    private static boolean filmPanelShowing()
+    {
+        UIBaseMenu currentMenu = UIScreen.getCurrentMenu();
+
+        return currentMenu instanceof UIDashboard dashboard
+            && dashboard.getPanels().panel instanceof UIFilmPanel;
     }
 
     private static void captureAndRestore()
@@ -1134,7 +1278,33 @@ public class BBSRendering
                  * snapshot's or something else. */
                 if (!Boolean.getBoolean("bbs.skipSnapshot"))
                 {
+                    /* Dump the SOURCE of the blit on the same frame it is copied: a flat snapshot next to a
+                     * good framebuffer is the blit's fault, a flat framebuffer is not. Keyed on the state
+                     * that matters (a film editor is open) rather than on a bare frame counter, so it cannot
+                     * run out before the editor is ever reached. */
+                    boolean dump = Boolean.getBoolean("bbs.dumpSnapshot") && filmPanelShowing() && dumpFrames < 3;
+
+                    if (Boolean.getBoolean("bbs.dumpSnapshot") && filmPanelShowing() && dumpFrames == 3)
+                    {
+                        dumpFrames = 4;
+                        System.out.println("[BBS dump] three frames dumped; further dumps off");
+                    }
+
+                    if (dump)
+                    {
+                        dumpFrames++;
+                        System.out.println("[BBS dump] #" + dumpFrames + " framebuffer before blit:"
+                            + " fb=" + framebuffer.width + "x" + framebuffer.height
+                            + " snap=" + w + "x" + h + " menu=" + menuOpen);
+                        dbgDumpTexture("fb-" + dumpFrames, framebuffer.getColorTexture());
+                    }
+
                     blitIntoSnapshot(texture, w, h);
+
+                    if (dump)
+                    {
+                        dbgDumpTexture("snap-" + dumpFrames, texture.gpuTexture);
+                    }
 
                     if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 60 == 0)
                     {
