@@ -569,6 +569,26 @@ public class BBSRendering
             return;
         }
 
+        /* Redirect the world render into our export target ONLY when the interface is not going to share it.
+         *
+         * canReplaceFramebuffer() deliberately excludes the case of a BBS editor being open ("Excluded while a
+         * BBS editor is open so the film panel's own UI keeps rendering at the real window size"), but the swap
+         * itself did not honour that: with customSize on it reassigned mc.framebuffer for the whole frame. The
+         * interface is laid out for the WINDOW — menu=1280x675 GUI units against window=2560x1350, i.e. 2560x1350
+         * physical pixels at the GUI scale of 2 — while this target is sized in export pixels
+         * (getVideoWidth x getVideoHeight). Sharing the two is what produced the two reported symptoms together:
+         * the interface drawn small into the top-left, and buttons that answer only at their full-screen
+         * position. The layout and the hit test both used the window while the pixels landed in the smaller
+         * target.
+         *
+         * With an editor open the world renders at window size instead. That gives up the export resolution
+         * while an editor is visible — which is what the exclusion in canReplaceFramebuffer() already accepts —
+         * and keeps the interface on the framebuffer it was laid out for. */
+        if (UIScreen.getCurrentMenu() != null)
+        {
+            return;
+        }
+
         toggleFramebuffer(true);
     }
 
@@ -854,32 +874,27 @@ public class BBSRendering
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
         if (customSize)
         {
-            /* With a BBS editor open the interface is drawn through this same framebuffer, and the interface is
-             * laid out for the WINDOW — measured, menu=427x240 GUI units against window=854x480, i.e. 854x480
-             * physical pixels at the GUI scale of 2 — while {@link #framebuffer} may still be sized for the world
-             * (getVideoWidth x getVideoHeight, 504x248 here). Left that way the interface renders into the
-             * smaller target and is composited into the top-left of the window, and because the layout, the
-             * projection and the hit test use the window size while the pixels only ever land in that corner,
-             * every button misses the cursor.
-             *
-             * The size is stale because nothing in this path ever sets it: setCustomSize only records a size,
-             * and toggleFramebuffer(true) sizes the framebuffer while canReplaceFramebuffer() still holds — i.e.
-             * in WORLD pixels. Whatever the world left behind is what an editor would inherit, so bring it up to
-             * the window before the interface is drawn into it.
-             *
-             * No snapshot in this case, and that is not an omission: the interface is not part of a world
-             * recording, and the preview block draws the snapshot the world frames left behind. This is the same
-             * exclusion toggleFramebuffer(false) makes for the film panel. */
+            /* Skipped while a BBS editor is open, for the reason onWorldRenderBegin() documents: the interface
+             * and the world export must not share one render target, and the editor draws at window size. There
+             * is nothing to snapshot then either — the interface is not part of a world recording, and the preview
+             * block shows whatever the world frames captured. */
             if (UIScreen.getCurrentMenu() != null)
             {
-                Minecraft mc = Minecraft.getInstance();
+                toggleFramebuffer(false);
 
-                if (framebuffer.width != mc.getWindow().getWidth() || framebuffer.height != mc.getWindow().getHeight())
+                renderRecordingOverlay();
+
+                if (pendingExportResolutionAction != null)
                 {
-                    resizeFramebuffer(framebuffer);
+                    Runnable action = pendingExportResolutionAction;
+
+                    pendingExportResolutionAction = null;
+                    Minecraft.getInstance().execute(action);
                 }
+
+                return;
             }
-            else
+
             {
                 /* The snapshot IS the recording, so it is sized in video pixels — not in the physical pixels the
                  * world was just rendered at. On a HiDPI display those are not the same number: WindowMixin reports
