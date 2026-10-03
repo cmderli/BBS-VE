@@ -277,6 +277,45 @@ public class Texture
     }
 
     /** Allocate (or reallocate) the GPU texture, discarding whatever it held. */
+    /**
+     * Whether this Texture borrowed its {@link GpuTexture} from somewhere else.
+     *
+     * <p>Set by {@link #wrap}, and it is what stops {@link #delete} from closing a texture this object did not
+     * create — the client's main colour attachment, for instance. Without it, reading the framebuffer back for a
+     * screenshot would destroy the framebuffer.</p>
+     */
+    private boolean borrowed;
+
+    /**
+     * Adopt an existing {@link GpuTexture} so it can be read back through this class, without taking ownership.
+     *
+     * <p>The engine's read is {@code copyTextureToBuffer}, which needs a texture rather than a bound framebuffer
+     * name, so the few places that used to {@code glReadPixels} off whatever was bound have to hand the texture
+     * over instead. Call {@link #unwrap} when done.</p>
+     */
+    public void wrap(GpuTexture texture)
+    {
+        this.borrowed = true;
+        this.gpuTexture = texture;
+        this.view = BBSGpu.device().createTextureView(texture);
+        this.width = texture.getWidth(0);
+        this.height = texture.getHeight(0);
+        this.format = TextureFormat.from(texture.getFormat());
+    }
+
+    /** Release a {@link #wrap}ed texture: the view is ours to close, the texture is not. */
+    public void unwrap()
+    {
+        if (this.view != null)
+        {
+            this.view.close();
+        }
+
+        this.view = null;
+        this.gpuTexture = null;
+        this.borrowed = false;
+    }
+
     private void allocate(int width, int height, int mipLevels)
     {
         BBSGpu.assertOnRenderThread();
@@ -586,11 +625,14 @@ public class Texture
             this.view = null;
         }
 
-        if (this.gpuTexture != null)
+        /* A borrowed texture belongs to whoever wrapped it (see wrap); closing it here would take out the
+         * client's framebuffer when a screenshot reads it back. */
+        if (this.gpuTexture != null && !this.borrowed)
         {
             this.gpuTexture.close();
-            this.gpuTexture = null;
         }
+
+        this.gpuTexture = null;
 
         /* The sampler is owned by the vanilla SamplerCache, which closes it with the device. */
         this.sampler = null;

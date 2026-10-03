@@ -1,13 +1,11 @@
 package mchorse.bbs_mod.utils;
 
-import com.mojang.blaze3d.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
-import mchorse.bbs_mod.graphics.PixelPackState;
 import mchorse.bbs_mod.graphics.texture.Texture;
 import mchorse.bbs_mod.ui.utils.UIUtils;
 import mchorse.bbs_mod.utils.resources.Pixels;
-import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.GL11;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.logging.LogUtils;
+import net.minecraft.client.Minecraft;
 
 import java.awt.Image;
 import java.awt.Toolkit;
@@ -19,7 +17,7 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
 
 /**
  * Screenshot recorder
@@ -45,68 +43,96 @@ public class ScreenshotRecorder
         return this.screenshots;
     }
 
+    /**
+     * Take a screenshot from a texture and save it to the designated file.
+     *
+     * <p>Device-neutral since the 26.2 port: this used to read the texture back with
+     * {@code glGetTexImage} through the OpenGL backend's own name, which does not exist on Vulkan.
+     * {@link Texture#pixelsFromTexture(Texture)} is the engine's replacement — it records a
+     * {@code copyTextureToBuffer} and blocks on the encoder's completion callback — and it works on both
+     * backends.</p>
+     */
     public void takeScreenshot(File output, Texture texture)
     {
-        /* 26.2: a Texture has no GL name any more, so the still-raw-GL read-back below is fed the
-         * OpenGL backend's own name; an unsized snapshot answers 0. Replacing that read-back with
-         * Texture.pixelsFromTexture(Texture) is what removes this cast. */
-        this.takeScreenshot(output, texture.gpuTexture instanceof GlTexture gl ? gl.glId() : 0, texture.width, texture.height);
-    }
+        Pixels pixels = Texture.pixelsFromTexture(texture);
 
-    /**
-     * Take a screenshot from a texture and save it to designated file
-     */
-    public void takeScreenshot(File output, int texture, int width, int height)
-    {
-        FloatBuffer pixelData = BufferUtils.createFloatBuffer(width * height * 4);
-
-        GlStateManager._bindTexture(texture);
-
-        /* Pinned pack state: a leftover GL_PACK_ROW_LENGTH would stride these rows past the end
-         * of the buffer (see PixelPackState). */
-        try (PixelPackState pack = PixelPackState.push())
+        if (pixels == null)
         {
-            GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_FLOAT, pixelData);
+            LogUtils.getLogger().warn("[BBS] screenshot: the snapshot could not be read back");
+
+            return;
         }
 
-        pixelData.rewind();
-
-        this.saveScreenshot(pixelData, output, width, height);
+        try
+        {
+            this.saveScreenshot(pixels.getBuffer(), output, pixels.width, pixels.height);
+        }
+        finally
+        {
+            pixels.delete();
+        }
     }
 
     /**
-     * Take a screenshot from the screen and save it to designated file
+     * Take a screenshot of the framebuffer the game is drawing into, and save it to the designated file.
+     *
+     * <p>This used {@code glReadPixels} on whatever framebuffer happened to be bound, which has no meaning on
+     * Vulkan. The engine's read is {@code copyTextureToBuffer}, which needs a texture, so the client's main
+     * colour attachment is wrapped just for the call and read through
+     * {@link Texture#readRegion(int, int, int, int)} — the same route
+     * {@code Texture.pixelsFromTexture} takes for a whole texture.</p>
      */
     public void takeScreenshot(File output, int width, int height)
     {
-        FloatBuffer pixelData = BufferUtils.createFloatBuffer(width * height * 4);
+        RenderTarget target = Minecraft.getInstance().gameRenderer.mainRenderTarget();
 
-        try (PixelPackState pack = PixelPackState.push())
+        if (target == null || target.getColorTexture() == null || width <= 0 || height <= 0)
         {
-            GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_FLOAT, pixelData);
+            return;
         }
 
-        pixelData.rewind();
+        Texture wrapper = new Texture();
 
-        this.saveScreenshot(pixelData, output, width, height);
+        wrapper.wrap(target.getColorTexture());
+
+        Pixels pixels = wrapper.readRegion(0, 0, width, height);
+
+        if (pixels == null)
+        {
+            LogUtils.getLogger().warn("[BBS] screenshot: the framebuffer could not be read back");
+
+            return;
+        }
+
+        try
+        {
+            this.saveScreenshot(pixels.getBuffer(), output, pixels.width, pixels.height);
+        }
+        finally
+        {
+            pixels.delete();
+            wrapper.unwrap();
+        }
     }
 
-    private void saveScreenshot(FloatBuffer pixelData, File output, int width, int height)
+    private void saveScreenshot(ByteBuffer pixelData, File output, int width, int height)
     {
-        /* Pixel data must be converted first from floats to 32 bit hex */
+        /* RGBA8 straight to packed ARGB. The old float path multiplied by 255 and then truncated, which is
+         * exactly what an 8-bit read gives, so no conversion is lost — and the engine's read-back is 8-bit. */
+        pixelData.rewind();
+
         int[] pixels = new int[width * height];
 
         for (int y = 0; y < height; ++y)
         {
             for (int x = 0; x < width; ++x)
             {
-                float r = pixelData.get() * 255;
-                float g = pixelData.get() * 255;
-                float b = pixelData.get() * 255;
-                float a = pixelData.get() * 255;
-                int i = ((height - 1) - y) * width + x;
+                int r = pixelData.get() & 0xFF;
+                int g = pixelData.get() & 0xFF;
+                int b = pixelData.get() & 0xFF;
+                int a = pixelData.get() & 0xFF;
 
-                pixels[i] = ((int) a << 24) + ((int) r << 16) + ((int) g << 8) + (int) b;
+                pixels[y * width + x] = (a << 24) | (r << 16) | (g << 8) | b;
             }
         }
 

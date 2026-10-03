@@ -241,7 +241,7 @@ public class UIFilmPreview extends UIElement
                      * glGetTexImage) is fed the OpenGL backend's own name; an unsized snapshot answers
                      * 0. Replacing that read-back with Texture.pixelsFromTexture(Texture) is what
                      * removes this cast. */
-                    recorder.takeScreenshot(output, texture.gpuTexture instanceof GlTexture gl ? gl.glId() : 0, w, h);
+                    recorder.takeScreenshot(output, texture);
                     this.panel.restorePreviewSize();
 
                     UIBaseMenu currentMenu = UIScreen.getCurrentMenu();
