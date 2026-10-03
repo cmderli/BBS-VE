@@ -47,6 +47,8 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.MainTarget;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -1007,9 +1009,73 @@ public class BBSRendering
     private static GpuTextureView snapshotSourceView;
     private static GpuTexture snapshotSourceTexture;
 
+
+    /**
+     * Diagnostic: read a few texels from a texture and print the first, to tell a black source from a failed
+     * copy. One-shot per call because each read blocks on the GPU.
+     */
+    private static void dbgSamplePixels(String what, GpuTexture texture)
+    {
+        if (texture == null)
+        {
+            System.out.println("[BBS px] " + what + ": texture is null");
+
+            return;
+        }
+
+        int w = Math.min(2, texture.getWidth(0));
+        int h = Math.min(2, texture.getHeight(0));
+        GpuBuffer buffer = BBSGpu.device().createBuffer(
+            () -> "bbs px probe",
+            GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+            (long) w * h * texture.getFormat().blockSize()
+        );
+
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+
+        BBSGpu.encoder().copyTextureToBuffer(texture, buffer, 0, latch::countDown, 0);
+
+        try
+        {
+            if (!latch.await(2, java.util.concurrent.TimeUnit.SECONDS))
+            {
+                System.out.println("[BBS px] " + what + ": read-back timed out");
+
+                return;
+            }
+
+            try (GpuBufferSlice.MappedView mapped = buffer.map(true, false))
+            {
+                java.nio.ByteBuffer data = mapped.data();
+
+                data.position(0);
+
+                int r = data.get() & 0xFF;
+                int g = data.get() & 0xFF;
+                int b = data.get() & 0xFF;
+                int a = data.get() & 0xFF;
+
+                System.out.println("[BBS px] " + what + " = rgba(" + r + "," + g + "," + b + "," + a + ")");
+            }
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
+        finally
+        {
+            buffer.close();
+        }
+    }
+
     private static void captureAndRestore()
     {
         dbgEnter("captureAndRestore");
+
+        if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 150 == 0 && customSize && framebuffer != null)
+        {
+            dbgSamplePixels("framebuffer", framebuffer.getColorTexture());
+        }
         /* Snapshot only when we actually redirected the world into our framebuffer this frame (film panel
          * open / recording). Outside that, mc.framebuffer was never swapped, so our framebuffer holds nothing
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
@@ -1074,6 +1140,11 @@ public class BBSRendering
                         System.out.println("[BBS snap] texAfter=" + texture.width + "x" + texture.height
                             + " valid=" + texture.isValid()
                             + " view=" + (texture.view() != null));
+                    }
+
+                    if (Boolean.getBoolean("bbs.debugRecording") && dbgFrames % 150 == 0)
+                    {
+                        dbgSamplePixels("snapshot", texture.gpuTexture);
                     }
                 }
 
