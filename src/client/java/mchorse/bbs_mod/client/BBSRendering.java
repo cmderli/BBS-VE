@@ -404,32 +404,30 @@ public class BBSRendering
             return;
         }
 
-        /* Re-derive the window's cached GUI size after the resize.
-         *
-         * Window keeps guiScaledWidth/guiScaledHeight as FIELDS, written only by setGuiScale, which vanilla
-         * calls on a window resize. Resizing a render target does not touch them, so Minecraft.getWindow().
-         * getGuiScaledWidth() kept reporting the size that belonged to the previous framebuffer. Everything
-         * that lays the interface out reads that - UIScreen's width/height, and therefore the menu — while the
-         * projection and the mouse mapping use the live framebuffer and the live scale. The interface was
-         * consequently laid out for a fraction of the window and drawn into the top-left of it.
-         *
-         * Measured before this: framebuffer 854x480 gave guiScaled 427x240, and the dashboard occupied
-         * 1280x480 of a 2560x1350 window. Calling setGuiScale again recomputes both fields from the current
-         * framebufferWidth/framebufferHeight. */
         Minecraft mc = Minecraft.getInstance();
         int w = mc.getWindow().getWidth();
         int h = mc.getWindow().getHeight();
 
-        if (framebuffer.width == w && framebuffer.height == h)
+        if (framebuffer.width != w || framebuffer.height != h)
         {
-            return;
+            /* 1.21.11: Framebuffer.resize lost the legacy macOS flag arg. */
+            framebuffer.resize(w, h);
         }
 
-        /* 1.21.11: Framebuffer.resize lost the legacy macOS flag arg. */
-        framebuffer.resize(w, h);
-
-        /* Now that the target has its new size, make the window re-derive the GUI size that goes with it.
-         * See the note above for why the cached fields go stale. */
+        /* Re-derive the window's cached GUI size, ALWAYS - including when the target already had the right
+         * size.
+         *
+         * Window keeps guiScaledWidth/guiScaledHeight as FIELDS, written only by setGuiScale, and vanilla only
+         * calls that on a window resize. Resizing a render target never touches them, so
+         * Minecraft.getWindow().getGuiScaledWidth() keeps reporting a size that belonged to the previous
+         * framebuffer. Everything that lays the interface out reads those fields - UIScreen's width/height and
+         * therefore the menu - while the projection and the mouse mapping use the live framebuffer and the live
+         * scale. That is why the dashboard was laid out for a fraction of the window and drawn into the top-left
+         * of it.
+         *
+         * This must not sit behind the resize check. BBS binds getWidth/getHeight to the export size during the
+         * world phase, so the target is very often already the "right" size by this measure and the early return
+         * skipped the refresh exactly when it was needed. */
         mc.getWindow().setGuiScale(mc.getWindow().getGuiScale());
     }
 
