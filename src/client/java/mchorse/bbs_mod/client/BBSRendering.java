@@ -626,7 +626,6 @@ public class BBSRendering
      * same line the freeze investigation needs: it says the stage was ENTERED, so a stage that never prints
      * its exit line is the one that hung.</p>
      */
-    private static int pxProbe;
     private static long dbgT;
     private static int dbgFrames;
 
@@ -1049,76 +1048,6 @@ public class BBSRendering
 
 
     /**
-     * Diagnostic: read a few texels from a texture and print the first, to tell a black source from a failed
-     * copy. One-shot per call because each read blocks on the GPU.
-     */
-    private static void dbgSamplePixels(String what, GpuTexture texture)
-    {
-        if (texture == null)
-        {
-            System.out.println("[BBS px] " + what + ": texture is null");
-
-            return;
-        }
-
-        int w = Math.min(2, texture.getWidth(0));
-        int h = Math.min(2, texture.getHeight(0));
-        GpuBuffer buffer = BBSGpu.device().createBuffer(
-            () -> "bbs px probe",
-            GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
-            (long) w * h * texture.getFormat().blockSize()
-        );
-
-        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-
-        /* One submit is NOT enough on Vulkan - the completion callback is delivered by the backend's
-         * destruction queue, which only runs on a later submit, so blocking right after the first one
-         * guarantees the timeout. See BBSGpu#submitAndAwait. */
-        CommandEncoder encoder = BBSGpu.encoder();
-
-        encoder.copyTextureToBuffer(texture, buffer, 0, latch::countDown, 0);
-
-        if (!BBSGpu.submitAndAwait(encoder, latch, 5000))
-        {
-            System.out.println("[BBS px] " + what + ": read-back timed out");
-
-            return;
-        }
-
-        try
-        {
-            if (!latch.await(2, java.util.concurrent.TimeUnit.SECONDS))
-            {
-                System.out.println("[BBS px] " + what + ": read-back timed out");
-
-                return;
-            }
-
-            try (GpuBufferSlice.MappedView mapped = buffer.map(true, false))
-            {
-                java.nio.ByteBuffer data = mapped.data();
-
-                data.position(0);
-
-                int r = data.get() & 0xFF;
-                int g = data.get() & 0xFF;
-                int b = data.get() & 0xFF;
-                int a = data.get() & 0xFF;
-
-                System.out.println("[BBS px] " + what + " = rgba(" + r + "," + g + "," + b + "," + a + ")");
-            }
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-        }
-        finally
-        {
-            buffer.close();
-        }
-    }
-
-    /**
      * Diagnostic: write a whole texture out as raw RGBA8 rows (top row first) plus a one-line report, so the
      * film snapshot and the framebuffer it is blitted from can be LOOKED at instead of inferred.
      *
@@ -1217,10 +1146,6 @@ public class BBSRendering
     {
         dbgEnter("captureAndRestore");
 
-        if (Boolean.getBoolean("bbs.debugRecording") && pxProbe++ < 2 && customSize && framebuffer != null)
-        {
-            dbgSamplePixels("framebuffer", framebuffer.getColorTexture());
-        }
         /* Snapshot only when we actually redirected the world into our framebuffer this frame (film panel
          * open / recording). Outside that, mc.framebuffer was never swapped, so our framebuffer holds nothing
          * worth copying and the snapshot would just waste a per-frame GPU copy. */
@@ -1282,9 +1207,10 @@ public class BBSRendering
                      * good framebuffer is the blit's fault, a flat framebuffer is not. Keyed on the state
                      * that matters (a film editor is open) rather than on a bare frame counter, so it cannot
                      * run out before the editor is ever reached. */
-                    boolean dump = Boolean.getBoolean("bbs.dumpSnapshot") && filmPanelShowing() && dumpFrames < 3;
+                    boolean dumpWanted = Boolean.getBoolean("bbs.dumpSnapshot") && filmPanelShowing();
+                    boolean dump = dumpWanted && dumpFrames < 3;
 
-                    if (Boolean.getBoolean("bbs.dumpSnapshot") && filmPanelShowing() && dumpFrames == 3)
+                    if (dumpWanted && dumpFrames == 3)
                     {
                         dumpFrames = 4;
                         System.out.println("[BBS dump] three frames dumped; further dumps off");
@@ -1311,12 +1237,6 @@ public class BBSRendering
                         System.out.println("[BBS snap] texAfter=" + texture.width + "x" + texture.height
                             + " valid=" + texture.isValid()
                             + " view=" + (texture.view() != null));
-                    }
-
-                    if (Boolean.getBoolean("bbs.debugRecording") && pxProbe < 3)
-                    {
-                        pxProbe += 2;
-                        dbgSamplePixels("snapshot", texture.gpuTexture);
                     }
                 }
 
