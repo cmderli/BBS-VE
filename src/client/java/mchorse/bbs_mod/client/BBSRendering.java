@@ -5,6 +5,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import mchorse.bbs_mod.graphics.InverseView;
 import mchorse.bbs_mod.client.render.ScreenQuadPass;
+import mchorse.bbs_mod.mixin.client.WindowFramebufferAccessor;
 import mchorse.bbs_mod.graphics.gpu.BBSGpu;
 import mchorse.bbs_mod.graphics.gpu.BBSRenderPipelines;
 import mchorse.bbs_mod.BBSMod;
@@ -406,8 +407,12 @@ public class BBSRendering
         }
 
         Minecraft mc = Minecraft.getInstance();
-        int w = mc.getWindow().getWidth();
-        int h = mc.getWindow().getHeight();
+
+        /* The REAL framebuffer size, not Window.getWidth/Height - BBS overrides those to the export size while
+         * the world renders, and sizing a render target from them is what produced targets at 1280x720,
+         * 854x480 and 1279x718 in a 2560x1350 window, and an 854x480 GUI pass area with them. */
+        int w = ((WindowFramebufferAccessor) (Object) mc.getWindow()).bbs$getFramebufferWidth();
+        int h = ((WindowFramebufferAccessor) (Object) mc.getWindow()).bbs$getFramebufferHeight();
 
         if (framebuffer.width != w || framebuffer.height != h)
         {
@@ -478,8 +483,8 @@ public class BBSRendering
 
         if (toggleFramebuffer)
         {
-            int w = mc.getWindow().getWidth();
-            int h = mc.getWindow().getHeight();
+            int w = ((WindowFramebufferAccessor) (Object) mc.getWindow()).bbs$getFramebufferWidth();
+            int h = ((WindowFramebufferAccessor) (Object) mc.getWindow()).bbs$getFramebufferHeight();
 
             resizeExtraFramebuffers();
 
@@ -512,8 +517,8 @@ public class BBSRendering
              * the layout and the hit test use the window, the pixels only ever reached the smaller target. */
             if (clientFramebuffer != null)
             {
-                int w = mc.getWindow().getWidth();
-                int h = mc.getWindow().getHeight();
+                int w = ((WindowFramebufferAccessor) (Object) mc.getWindow()).bbs$getFramebufferWidth();
+                int h = ((WindowFramebufferAccessor) (Object) mc.getWindow()).bbs$getFramebufferHeight();
 
                 if (clientFramebuffer.width != w || clientFramebuffer.height != h)
                 {
