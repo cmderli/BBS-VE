@@ -98,6 +98,20 @@ public class PanelVideoExportSession extends VideoExportSession
     }
 
     @Override
+    protected void applyExportTarget()
+    {
+        /* The export owns the render target while it runs, so it sizes it here rather than trusting the
+         * preview: with an editor open the target is otherwise the preview block
+         * (UIFilmPanel.applyPreviewSizeToBBS), and the recorder reads the snapshot this target produces.
+         *
+         * Applied on every export, warm-up included, so the first captured frame is already the export
+         * size — and given back by teardown -> editor.restorePreviewSize(). The preview writer stands down
+         * for the duration on its own (applyPreviewSizeToBBS and resize() both check
+         * recorder.isExporting()). */
+        BBSRendering.setCustomSize(true, this.width, this.height);
+    }
+
+    @Override
     protected String getMovieName()
     {
         Film film = this.editor.getData();
@@ -116,8 +130,7 @@ public class PanelVideoExportSession extends VideoExportSession
     /**
      * Avoid overwriting a previous export - and, with it, hanging ffmpeg (whose default args
      * carry no {@code -y}): when a file with this base name already exists, append " (n)".
-     */
-    private static String uniqueName(File folder, String base)
+     */    private static String uniqueName(File folder, String base)
     {
         String candidate = base;
 

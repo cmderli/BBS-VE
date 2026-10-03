@@ -74,7 +74,15 @@ public class UIFilmRecorder extends UIElement
             return;
         }
 
-        this.session.start(duration, texture, texture.width, texture.height);
+        /* Sized by the video settings, not by the snapshot it happens to be handed.
+         *
+         * The snapshot is whatever the panel preview last asked the render target to be
+         * (UIFilmPanel.applyPreviewSizeToBBS), so taking the frame size from texture.width/height recorded
+         * every export from the panel at the preview block's resolution, whatever the video settings said.
+         * The session applies this size to the target itself on the way in
+         * (PanelVideoExportSession#applyExportTarget), so the snapshot follows from the next captured
+         * frame, and VideoRecorder's own size check stays satisfied. */
+        this.session.start(duration, texture, UIFilmPanel.getExportWidth(), UIFilmPanel.getExportHeight());
     }
 
     /**

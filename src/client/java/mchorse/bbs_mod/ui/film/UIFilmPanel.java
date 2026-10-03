@@ -826,25 +826,46 @@ public class UIFilmPanel extends UIDataDashboardPanel<Film> implements IFlightSu
         }
     }
 
+    /** The configured export width, rounded up to even — the encoders want even dimensions. */
+    public static int getExportWidth()
+    {
+        return even(BBSSettings.videoWidth.get());
+    }
+
+    /** The configured export height, rounded up to even. */
+    public static int getExportHeight()
+    {
+        return even(BBSSettings.videoHeight.get());
+    }
+
+    private static int even(int value)
+    {
+        value = Math.max(2, value);
+
+        return value % 2 == 0 ? value : value + 1;
+    }
+
     /**
      * Sets BBS fake window size to export resolution (from video settings).
      * Use when starting record, or when entering F1 fullscreen in film panel.
      */
     public static void applyExportSizeToBBS()
     {
-        /* Not while a BBS editor is open: there the target belongs to the panel preview, sized by
-         * applyPreviewSizeToBBS. Two writers with different values is what rebuilt the render target several
-         * times a second; leaving this one to the export gave the preview nothing to draw. */
-        if (UIScreen.getCurrentMenu() != null)
-        {
-            return;
-        }
-
-        int w = Math.max(2, BBSSettings.videoWidth.get());
-        int h = Math.max(2, BBSSettings.videoHeight.get());
-        if (w % 2 != 0) w++;
-        if (h % 2 != 0) h++;
-        BBSRendering.setCustomSize(true, w, h);
+        /* Writes even while a BBS editor is open, deliberately.
+         *
+         * The guard that used to be here — "the target belongs to the panel preview while an editor is
+         * open" — is only true while nothing is being exported, and the preview writer already yields in
+         * exactly that case: applyPreviewSizeToBBS and resize() both stand down while
+         * recorder.isExporting(), and the export paths hand the preview its size back through
+         * restorePreviewSize() when they finish. Refusing to write instead cost every export started from
+         * the panel its resolution: the recorder takes its frame size from the snapshot, the snapshot
+         * follows this size, so the record icon, the render queue and the screenshot action all recorded
+         * the preview block (1514x784 for a panel preview, whatever the video settings said) and the F1
+         * full-screen preview stayed at preview size as well.
+         *
+         * Every caller is a user action — start an export, take a screenshot, expand the preview — not
+         * per-frame work, so this cannot turn into the two-writers churn the guard was added for. */
+        BBSRendering.setCustomSize(true, getExportWidth(), getExportHeight());
     }
 
     /**
