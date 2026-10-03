@@ -48,6 +48,7 @@ import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.MainTarget;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.state.GameRenderState;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import net.minecraft.client.Camera;
@@ -431,6 +432,39 @@ public class BBSRendering
         mc.getWindow().setGuiScale(mc.getWindow().getGuiScale());
     }
 
+    /**
+     * Keep vanilla's cached window size in step with the render target BBS just resized.
+     *
+     * <p>GameRenderer.render does this, in bytecode:</p>
+     *
+     * <pre>
+     * if (windowRenderState.width != mainRenderTarget.width || windowRenderState.height != mainRenderTarget.height)
+     *     this.resize(windowRenderState.width, windowRenderState.height);
+     * </pre>
+     *
+     * <p>So it notices the disagreement and then resizes the target back to the CACHED size rather than to the
+     * target's own. BBS resizes its render targets directly (the world/export target, and the client target on
+     * re-bind), so the cache holds whatever the size was before, and the next frame silently undoes the resize.
+     * That is what kept the interface in a smaller area than the window even after the layout, the projection and
+     * the bound target had all been measured correct.</p>
+     */
+    private static void syncWindowRenderState(RenderTarget target)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        GameRenderState state = mc.gameRenderer.gameRenderState();
+
+        if (state != null && state.windowRenderState != null)
+        {
+            state.windowRenderState.width = target.width;
+            state.windowRenderState.height = target.height;
+        }
+    }
+
     public static void toggleFramebuffer(boolean toggleFramebuffer)
     {
         if (toggleFramebuffer == BBSRendering.toggleFramebuffer)
@@ -485,6 +519,8 @@ public class BBSRendering
                 {
                     clientFramebuffer.resize(w, h);
                 }
+
+                syncWindowRenderState(clientFramebuffer);
             }
 
             reassignFramebuffer(clientFramebuffer);

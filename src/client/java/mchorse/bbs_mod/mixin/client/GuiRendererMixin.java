@@ -2,6 +2,7 @@ package mchorse.bbs_mod.mixin.client;
 
 import com.mojang.blaze3d.systems.RenderPass;
 import mchorse.bbs_mod.BBSModClient;
+import mchorse.bbs_mod.client.BBSRendering;
 import mchorse.bbs_mod.client.render.special.BbsFormGuiElementRenderer;
 import mchorse.bbs_mod.ui.utils.InterfaceBlur;
 import net.minecraft.client.Minecraft;
@@ -34,6 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Mixin(GuiRenderer.class)
 public class GuiRendererMixin
 {
+    /** One-shot counter for -Dbbs.debugProjection. */
+    private static int projProbe;
+
     /** One-shot guard for the opt-in scissor diagnostic (see {@code -Dbbs.debugScissor=true}). */
     private static final AtomicBoolean WARNED = new AtomicBoolean();
 
@@ -79,6 +83,15 @@ public class GuiRendererMixin
         }
 
         Window window = Minecraft.getInstance().getWindow();
+
+        if (Boolean.getBoolean("bbs.debugProjection") && projProbe++ < 6)
+        {
+            System.out.println("[BBS proj] scale=" + scale
+                + " window.getWidth/Height=" + window.getWidth() + "x" + window.getHeight()
+                + " -> ortho=" + (window.getWidth() / scale) + "x" + (window.getHeight() / scale)
+                + " vanillaArgs=" + width + "x" + height
+                + " canReplace=" + BBSRendering.canReplaceFramebuffer());
+        }
 
         projection.setupOrtho(zNear, zFar, window.getWidth() / scale, window.getHeight() / scale, invertY);
     }
